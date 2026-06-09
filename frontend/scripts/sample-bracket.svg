@@ -1,0 +1,9 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="120mm" height="80mm" viewBox="0 0 120 80">
+  <g id="cut">
+    <rect x="5" y="5" width="110" height="70" rx="8"/>
+    <circle cx="25" cy="25" r="6"/>
+    <circle cx="95" cy="25" r="6"/>
+    <path d="M 40 50 L 80 50 A 10 10 0 0 1 80 70 L 40 70 Q 30 60 40 50 Z"/>
+  </g>
+  <text x="10" y="40">label</text>
+</svg>

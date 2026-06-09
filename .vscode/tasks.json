@@ -1,0 +1,33 @@
+{
+  "version": "2.0.0",
+  "tasks": [
+    {
+      "label": "build-backend",
+      "type": "process",
+      "command": "dotnet",
+      "args": ["build", "${workspaceFolder}/backend/backend.csproj"],
+      "problemMatcher": "$msCompile"
+    },
+    {
+      "label": "start-frontend",
+      "type": "shell",
+      "command": "npm run dev",
+      "options": { "cwd": "${workspaceFolder}/frontend" },
+      "isBackground": true,
+      // Background problem matcher so VS Code knows when Vite is "ready" and
+      // can proceed to launch the browser (instead of waiting forever).
+      "problemMatcher": {
+        "owner": "vite",
+        "pattern": {
+          "regexp": "."
+        },
+        "background": {
+          "activeOnStart": true,
+          "beginsPattern": "VITE",
+          "endsPattern": "Local:.*"
+        }
+      },
+      "presentation": { "reveal": "silent", "panel": "dedicated" }
+    }
+  ]
+}

@@ -1,6 +1,7 @@
 using Backend.Cam;
 using Backend.Import;
 using Backend.Models;
+using Backend.Post;
 using Backend.Services;
 
 namespace Backend.Api;
@@ -198,6 +199,42 @@ public static class ProjectApi
             return Results.Ok(ToToolpathDto(toolpath));
         });
 
+        // --- post-processing (G-code) --------------------------------------
+
+        // Available post-processors (pluggable; laser/vinyl posts join later).
+        app.MapGet("/api/posts", (PostProcessorRegistry posts) =>
+            Results.Ok(posts.All.Select(p => new PostProcessorDto(
+                p.Id, p.DisplayName, p.Description, p.FileExtension,
+                p.Id == posts.Default.Id))));
+
+        // Toolpath → G-code via the chosen (or default) post-processor.
+        group.MapPost("/gcode", (GcodeRequest? request, PostProcessorRegistry posts, ProjectService projects) =>
+        {
+            IPostProcessor? post = request?.PostId is { Length: > 0 } id
+                ? posts.Find(id)
+                : posts.Default;
+            if (post is null)
+                return Results.BadRequest(new { error = $"Unknown post-processor '{request!.PostId}'." });
+
+            return Results.Ok(projects.With(p =>
+            {
+                var toolpath = CamEngine.Generate(p, p.Cam);
+                var program = post.Generate(toolpath, p);
+                // Rapid stats measured from the work origin — that's where the
+                // generated program starts and parks.
+                var origin = GrblPlasmaPostProcessor.OriginPoint(p.Table);
+                return new GcodeResultDto(
+                    post.Id,
+                    $"{SafeFileName(p.Name)}{post.FileExtension}",
+                    program.ToText(),
+                    program.Lines.Count,
+                    toolpath.Cuts.Count,
+                    Math.Round(toolpath.TotalCutLengthMm, 2),
+                    Math.Round(toolpath.TotalRapidLengthMm(origin), 2),
+                    program.Warnings);
+            }));
+        });
+
         // Save: the whole project (settings + geometry) as one JSON file.
         group.MapGet("/export", (ProjectService projects) =>
         {
@@ -285,6 +322,21 @@ public static class ProjectApi
     public sealed record CreatePartRequest(Guid FileId);
 
     public sealed record UpdatePartRequest(double? X, double? Y, double? RotationDeg);
+
+    public sealed record PostProcessorDto(
+        string Id, string DisplayName, string Description, string FileExtension, bool IsDefault);
+
+    public sealed record GcodeRequest(string? PostId);
+
+    public sealed record GcodeResultDto(
+        string PostId,
+        string FileName,
+        string Gcode,
+        int LineCount,
+        int CutCount,
+        double TotalCutLengthMm,
+        double TotalRapidLengthMm,
+        IReadOnlyList<string> Warnings);
 
     private static double NormalizeDeg(double deg)
     {

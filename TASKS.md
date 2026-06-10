@@ -94,7 +94,17 @@ them — one focused task at a time gives the best results. Tick the box when do
 > Output a NEUTRAL toolpath model (controller-agnostic), per the architecture. Add unit
 > tests for the offsetting and ordering logic. No G-code dialect yet. Stop and summarize.
 
-### [ ] Task 4 — Pluggable post-processor + GRBL output + G-code preview
+### [x] Task 4 — Pluggable post-processor + GRBL output + G-code preview
+<!-- Done: backend/Post/. IPostProcessor (Id/DisplayName/FileExtension + Generate(toolpath,
+     project) → GcodeProgram) + PostProcessorRegistry; new dialect = one DI registration,
+     CAM untouched. GrblPlasmaPostProcessor: G21/G90/G17/G94 preamble, safety M5 before
+     any motion, per cut G0→M3 S1000→G4 pierce dwell→G1+F→M5, work-origin shift per
+     TableOrigin (axes stay Y-up; flips are machine $3 config), invariant-culture numbers,
+     park at origin + M2. Cut/pierce heights emitted as header comments only — Z/THC words
+     deferred to machine control (M3). REST: GET /api/posts, POST /api/project/gcode
+     (runs CAM + post, returns gcode/stats/warnings/filename). Frontend: G-code card —
+     generate, stats, warnings, monospace preview, download .nc. 12 new unit tests
+     (64 total). Deferred: post-specific options UI (e.g. S-value, end-of-job position). -->
 **Paste this:**
 > Read the plan and CLAUDE.md. Add the post-processor layer:
 > - Define a `IPostProcessor` interface that turns the neutral toolpath into G-code.

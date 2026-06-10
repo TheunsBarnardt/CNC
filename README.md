@@ -9,7 +9,10 @@ serial connection.
 > machine**: any machine running GRBL/grblHAL is a target.
 
 ## Status
-**Tasks 0–3 complete.** The app now has the project, import, placement, and CAM foundation:
+**Tasks 0–4 complete.** The app now goes from imported art to downloadable G-code:
+- Pluggable post-processor layer: `IPostProcessor` turns the neutral toolpath into a
+  controller dialect. GRBL plasma post included (M3/M5 torch, G4 pierce dwell, work-origin
+  aware, mm absolute). Frontend G-code panel: generate, preview, download `.nc`.
 - Plasma CAM engine (backend, Clipper2): cut-side classification (outer/hole/on-line),
   kerf compensation, line/arc lead-in/out with waste-side pierces on longest segments,
   inner-before-outer cut ordering with nearest-neighbor rapids — emitted as a neutral,
@@ -26,7 +29,8 @@ serial connection.
 - Save/load the whole project (settings + geometry) as a single JSON file.
 - Live backend health + machine heartbeat (fake connection) in the header.
 
-No viewport or toolpaths yet — see `TASKS.md` for the build sequence. Planning docs:
+Next up: toolpath simulation, then material profiles complete Milestone 1 — see
+`TASKS.md` for the build sequence. Planning docs:
 - **`PLASMA_CAM_PLAN.md`** — full design doc (vision, scope, stack, milestones, architecture). Source of truth.
 - **`CLAUDE.md`** — conventions and guardrails for Claude Code.
 - **`TASKS.md`** — the build sequence with ready-to-paste prompts.

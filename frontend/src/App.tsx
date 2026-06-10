@@ -11,6 +11,7 @@ import {
 import { Separator } from "@/components/ui/separator";
 import { ImportDropzone } from "@/components/ImportDropzone";
 import { FileListPanel } from "@/components/FileListPanel";
+import { GcodePanel } from "@/components/GcodePanel";
 import { ProjectSettingsCard } from "@/components/ProjectSettingsCard";
 import { StatusBar } from "@/components/StatusBar";
 import { Viewport } from "@/components/Viewport";
@@ -244,6 +245,18 @@ function App() {
               {project && (
                 <ProjectSettingsCard project={project} onUpdate={updateSettings} />
               )}
+            </CardContent>
+          </Card>
+
+          <Card>
+            <CardHeader className="pb-3">
+              <CardTitle className="text-base">G-code</CardTitle>
+              <CardDescription>
+                Toolpath → GRBL via the selected post-processor
+              </CardDescription>
+            </CardHeader>
+            <CardContent>
+              <GcodePanel hasParts={(project?.parts.length ?? 0) > 0} />
             </CardContent>
           </Card>
         </aside>

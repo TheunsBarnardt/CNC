@@ -5,6 +5,7 @@ using Backend.Import;
 using Backend.Import.Dxf;
 using Backend.Import.Svg;
 using Backend.Machine;
+using Backend.Post;
 using Backend.Services;
 
 var builder = WebApplication.CreateBuilder(args);
@@ -41,6 +42,11 @@ builder.Services.AddSingleton<ProjectService>();
 builder.Services.AddSingleton<IFileImporter, SvgImporter>();
 builder.Services.AddSingleton<IFileImporter, DxfImporter>();
 builder.Services.AddSingleton<FileImportService>();
+
+// Post-processors: neutral toolpath → controller dialect. Pluggable — a new
+// dialect (laser, vinyl, ...) is one IPostProcessor registration here.
+builder.Services.AddSingleton<IPostProcessor, GrblPlasmaPostProcessor>();
+builder.Services.AddSingleton<PostProcessorRegistry>();
 
 builder.Services.ConfigureHttpJsonOptions(options =>
     options.SerializerOptions.Converters.Add(new JsonStringEnumConverter()));

@@ -73,6 +73,27 @@ export interface ImportResult {
   file: FileSummary | null;
 }
 
+/** A registered post-processor (GET /api/posts). */
+export interface PostProcessorInfo {
+  id: string;
+  displayName: string;
+  description: string;
+  fileExtension: string;
+  isDefault: boolean;
+}
+
+/** Result of POST /api/project/gcode. */
+export interface GcodeResult {
+  postId: string;
+  fileName: string;
+  gcode: string;
+  lineCount: number;
+  cutCount: number;
+  totalCutLengthMm: number;
+  totalRapidLengthMm: number;
+  warnings: string[];
+}
+
 async function json<T>(res: Response): Promise<T> {
   if (!res.ok) {
     let message = `${res.status} ${res.statusText}`;
@@ -158,6 +179,16 @@ export const projectApi = {
     fetch(`${BACKEND_URL}/api/project/parts/${id}`, { method: "DELETE" }).then(
       (r) => json<ProjectDto>(r),
     ),
+
+  listPosts: () =>
+    fetch(`${BACKEND_URL}/api/posts`).then((r) => json<PostProcessorInfo[]>(r)),
+
+  generateGcode: (postId?: string) =>
+    fetch(`${BACKEND_URL}/api/project/gcode`, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ postId: postId ?? null }),
+    }).then((r) => json<GcodeResult>(r)),
 
   exportUrl: `${BACKEND_URL}/api/project/export`,
 

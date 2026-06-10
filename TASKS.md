@@ -132,6 +132,26 @@ them — one focused task at a time gives the best results. Tick the box when do
 > - Persist profiles with the app (and optionally export/import).
 > This completes Milestone 1. Stop and summarize what M1 now does end-to-end.
 
+### [ ] Task 6b — Workspace UX alignment with xTool Studio
+*Reference: the xTool Studio Basics course (https://support.xtool.com/academy/course?id=6)
+and desktop UI overview (https://support.xtool.com/article/2409). Goal: the app should
+feel familiar to xTool/XCS users — same workspace anatomy, our CAM underneath.*
+**Paste this:**
+> Read the plan and CLAUDE.md. Rework the workspace layout to follow xTool Studio's
+> anatomy (see the reference links in TASKS.md Task 6b) without changing any CAM/backend
+> behavior:
+> - Left sidebar: creation/import tools (import; basic shapes and text can be stubs or
+>   deferred — flag, don't silently expand scope).
+> - Floating editing toolbar when a part is selected: precise X/Y/size/rotation inputs,
+>   align, mirror, stacking — replacing/absorbing the current top-of-canvas button row.
+> - Right panel: device/connection status on top, then per-object processing parameters
+>   (cut settings, material profile) — the current Table/CAM/G-code cards reorganized
+>   into this flow.
+> - Bottom bar: zoom controls + canvas options (grid toggle, light/dark canvas).
+> - Processing preview as its own page/mode (ties into the Task 5 simulation) with
+>   estimated processing time.
+> Keep it one reviewable task: layout + interaction reshuffle only. Stop and summarize.
+
 ---
 
 ## Milestone 2 — Auto-Nesting

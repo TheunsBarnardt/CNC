@@ -73,6 +73,30 @@ export interface ImportResult {
   file: FileSummary | null;
 }
 
+export type CutSide = "Outside" | "Inside" | "OnLine";
+
+/** One torch-on motion from POST /api/project/toolpath (mirrors CutDto). */
+export interface ToolpathCut {
+  partId: string;
+  sourcePathId: string;
+  layer: string | null;
+  side: CutSide;
+  closed: boolean;
+  leadInPointCount: number;
+  leadOutPointCount: number;
+  pierceDelayS: number;
+  feedRateMmMin: number;
+  cutLengthMm: number;
+  points: [number, number][];
+}
+
+export interface ToolpathResult {
+  cuts: ToolpathCut[];
+  totalCutLengthMm: number;
+  totalRapidLengthMm: number;
+  warnings: string[];
+}
+
 /** A registered post-processor (GET /api/posts). */
 export interface PostProcessorInfo {
   id: string;
@@ -178,6 +202,11 @@ export const projectApi = {
   deletePart: (id: string) =>
     fetch(`${BACKEND_URL}/api/project/parts/${id}`, { method: "DELETE" }).then(
       (r) => json<ProjectDto>(r),
+    ),
+
+  generateToolpath: () =>
+    fetch(`${BACKEND_URL}/api/project/toolpath`, { method: "POST" }).then((r) =>
+      json<ToolpathResult>(r),
     ),
 
   listPosts: () =>

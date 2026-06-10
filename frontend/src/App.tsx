@@ -13,8 +13,10 @@ import { ImportDropzone } from "@/components/ImportDropzone";
 import { FileListPanel } from "@/components/FileListPanel";
 import { GcodePanel } from "@/components/GcodePanel";
 import { ProjectSettingsCard } from "@/components/ProjectSettingsCard";
+import { SimulationBar } from "@/components/SimulationBar";
 import { StatusBar } from "@/components/StatusBar";
 import { Viewport } from "@/components/Viewport";
+import { buildSimulation, type Simulation } from "@/lib/simulation";
 import {
   projectApi,
   type FileGeometry,
@@ -32,6 +34,8 @@ function App() {
   const [error, setError] = useState<string | null>(null);
   const [importing, setImporting] = useState(false);
   const [importErrors, setImportErrors] = useState<string[]>([]);
+  const [simulation, setSimulation] = useState<Simulation | null>(null);
+  const [simTime, setSimTime] = useState(0);
   const openProjectRef = useRef<HTMLInputElement>(null);
 
   const applyGeometry = (files: FileGeometry[]) =>
@@ -111,6 +115,15 @@ function App() {
     [run],
   );
 
+  /** Fetch the toolpath and build the playback timeline. */
+  const handleSimulate = useCallback(async (): Promise<Simulation | null> => {
+    if (!project) return null;
+    const toolpath = await projectApi.generateToolpath();
+    const sim = buildSimulation(toolpath, project.table);
+    setSimulation(sim);
+    return sim;
+  }, [project]);
+
   return (
     <div className="flex h-screen flex-col bg-background text-foreground">
       <header className="shrink-0 border-b">
@@ -187,8 +200,21 @@ function App() {
               onPartCommit={handlePartCommit}
               onDuplicate={(id) => void run(() => projectApi.duplicatePart(id))}
               onDelete={(id) => void run(() => projectApi.deletePart(id))}
+              simulation={simulation}
+              simTime={simTime}
             />
           )}
+          <SimulationBar
+            simulation={simulation}
+            simTime={simTime}
+            onSimTimeChange={setSimTime}
+            onGenerate={handleSimulate}
+            onClose={() => {
+              setSimulation(null);
+              setSimTime(0);
+            }}
+            hasParts={(project?.parts.length ?? 0) > 0}
+          />
         </div>
 
         {/* Sidebar */}

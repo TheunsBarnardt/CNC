@@ -9,7 +9,11 @@ serial connection.
 > machine**: any machine running GRBL/grblHAL is a target.
 
 ## Status
-**Tasks 0–4 complete.** The app now goes from imported art to downloadable G-code:
+**Tasks 0–5 complete.** The app now goes from imported art to downloadable G-code,
+with a video-style cut preview:
+- Toolpath simulation in the viewport: cuts vs rapids drawn distinctly with direction
+  arrows, a glowing torch head, and play/pause/scrub/speed controls with a time estimate
+  — driven by the neutral toolpath, exactly what the post-processor emits.
 - Pluggable post-processor layer: `IPostProcessor` turns the neutral toolpath into a
   controller dialect. GRBL plasma post included (M3/M5 torch, G4 pierce dwell, work-origin
   aware, mm absolute). Frontend G-code panel: generate, preview, download `.nc`.
@@ -29,7 +33,7 @@ serial connection.
 - Save/load the whole project (settings + geometry) as a single JSON file.
 - Live backend health + machine heartbeat (fake connection) in the header.
 
-Next up: toolpath simulation, then material profiles complete Milestone 1 — see
+Next up: material profiles complete Milestone 1 — see
 `TASKS.md` for the build sequence. Planning docs:
 - **`PLASMA_CAM_PLAN.md`** — full design doc (vision, scope, stack, milestones, architecture). Source of truth.
 - **`CLAUDE.md`** — conventions and guardrails for Claude Code.

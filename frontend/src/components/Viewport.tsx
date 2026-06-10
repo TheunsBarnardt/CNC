@@ -33,6 +33,7 @@ import {
 } from "@/lib/geometry";
 import { partToWorld } from "@/lib/geometry";
 import type { GeometryPath, Part, ProjectDto, TableOrigin } from "@/lib/project";
+import { stateAt, type Simulation } from "@/lib/simulation";
 
 interface ViewportProps {
   project: ProjectDto;
@@ -45,6 +46,10 @@ interface ViewportProps {
   onPartCommit: (part: Part) => void;
   onDuplicate: (id: string) => void;
   onDelete: (id: string) => void;
+  /** When set, the toolpath overlay + torch head are drawn on top of parts. */
+  simulation?: Simulation | null;
+  /** Playback position in seconds (drives the torch head + progress trail). */
+  simTime?: number;
 }
 
 interface View {
@@ -83,6 +88,8 @@ export function Viewport({
   onPartCommit,
   onDuplicate,
   onDelete,
+  simulation = null,
+  simTime = 0,
 }: ViewportProps) {
   const canvasRef = useRef<HTMLCanvasElement>(null);
   const containerRef = useRef<HTMLDivElement>(null);
@@ -529,7 +536,116 @@ export function Viewport({
         }
       }
     }
-  }, [project, geometry, selectedPartId, view, size, toScreen, rotateHandleWorld, table]);
+
+    // --- toolpath simulation overlay ---------------------------------------
+    if (simulation && simulation.segments.length > 0) {
+      // Torch-path colors are intentional (not theme vars): orange = cutting
+      // (universal "hot" convention), lighter orange = leads.
+      const colCut = "#f97316";
+      const colLead = "#fdba74";
+      const line = (from: Vec, to: Vec) => {
+        const [x0, y0] = toScreen(from);
+        const [x1, y1] = toScreen(to);
+        ctx.beginPath();
+        ctx.moveTo(x0, y0);
+        ctx.lineTo(x1, y1);
+        ctx.stroke();
+      };
+
+      for (const seg of simulation.segments) {
+        const done = seg.t1 <= simTime;
+        const active = seg.t0 <= simTime && simTime < seg.t1;
+        if (seg.kind === "pierce") continue; // zero-length dwell
+        if (seg.kind === "rapid") {
+          ctx.setLineDash([5, 4]);
+          ctx.strokeStyle = colMuted;
+          ctx.globalAlpha = done || active ? 0.8 : 0.35;
+          ctx.lineWidth = 1;
+          line(seg.from, seg.to);
+          ctx.setLineDash([]);
+          continue;
+        }
+        ctx.strokeStyle = seg.lead ? colLead : colCut;
+        ctx.globalAlpha = done ? 1 : 0.3;
+        ctx.lineWidth = done ? 2.5 : 1.5;
+        if (active) {
+          // Split the live segment at the head position.
+          const f = (simTime - seg.t0) / (seg.t1 - seg.t0);
+          const mid: Vec = [
+            seg.from[0] + (seg.to[0] - seg.from[0]) * f,
+            seg.from[1] + (seg.to[1] - seg.from[1]) * f,
+          ];
+          ctx.globalAlpha = 1;
+          ctx.lineWidth = 2.5;
+          line(seg.from, mid);
+          ctx.globalAlpha = 0.3;
+          ctx.lineWidth = 1.5;
+          line(mid, seg.to);
+        } else {
+          line(seg.from, seg.to);
+        }
+      }
+      ctx.globalAlpha = 1;
+
+      // One direction arrow per cut, on its longest non-lead segment.
+      const longest = new Map<number, (typeof simulation.segments)[number]>();
+      for (const seg of simulation.segments) {
+        if (seg.kind !== "cut" || seg.lead || seg.cutIndex < 0) continue;
+        const cur = longest.get(seg.cutIndex);
+        const len = Math.hypot(seg.to[0] - seg.from[0], seg.to[1] - seg.from[1]);
+        if (!cur || len > Math.hypot(cur.to[0] - cur.from[0], cur.to[1] - cur.from[1]))
+          longest.set(seg.cutIndex, seg);
+      }
+      ctx.fillStyle = colCut;
+      for (const seg of longest.values()) {
+        const [x0, y0] = toScreen(seg.from);
+        const [x1, y1] = toScreen(seg.to);
+        const a = Math.atan2(y1 - y0, x1 - x0);
+        const mx = (x0 + x1) / 2,
+          my = (y0 + y1) / 2;
+        ctx.beginPath();
+        ctx.moveTo(mx + 6 * Math.cos(a), my + 6 * Math.sin(a));
+        ctx.lineTo(mx + 6 * Math.cos(a + 2.6), my + 6 * Math.sin(a + 2.6));
+        ctx.lineTo(mx + 6 * Math.cos(a - 2.6), my + 6 * Math.sin(a - 2.6));
+        ctx.closePath();
+        ctx.fill();
+      }
+
+      // Torch head at the current time.
+      const head = stateAt(simulation, simTime);
+      if (head) {
+        const [hx, hy] = toScreen(head.pos);
+        if (head.torchOn) {
+          const glow = ctx.createRadialGradient(hx, hy, 1, hx, hy, 12);
+          glow.addColorStop(0, "rgba(249,115,22,0.85)");
+          glow.addColorStop(1, "rgba(249,115,22,0)");
+          ctx.fillStyle = glow;
+          ctx.beginPath();
+          ctx.arc(hx, hy, 12, 0, Math.PI * 2);
+          ctx.fill();
+          ctx.fillStyle = "#fff7ed";
+          ctx.beginPath();
+          ctx.arc(hx, hy, 3, 0, Math.PI * 2);
+          ctx.fill();
+          ctx.strokeStyle = colCut;
+          ctx.lineWidth = 1.5;
+          ctx.stroke();
+        } else {
+          ctx.strokeStyle = colFg;
+          ctx.lineWidth = 1.5;
+          ctx.beginPath();
+          ctx.arc(hx, hy, 5, 0, Math.PI * 2);
+          ctx.stroke();
+          ctx.beginPath();
+          ctx.moveTo(hx - 8, hy);
+          ctx.lineTo(hx + 8, hy);
+          ctx.moveTo(hx, hy - 8);
+          ctx.lineTo(hx, hy + 8);
+          ctx.stroke();
+        }
+      }
+    }
+  }, [project, geometry, selectedPartId, view, size, toScreen, rotateHandleWorld, table, simulation, simTime]);
 
   // --- render ---------------------------------------------------------------
 

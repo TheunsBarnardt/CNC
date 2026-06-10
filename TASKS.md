@@ -114,7 +114,18 @@ them — one focused task at a time gives the best results. Tick the box when do
 > Keep it pluggable so laser/vinyl posts can be added later without touching the CAM engine.
 > Stop and summarize.
 
-### [ ] Task 5 — Toolpath simulation / playback
+### [x] Task 5 — Toolpath simulation / playback
+<!-- Done: frontend-only, driven by the neutral toolpath (POST /toolpath; no G-code
+     parsing needed). lib/simulation.ts: time-indexed segment list (rapid/pierce-dwell/
+     cut, leads flagged) from per-cut feed rates + pierce delays; rapids at assumed
+     6000mm/min until the real machine reports $110/$111 (M3); binary-search stateAt(t);
+     starts/parks at the work origin like the post. Viewport overlay: cuts orange
+     (leads lighter), rapids dashed grey, done/remaining by alpha, live segment split
+     at the head, one direction arrow per cut, torch head with glow when on / crosshair
+     when off. SimulationBar under the viewport: Simulate (fetch+build+autoplay),
+     play/pause/stop, scrub slider, 0.5-16x speed, elapsed/total, regenerate, close.
+     Deferred: auto-invalidate stale sim when parts/settings change (manual regenerate
+     button for now); per-cut info popup on hover. -->
 **Paste this:**
 > Read the plan and CLAUDE.md. Add toolpath simulation in the viewport:
 > - Visualize cut moves vs rapid (travel) moves distinctly, with cut direction.

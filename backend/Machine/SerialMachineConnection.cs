@@ -138,6 +138,10 @@ public sealed class SerialMachineConnection : IMachineConnection, IAsyncDisposab
     /// <summary>Real-time soft reset Ctrl-X — clears buffer, enters Alarm.</summary>
     public void SoftReset() => SendRealtime("\x18");
 
+    /// <summary>Send $X to clear an Alarm lock after E-Stop or homing failure.</summary>
+    public async Task UnlockAsync(CancellationToken ct = default) =>
+        await SendAndWaitAsync("$X", ct);
+
     /// <summary>
     /// Stream G-code with the GRBL character-counting protocol. Fires
     /// <paramref name="onProgress"/> after each acknowledged line.

@@ -26,6 +26,13 @@ public sealed class MachineConnectionManager : IMachineConnection
     private int? _jobTotal;
     private int? _jobDone;
 
+    // Job log (separate lock so we never hold _gate while appending).
+    private readonly object _logGate = new();
+    private readonly List<JobLogEntry> _jobLog = new();
+
+    // Previous machine state string for Hold/Resume transition detection.
+    private string _prevMachineState = "";
+
     public event EventHandler<MachineStatus>? StatusChanged;
 
     public MachineConnectionManager(FakeMachineConnection fake)
@@ -133,6 +140,15 @@ public sealed class MachineConnectionManager : IMachineConnection
     public void Resume() => RequireSerial().Resume();
     public void SoftReset() => RequireSerial().SoftReset();
 
+    /// <summary>
+    /// Send $X to clear an Alarm lock (after E-Stop or homing failure).
+    /// </summary>
+    public async Task UnlockAsync(CancellationToken ct = default)
+    {
+        var serial = RequireSerial();
+        await serial.UnlockAsync(ct);
+    }
+
     // ── Job streaming ─────────────────────────────────────────────────────
 
     public bool IsJobRunning { get { lock (_gate) return _jobTask is not null; } }
@@ -154,6 +170,13 @@ public sealed class MachineConnectionManager : IMachineConnection
             _jobDone = 0;
         }
 
+        // Reset log for the new job.
+        lock (_logGate) { _jobLog.Clear(); }
+        var startPos = serial.GetStatus();
+        AppendLog(JobLogEvent.Started, 0, _jobTotal,
+            startPos.X, startPos.Y, startPos.Z,
+            $"Streaming {_jobTotal} lines");
+
         var cts = _jobCts!;
         _jobTask = Task.Run(async () =>
         {
@@ -162,14 +185,34 @@ public sealed class MachineConnectionManager : IMachineConnection
                 await serial.RunGcodeAsync(lines, (done, total) =>
                 {
                     lock (_gate) { _jobDone = done; _jobTotal = total; }
+                    // Log a progress entry every 50 lines.
+                    if (done % 50 == 0 || done == total)
+                    {
+                        var pos = serial.GetStatus();
+                        AppendLog(JobLogEvent.Progress, done, total,
+                            pos.X, pos.Y, pos.Z);
+                    }
                     // Push enriched status immediately so frontend tracks progress.
                     var s = serial.GetStatus() with { JobDone = done, JobTotal = total };
                     StatusChanged?.Invoke(this, s);
                 }, cts.Token);
+
+                // Clean completion.
+                var endPos = serial.GetStatus();
+                AppendLog(JobLogEvent.Completed, _jobDone, _jobTotal,
+                    endPos.X, endPos.Y, endPos.Z, "Job completed");
             }
-            catch (OperationCanceledException) { }
+            catch (OperationCanceledException)
+            {
+                var pos = serial.GetStatus();
+                AppendLog(JobLogEvent.Stopped, _jobDone, _jobTotal,
+                    pos.X, pos.Y, pos.Z, "Job stopped by user");
+            }
             catch (Exception ex)
             {
+                var pos = serial.GetStatus();
+                AppendLog(JobLogEvent.Error, _jobDone, _jobTotal,
+                    pos.X, pos.Y, pos.Z, ex.Message.Split('\n')[0]);
                 // Surface streaming error as a status event so the UI sees it.
                 var s = serial.GetStatus() with { MachineState = $"Error: {ex.Message.Split('\n')[0]}" };
                 StatusChanged?.Invoke(this, s);
@@ -186,6 +229,11 @@ public sealed class MachineConnectionManager : IMachineConnection
         return true;
     }
 
+    /// <summary>
+    /// Soft stop: cancel G-code streaming only.
+    /// The machine finishes any lines already in its GRBL buffer and goes idle.
+    /// Does NOT send Ctrl-X — machine stays in normal state (not Alarm).
+    /// </summary>
     public async Task StopJobAsync()
     {
         CancellationTokenSource? cts;
@@ -195,6 +243,12 @@ public sealed class MachineConnectionManager : IMachineConnection
         if (cts is not null) await cts.CancelAsync();
         if (task is not null)
             try { await task; } catch (OperationCanceledException) { }
+    }
+
+    /// <summary>Returns a snapshot of the current (or last completed) job log.</summary>
+    public IReadOnlyList<JobLogEntry> GetJobLog()
+    {
+        lock (_logGate) return _jobLog.ToList();
     }
 
     // ── Private ───────────────────────────────────────────────────────────
@@ -212,8 +266,36 @@ public sealed class MachineConnectionManager : IMachineConnection
     private void OnInnerStatus(object? sender, MachineStatus s)
     {
         int? total, done;
-        lock (_gate) { total = _jobTotal; done = _jobDone; }
+        string prevState;
+        lock (_gate)
+        {
+            total = _jobTotal;
+            done = _jobDone;
+            prevState = _prevMachineState;
+            _prevMachineState = s.MachineState;
+        }
+
+        // Detect Hold/Resume transitions while a job is active.
+        if (total.HasValue)
+        {
+            bool wasHold = prevState.Equals("Hold", StringComparison.OrdinalIgnoreCase);
+            bool isHold  = s.MachineState.Equals("Hold", StringComparison.OrdinalIgnoreCase);
+            bool isRun   = s.MachineState.Equals("Run",  StringComparison.OrdinalIgnoreCase);
+
+            if (!wasHold && isHold)
+                AppendLog(JobLogEvent.FeedHold, done, total, s.X, s.Y, s.Z, "Feed hold");
+            else if (wasHold && isRun)
+                AppendLog(JobLogEvent.Resumed, done, total, s.X, s.Y, s.Z, "Resumed");
+        }
+
         var enriched = total.HasValue ? s with { JobTotal = total, JobDone = done } : s;
         StatusChanged?.Invoke(this, enriched);
+    }
+
+    private void AppendLog(JobLogEvent evt, int? line, int? total,
+        double? x, double? y, double? z, string? message = null)
+    {
+        lock (_logGate)
+            _jobLog.Add(new JobLogEntry(DateTimeOffset.UtcNow, evt, line, total, x, y, z, message));
     }
 }

@@ -9,6 +9,7 @@ import {
   Play,
   Pause,
   Square,
+  OctagonX,
   RotateCcw,
   ChevronUp,
   ChevronDown,
@@ -16,6 +17,7 @@ import {
   ChevronRight,
   ArrowUp,
   ArrowDown,
+  Unlock,
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Label } from "@/components/ui/label";
@@ -30,6 +32,7 @@ import { Progress } from "@/components/ui/progress";
 import { cn } from "@/lib/utils";
 import { machineApi, type ConnectionInfo } from "@/lib/machineApi";
 import { useMachineHeartbeat } from "@/hooks/useMachineHeartbeat";
+import { JobLogPanel } from "@/components/JobLogPanel";
 
 const BAUD_OPTIONS = [115200, 57600, 38400, 19200, 9600];
 const JOG_STEPS = [0.1, 1, 10, 100];
@@ -87,11 +90,15 @@ export function DevicePanel() {
     void act(() => machineApi.jog(axis, sign * jogStep, JOG_FEED));
 
   const isConnected = connInfo?.isConnected ?? false;
-  const isJobRunning = connInfo?.isJobRunning ?? false;
+
+  // Derive job-running state from live SignalR status (always up-to-date)
+  // rather than from the stale REST response.
+  const isJobRunning = status?.jobTotal != null;
+
   const machineState = status?.machineState ?? "—";
   const isAlarm = machineState.toLowerCase().startsWith("alarm");
-  const isHold = machineState.toLowerCase() === "hold";
-  const isRun = machineState.toLowerCase() === "run";
+  const isHold  = machineState.toLowerCase().startsWith("hold");
+  const isRun   = machineState.toLowerCase() === "run";
 
   const stateColor = isAlarm
     ? "text-destructive"
@@ -150,6 +157,20 @@ export function DevicePanel() {
         </div>
       )}
 
+      {/* ── Alarm unlock ──────────────────────────────── */}
+      {isConnected && isAlarm && (
+        <Button
+          size="sm"
+          variant="outline"
+          className="border-amber-500/50 text-amber-600"
+          onClick={() => void act(() => machineApi.unlock())}
+          disabled={busy}
+        >
+          <Unlock className="size-4" />
+          Unlock ($X)
+        </Button>
+      )}
+
       {/* ── Connection controls (disconnected) ────────── */}
       {!isConnected && (
         <div className="grid gap-2">
@@ -206,8 +227,8 @@ export function DevicePanel() {
         </div>
       )}
 
-      {/* ── Jog controls (connected, not running) ─────── */}
-      {isConnected && !isJobRunning && (
+      {/* ── Jog controls (connected, no active job) ───── */}
+      {isConnected && !isJobRunning && !isAlarm && (
         <div className="grid gap-2">
           {/* Step size */}
           <div className="flex items-center gap-1">
@@ -284,16 +305,19 @@ export function DevicePanel() {
       )}
 
       {/* ── Job controls (connected) ───────────────────── */}
-      {isConnected && (
+      {isConnected && !isAlarm && (
         <div className="grid gap-1">
+          {/* Start job */}
           {!isJobRunning && !isHold && (
             <Button size="sm"
               onClick={() => void act(() => machineApi.run(), true)}
-              disabled={busy || isAlarm}>
+              disabled={busy}>
               <Play className="size-4" />
               Run Job
             </Button>
           )}
+
+          {/* Feed hold — shown while running and not already held */}
           {isJobRunning && !isHold && (
             <Button size="sm" variant="outline"
               onClick={() => void act(() => machineApi.feedHold())}>
@@ -301,11 +325,22 @@ export function DevicePanel() {
               Feed Hold
             </Button>
           )}
+
+          {/* Resume — shown while in hold state */}
           {isHold && (
             <Button size="sm" variant="outline"
               onClick={() => void act(() => machineApi.resume())}>
               <RotateCcw className="size-4" />
               Resume
+            </Button>
+          )}
+
+          {/* Stop Job (soft) — cancel streaming, machine drains buffer */}
+          {isJobRunning && (
+            <Button size="sm" variant="outline"
+              onClick={() => void act(() => machineApi.stopJob(), true)}>
+              <Square className="size-4" />
+              Stop Job
             </Button>
           )}
         </div>
@@ -318,10 +353,16 @@ export function DevicePanel() {
           variant="destructive"
           onClick={() => void act(() => machineApi.stop(), true)}
           className="w-full"
+          title="Soft reset (Ctrl-X) — stops all motion immediately, enters Alarm state"
         >
-          <Square className="size-4" />
+          <OctagonX className="size-4" />
           E-Stop
         </Button>
+      )}
+
+      {/* ── Job log ───────────────────────────────────── */}
+      {isConnected && (
+        <JobLogPanel isJobRunning={isJobRunning} />
       )}
 
       {/* ── Disconnect ────────────────────────────────── */}

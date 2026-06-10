@@ -138,6 +138,34 @@ public static class MachineApi
             }
             catch (InvalidOperationException ex) { return Results.BadRequest(new { error = ex.Message }); }
         });
+
+        /// Cancel G-code streaming without a hard reset. The machine finishes its
+        /// current GRBL buffer and goes idle — no Alarm state, no $X required.
+        group.MapPost("/stop-job", async (MachineConnectionManager manager) =>
+        {
+            try
+            {
+                await manager.StopJobAsync();
+                return Results.Ok(new { message = "Job cancelled." });
+            }
+            catch (InvalidOperationException ex) { return Results.BadRequest(new { error = ex.Message }); }
+        });
+
+        /// Send $X to clear an Alarm lock after an E-Stop or homing failure.
+        group.MapPost("/unlock", async (MachineConnectionManager manager) =>
+        {
+            try
+            {
+                await manager.UnlockAsync();
+                return Results.Ok(new { message = "Alarm cleared." });
+            }
+            catch (InvalidOperationException ex) { return Results.BadRequest(new { error = ex.Message }); }
+            catch (Exception ex) { return Results.Problem(ex.Message, statusCode: 502); }
+        });
+
+        /// Return the log for the current or most recently completed job.
+        group.MapGet("/job-log", (MachineConnectionManager manager) =>
+            Results.Ok(manager.GetJobLog()));
     }
 
     public sealed record ConnectRequest(string? Port, int? Baud);

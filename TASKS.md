@@ -255,7 +255,20 @@ feel familiar to xTool/XCS users — same workspace anatomy, our CAM underneath.
 > start; prominent stop/feed-hold; respect soft limits/table bounds; never auto-start.
 > Stop and summarize.
 
-### [ ] Task 10 — Pause / stop / resume-from-pause + job log
+### [x] Task 10 — Pause / stop / resume-from-pause + job log
+<!-- Done: Backend — JobLogEntry model (Timestamp/Event/LineNumber/LineTotal/X/Y/Z/Message);
+     MachineConnectionManager detects Hold/Resume state transitions in OnInnerStatus
+     ("Run"→"Hold" logs FeedHold, "Hold"→"Run" logs Resumed) and logs Started/Progress
+     (every 50 lines)/FeedHold/Resumed/Completed/Error/Stopped entries; GetJobLog() returns
+     snapshot. SerialMachineConnection: UnlockAsync ($X). New REST: GET /api/machine/job-log,
+     POST /api/machine/stop-job (soft stop — cancel streaming only, no Ctrl-X; machine drains
+     GRBL buffer and goes idle, no Alarm state), POST /api/machine/unlock ($X clear alarm).
+     Frontend — machineApi.ts: jobLog()/stopJob()/unlock() + JobLogEntry type. JobLogPanel
+     component: polls every 2s during job, final fetch on completion, colour-coded events,
+     auto-scrolls. DevicePanel: isJobRunning from live SignalR status.jobTotal (was stale REST);
+     isHold uses startsWith("hold") for Hold:0/Hold:1 sub-states; "Stop Job" button (soft);
+     "Unlock ($X)" button shown only in Alarm state; E-Stop keeps Ctrl-X behaviour;
+     JobLogPanel embedded in panel when connected. -->
 **Paste this:**
 > Read the plan and CLAUDE.md. Add feed-hold/pause, safe stop, resume-from-pause, and a
 > per-job log (lines sent, position, events, timestamps). This is the "all-in-one" moment.
@@ -267,13 +280,16 @@ feel familiar to xTool/XCS users — same workspace anatomy, our CAM underneath.
 ### [ ] Task 11 — Power-loss recovery
 > Persist job checkpoint (line + position); on restart offer safe recovery: re-home,
 > re-establish position, re-pierce, resume from a safe point. Treat with extreme care.
+> Summarize, compact and commit. 
 
 ### [ ] Task 12 — Laser mode
 > Add a laser operation mode + laser post-processor (beam on/off + power %, no kerf/pierce).
+> Summarize, compact and commit. 
 
 ### [ ] Task 13 — Vinyl / drag-knife mode
 > Add a drag-knife operation mode: knife up/down (Z or servo), blade-offset + overcut
 > compensation for sharp corners. No kerf/pierce/THC.
+> Summarize, compact and commit. 
 
 ---
 
@@ -293,28 +309,33 @@ Each is one session; split further if a task grows.*
 > objects with font selection, size, style, letter/line spacing, and convert-text-to-paths
 > so CAM consumes outlines (closes the current "<text> not supported" import warning).
 > Objects use the existing part-transform model.
+> Summarize, compact and commit. 
 
 ### [ ] Task 15 — Object editing: precise transforms, mirror, group, offset
 > Floating-toolbar functionality: numeric X/Y/W/H/rotation entry with aspect lock,
 > mirror horizontal/vertical, group/ungroup, stacking order, and contour offset
 > (Clipper2 — reuse the kerf offsetter, don't hand-roll).
+> Summarize, compact and commit. 
 
 ### [ ] Task 16 — Vector node editing + path operations
 > Node-level editing of imported/created paths: move/add/delete nodes, node types
 > (corner/smooth), path simplification, split path (scissors). Pathfinder booleans via
 > Clipper2: unite, subtract, intersect, weld overlapping text/shapes.
+> Summarize, compact and commit. 
 
 ### [ ] Task 17 — Arrays & material test grid
 > Grid array and circular array of parts (drives the same part-transform model as
 > nesting). Material test array generator: a grid of test cuts varying two parameters
 > (e.g. feed × pierce delay for plasma; power × speed once laser mode exists) to dial
 > in material profiles — xTool's "array test" equivalent for finding good settings.
+> Summarize, compact and commit. 
 
 ### [ ] Task 18 — Bitmap import + trace to vector
 > Import PNG/JPG, auto-trace (and center-line trace) to vector paths for cutting.
 > Image filters/adjustments (grayscale, invert, brightness/contrast, halftone/dither)
 > matter mainly for laser engraving — implement alongside or after Task 12 (laser mode),
 > where engrave processing actually consumes them.
+> Summarize, compact and commit. 
 
 ### [ ] Task 19 — Templates, element library, canvas QoL & efficiency tools
 > Project templates and a reusable element/shape library; canvas light/dark toggle,
@@ -327,6 +348,7 @@ Each is one session; split further if a task grows.*
 
 > Out of parity scope (flag if requested): AImake/AI image generation, xTool account
 > login, xTool-proprietary device features (smart detection, camera framing).
+> Summarize, compact and commit. 
 
 ---
 

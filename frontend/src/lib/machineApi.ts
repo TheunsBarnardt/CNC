@@ -7,6 +7,26 @@ export interface ConnectionInfo {
   isJobRunning: boolean;
 }
 
+export type JobLogEvent =
+  | "Started"
+  | "Progress"
+  | "FeedHold"
+  | "Resumed"
+  | "Completed"
+  | "Error"
+  | "Stopped";
+
+export interface JobLogEntry {
+  timestamp: string;
+  event: JobLogEvent;
+  lineNumber: number | null;
+  lineTotal: number | null;
+  x: number | null;
+  y: number | null;
+  z: number | null;
+  message: string | null;
+}
+
 async function json<T>(r: Response): Promise<T> {
   if (!r.ok) {
     const body = await r.json().catch(() => ({ error: r.statusText })) as { error?: string };
@@ -56,5 +76,15 @@ export const machineApi = {
 
   resume: () => send("POST", "resume"),
 
+  /** Hard stop: cancel streaming + Ctrl-X soft reset. Machine enters Alarm. */
   stop: () => send("POST", "stop"),
+
+  /** Soft stop: cancel streaming only. Machine drains its buffer and goes idle. */
+  stopJob: () => send("POST", "stop-job"),
+
+  /** Send $X to clear Alarm lock after E-Stop or homing failure. */
+  unlock: () => send("POST", "unlock"),
+
+  jobLog: (): Promise<JobLogEntry[]> =>
+    fetch(`${BACKEND_URL}/api/machine/job-log`).then((r) => json<JobLogEntry[]>(r)),
 };

@@ -134,7 +134,18 @@ them — one focused task at a time gives the best results. Tick the box when do
 >   moving along the path like a video.
 > Stop and summarize.
 
-### [ ] Task 6 — Material profiles
+### [x] Task 6 — Material profiles
+<!-- Done: MaterialProfile (name, material, thickness, kerf/feed/pierce delay/cut+pierce
+     height) + ProfileStore persisted app-level to %LOCALAPPDATA%/diy-grbl-cam/
+     material-profiles.json (corrupt file set aside as .corrupt + reseeded; seeds = 3
+     "example, tune for your machine" mild-steel profiles ~45A ballpark). REST:
+     /api/profiles CRUD + /export + /import (merge by id). Frontend "Cut settings" card:
+     profile picker (select = applies numbers to project CAM via PUT /cam), update/
+     delete selected, save-current-as-new (thickness from table settings), editable CAM
+     fields incl. lead type/length (leads stay per-project — geometry preference, not
+     material). 7 new unit tests (71 total). Deferred: material/thickness as separate
+     editable fields on profiles (name carries it for now); profile import/export UI
+     buttons (endpoints exist). MILESTONE 1 COMPLETE. -->
 **Paste this:**
 > Read the plan and CLAUDE.md. Add material profiles:
 > - Save/load presets per material + thickness: feed rate, pierce delay, kerf width,

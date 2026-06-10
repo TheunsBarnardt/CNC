@@ -9,8 +9,12 @@ serial connection.
 > machine**: any machine running GRBL/grblHAL is a target.
 
 ## Status
-**Tasks 0–5 complete.** The app now goes from imported art to downloadable G-code,
-with a video-style cut preview:
+**Milestone 1 (CAM core) complete — Tasks 0–6.** The app covers the full CAM workflow:
+import vector art, arrange it on the table, generate kerf-compensated plasma toolpaths,
+simulate the cut, and export GRBL G-code:
+- Material profiles: app-level presets (per material + thickness) for kerf, feed,
+  pierce delay, and cut/pierce heights — pick one and it populates the CAM settings;
+  save, update, delete, and share them (export/import endpoints).
 - Toolpath simulation in the viewport: cuts vs rapids drawn distinctly with direction
   arrows, a glowing torch head, and play/pause/scrub/speed controls with a time estimate
   — driven by the neutral toolpath, exactly what the post-processor emits.
@@ -33,7 +37,7 @@ with a video-style cut preview:
 - Save/load the whole project (settings + geometry) as a single JSON file.
 - Live backend health + machine heartbeat (fake connection) in the header.
 
-Next up: material profiles complete Milestone 1 — see
+Next up: Task 6b (xTool-style workspace), then Milestone 2 (auto-nesting) — see
 `TASKS.md` for the build sequence. Planning docs:
 - **`PLASMA_CAM_PLAN.md`** — full design doc (vision, scope, stack, milestones, architecture). Source of truth.
 - **`CLAUDE.md`** — conventions and guardrails for Claude Code.

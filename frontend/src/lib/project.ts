@@ -74,6 +74,33 @@ export interface ImportResult {
 }
 
 export type CutSide = "Outside" | "Inside" | "OnLine";
+export type LeadType = "None" | "Line" | "Arc";
+
+/** Plasma CAM parameters, persisted on the project (mirrors CamSettings). */
+export interface CamSettings {
+  kerfWidthMm: number;
+  feedRateMmMin: number;
+  pierceDelayS: number;
+  cutHeightMm: number;
+  pierceHeightMm: number;
+  leadInType: LeadType;
+  leadInLengthMm: number;
+  leadOutType: LeadType;
+  leadOutLengthMm: number;
+}
+
+/** App-level material preset (mirrors MaterialProfile). */
+export interface MaterialProfile {
+  id: string;
+  name: string;
+  material: string;
+  thicknessMm: number;
+  kerfWidthMm: number;
+  feedRateMmMin: number;
+  pierceDelayS: number;
+  cutHeightMm: number;
+  pierceHeightMm: number;
+}
 
 /** One torch-on motion from POST /api/project/toolpath (mirrors CutDto). */
 export interface ToolpathCut {
@@ -203,6 +230,38 @@ export const projectApi = {
     fetch(`${BACKEND_URL}/api/project/parts/${id}`, { method: "DELETE" }).then(
       (r) => json<ProjectDto>(r),
     ),
+
+  getCam: () =>
+    fetch(`${BACKEND_URL}/api/project/cam`).then((r) => json<CamSettings>(r)),
+
+  updateCam: (settings: CamSettings) =>
+    fetch(`${BACKEND_URL}/api/project/cam`, {
+      method: "PUT",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify(settings),
+    }).then((r) => json<CamSettings>(r)),
+
+  listProfiles: () =>
+    fetch(`${BACKEND_URL}/api/profiles`).then((r) => json<MaterialProfile[]>(r)),
+
+  createProfile: (profile: Omit<MaterialProfile, "id">) =>
+    fetch(`${BACKEND_URL}/api/profiles`, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify(profile),
+    }).then((r) => json<MaterialProfile>(r)),
+
+  updateProfile: (profile: MaterialProfile) =>
+    fetch(`${BACKEND_URL}/api/profiles/${profile.id}`, {
+      method: "PUT",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify(profile),
+    }).then((r) => json<MaterialProfile>(r)),
+
+  deleteProfile: (id: string) =>
+    fetch(`${BACKEND_URL}/api/profiles/${id}`, { method: "DELETE" }).then((r) => {
+      if (!r.ok) throw new Error(`${r.status} ${r.statusText}`);
+    }),
 
   generateToolpath: () =>
     fetch(`${BACKEND_URL}/api/project/toolpath`, { method: "POST" }).then((r) =>

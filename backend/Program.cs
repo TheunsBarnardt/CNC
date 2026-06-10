@@ -48,6 +48,9 @@ builder.Services.AddSingleton<FileImportService>();
 builder.Services.AddSingleton<IPostProcessor, GrblPlasmaPostProcessor>();
 builder.Services.AddSingleton<PostProcessorRegistry>();
 
+// Material profiles: app-level presets persisted under LocalAppData.
+builder.Services.AddSingleton<ProfileStore>();
+
 builder.Services.ConfigureHttpJsonOptions(options =>
     options.SerializerOptions.Converters.Add(new JsonStringEnumConverter()));
 
@@ -69,6 +72,7 @@ app.MapGet("/api/health", () => Results.Ok(new
 }));
 
 app.MapProjectApi();
+app.MapProfileApi();
 app.MapHub<MachineHub>("/hubs/machine");
 
 app.Run();

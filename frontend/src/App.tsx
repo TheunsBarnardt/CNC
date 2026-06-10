@@ -10,6 +10,7 @@ import {
 } from "@/components/ui/card";
 import { Separator } from "@/components/ui/separator";
 import { ImportDropzone } from "@/components/ImportDropzone";
+import { CutSettingsCard } from "@/components/CutSettingsCard";
 import { FileListPanel } from "@/components/FileListPanel";
 import { GcodePanel } from "@/components/GcodePanel";
 import { ProjectSettingsCard } from "@/components/ProjectSettingsCard";
@@ -270,6 +271,22 @@ function App() {
             <CardContent>
               {project && (
                 <ProjectSettingsCard project={project} onUpdate={updateSettings} />
+              )}
+            </CardContent>
+          </Card>
+
+          <Card>
+            <CardHeader className="pb-3">
+              <CardTitle className="text-base">Cut settings</CardTitle>
+              <CardDescription>
+                Plasma parameters &amp; material profiles
+              </CardDescription>
+            </CardHeader>
+            <CardContent>
+              {project && (
+                <CutSettingsCard
+                  materialThicknessMm={project.table.materialThicknessMm}
+                />
               )}
             </CardContent>
           </Card>

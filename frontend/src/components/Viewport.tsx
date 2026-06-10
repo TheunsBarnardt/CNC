@@ -1,21 +1,15 @@
 import { useCallback, useEffect, useRef, useState } from "react";
 import {
-  AlignCenterHorizontal,
-  AlignCenterVertical,
-  AlignEndHorizontal,
-  AlignEndVertical,
-  AlignStartHorizontal,
-  AlignStartVertical,
-  Copy,
+  Grid3x3,
   Magnet,
   Maximize,
-  RotateCcw,
-  RotateCw,
-  Trash2,
+  Moon,
+  Sun,
   ZoomIn,
   ZoomOut,
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
+import { EditToolbar, type AlignEdge } from "@/components/EditToolbar";
 import {
   Select,
   SelectContent,
@@ -50,6 +44,8 @@ interface ViewportProps {
   simulation?: Simulation | null;
   /** Playback position in seconds (drives the torch head + progress trail). */
   simTime?: number;
+  /** Processing-preview mode: pan/zoom only, no selection or part editing. */
+  readOnly?: boolean;
 }
 
 interface View {
@@ -90,6 +86,7 @@ export function Viewport({
   onDelete,
   simulation = null,
   simTime = 0,
+  readOnly = false,
 }: ViewportProps) {
   const canvasRef = useRef<HTMLCanvasElement>(null);
   const containerRef = useRef<HTMLDivElement>(null);
@@ -97,6 +94,8 @@ export function Viewport({
   const [view, setView] = useState<View>({ scale: 0.5, tx: 0, ty: 0 });
   const [snap, setSnap] = useState(true);
   const [snapStep, setSnapStep] = useState(10);
+  const [showGrid, setShowGrid] = useState(true);
+  const [darkCanvas, setDarkCanvas] = useState(false);
   const [cursorMm, setCursorMm] = useState<Vec | null>(null);
   const dragRef = useRef<DragState | null>(null);
   const fittedRef = useRef(false);
@@ -198,7 +197,7 @@ export function Viewport({
     const world = toWorld(screen);
 
     // Middle button always pans.
-    if (e.button === 0 && selectedPart) {
+    if (e.button === 0 && selectedPart && !readOnly) {
       const handle = rotateHandleWorld(selectedPart);
       if (handle) {
         const hs = toScreen(handle);
@@ -218,7 +217,7 @@ export function Viewport({
       }
     }
 
-    if (e.button === 0) {
+    if (e.button === 0 && !readOnly) {
       // Topmost part first (parts render in list order).
       const tolerance = 4 / view.scale;
       for (let i = project.parts.length - 1; i >= 0; i--) {
@@ -320,7 +319,7 @@ export function Viewport({
   };
 
   const handleKeyDown = (e: React.KeyboardEvent) => {
-    if (!selectedPart) return;
+    if (!selectedPart || readOnly) return;
     const step = e.shiftKey ? 10 : 1;
     switch (e.key) {
       case "Delete":
@@ -396,11 +395,13 @@ export function Viewport({
     const css = getComputedStyle(canvas);
     const cssVar = (name: string, fallback: string) =>
       css.getPropertyValue(name).trim() || fallback;
-    const colBg = cssVar("--background", "#fff");
-    const colCard = cssVar("--card", "#fafafa");
-    const colBorder = cssVar("--border", "#ddd");
-    const colMuted = cssVar("--muted-foreground", "#888");
-    const colFg = cssVar("--foreground", "#222");
+    // Dark canvas is a per-viewport option (xTool-style "canvas color"), so it
+    // uses a fixed palette rather than following the app theme.
+    const colBg = darkCanvas ? "#16161a" : cssVar("--background", "#fff");
+    const colCard = darkCanvas ? "#222228" : cssVar("--card", "#fafafa");
+    const colBorder = darkCanvas ? "#3a3a42" : cssVar("--border", "#ddd");
+    const colMuted = darkCanvas ? "#9a9aa5" : cssVar("--muted-foreground", "#888");
+    const colFg = darkCanvas ? "#e6e6ea" : cssVar("--foreground", "#222");
     const colPrimary = cssVar("--primary", "#16a34a");
     const colDestructive = cssVar("--destructive", "#dc2626");
 
@@ -421,27 +422,29 @@ export function Viewport({
     ctx.beginPath();
     ctx.rect(tx0, ty0, tableWpx, tableHpx);
     ctx.clip();
-    for (let gx = 0; gx <= table.widthMm; gx += minor) {
-      const [sx] = toScreen([gx, 0]);
-      const isMajor = gx % (minor * 5) === 0;
-      ctx.strokeStyle = colBorder;
-      ctx.globalAlpha = isMajor ? 0.9 : 0.4;
-      ctx.lineWidth = 1;
-      ctx.beginPath();
-      ctx.moveTo(sx, ty0);
-      ctx.lineTo(sx, ty0 + tableHpx);
-      ctx.stroke();
-    }
-    for (let gy = 0; gy <= table.heightMm; gy += minor) {
-      const [, sy] = toScreen([0, gy]);
-      const isMajor = gy % (minor * 5) === 0;
-      ctx.strokeStyle = colBorder;
-      ctx.globalAlpha = isMajor ? 0.9 : 0.4;
-      ctx.lineWidth = 1;
-      ctx.beginPath();
-      ctx.moveTo(tx0, sy);
-      ctx.lineTo(tx0 + tableWpx, sy);
-      ctx.stroke();
+    if (showGrid) {
+      for (let gx = 0; gx <= table.widthMm; gx += minor) {
+        const [sx] = toScreen([gx, 0]);
+        const isMajor = gx % (minor * 5) === 0;
+        ctx.strokeStyle = colBorder;
+        ctx.globalAlpha = isMajor ? 0.9 : 0.4;
+        ctx.lineWidth = 1;
+        ctx.beginPath();
+        ctx.moveTo(sx, ty0);
+        ctx.lineTo(sx, ty0 + tableHpx);
+        ctx.stroke();
+      }
+      for (let gy = 0; gy <= table.heightMm; gy += minor) {
+        const [, sy] = toScreen([0, gy]);
+        const isMajor = gy % (minor * 5) === 0;
+        ctx.strokeStyle = colBorder;
+        ctx.globalAlpha = isMajor ? 0.9 : 0.4;
+        ctx.lineWidth = 1;
+        ctx.beginPath();
+        ctx.moveTo(tx0, sy);
+        ctx.lineTo(tx0 + tableWpx, sy);
+        ctx.stroke();
+      }
     }
     ctx.restore();
     ctx.globalAlpha = 1;
@@ -645,9 +648,19 @@ export function Viewport({
         }
       }
     }
-  }, [project, geometry, selectedPartId, view, size, toScreen, rotateHandleWorld, table, simulation, simTime]);
+  }, [project, geometry, selectedPartId, view, size, toScreen, rotateHandleWorld, table, simulation, simTime, showGrid, darkCanvas]);
 
   // --- render ---------------------------------------------------------------
+
+  const selectedPaths = selectedPart ? geometry.get(selectedPart.fileId) : undefined;
+  const selectedBBox =
+    selectedPart && selectedPaths ? partWorldBBox(selectedPart, selectedPaths) : null;
+
+  /** Apply + persist in one step (toolbar inputs commit discrete changes). */
+  const applyTransform = (part: Part) => {
+    onPartChange(part);
+    onPartCommit(part);
+  };
 
   const iconBtn = "size-7";
   return (
@@ -665,92 +678,81 @@ export function Viewport({
         onPointerLeave={() => setCursorMm(null)}
       />
 
-      {/* Toolbar */}
-      <div className="absolute left-2 top-2 flex items-center gap-1 rounded-md border bg-background/90 p-1 shadow-sm backdrop-blur">
-        <Button variant="ghost" size="icon" className={iconBtn} title="Fit to view" onClick={fitToView}>
-          <Maximize className="size-4" />
-        </Button>
-        <Button variant="ghost" size="icon" className={iconBtn} title="Zoom in"
-          onClick={() => zoomAt([size.w / 2, size.h / 2], 1.3)}>
-          <ZoomIn className="size-4" />
-        </Button>
-        <Button variant="ghost" size="icon" className={iconBtn} title="Zoom out"
-          onClick={() => zoomAt([size.w / 2, size.h / 2], 1 / 1.3)}>
-          <ZoomOut className="size-4" />
-        </Button>
-        <Separator orientation="vertical" className="h-5" />
-        <Button
-          variant={snap ? "secondary" : "ghost"}
-          size="icon"
-          className={iconBtn}
-          title={`Snap to grid (${snapStep}mm)`}
-          onClick={() => setSnap((s) => !s)}
-        >
-          <Magnet className="size-4" />
-        </Button>
-        <Select value={String(snapStep)} onValueChange={(v) => setSnapStep(Number(v))}>
-          <SelectTrigger size="sm" className="h-7 w-[72px] text-xs">
-            <SelectValue />
-          </SelectTrigger>
-          <SelectContent>
-            {SNAP_STEPS.map((s) => (
-              <SelectItem key={s} value={String(s)}>
-                {s} mm
-              </SelectItem>
-            ))}
-          </SelectContent>
-        </Select>
-        <Separator orientation="vertical" className="h-5" />
-        <Button variant="ghost" size="icon" className={iconBtn} title="Rotate 90° CCW"
-          disabled={!selectedPart} onClick={() => rotateBy(90)}>
-          <RotateCcw className="size-4" />
-        </Button>
-        <Button variant="ghost" size="icon" className={iconBtn} title="Rotate 90° CW"
-          disabled={!selectedPart} onClick={() => rotateBy(-90)}>
-          <RotateCw className="size-4" />
-        </Button>
-        <Button variant="ghost" size="icon" className={iconBtn} title="Duplicate (Ctrl+D)"
-          disabled={!selectedPart} onClick={() => selectedPart && onDuplicate(selectedPart.id)}>
-          <Copy className="size-4" />
-        </Button>
-        <Button variant="ghost" size="icon" className={`${iconBtn} text-destructive`} title="Delete (Del)"
-          disabled={!selectedPart} onClick={() => selectedPart && onDelete(selectedPart.id)}>
-          <Trash2 className="size-4" />
-        </Button>
-        <Separator orientation="vertical" className="h-5" />
-        <Button variant="ghost" size="icon" className={iconBtn} title="Align left"
-          disabled={!selectedPart} onClick={() => align("left")}>
-          <AlignStartVertical className="size-4" />
-        </Button>
-        <Button variant="ghost" size="icon" className={iconBtn} title="Center horizontally"
-          disabled={!selectedPart} onClick={() => align("centerX")}>
-          <AlignCenterVertical className="size-4" />
-        </Button>
-        <Button variant="ghost" size="icon" className={iconBtn} title="Align right"
-          disabled={!selectedPart} onClick={() => align("right")}>
-          <AlignEndVertical className="size-4" />
-        </Button>
-        <Button variant="ghost" size="icon" className={iconBtn} title="Align bottom"
-          disabled={!selectedPart} onClick={() => align("bottom")}>
-          <AlignStartHorizontal className="size-4" />
-        </Button>
-        <Button variant="ghost" size="icon" className={iconBtn} title="Center vertically"
-          disabled={!selectedPart} onClick={() => align("centerY")}>
-          <AlignCenterHorizontal className="size-4" />
-        </Button>
-        <Button variant="ghost" size="icon" className={iconBtn} title="Align top"
-          disabled={!selectedPart} onClick={() => align("top")}>
-          <AlignEndHorizontal className="size-4" />
-        </Button>
-      </div>
+      {/* Floating edit toolbar — appears only with a selection (xTool anatomy). */}
+      {!readOnly && selectedPart && selectedBBox && (
+        <EditToolbar
+          part={selectedPart}
+          bbox={selectedBBox}
+          onTransform={applyTransform}
+          onRotateBy={rotateBy}
+          onAlign={(edge: AlignEdge) => align(edge)}
+          onDuplicate={() => onDuplicate(selectedPart.id)}
+          onDelete={() => onDelete(selectedPart.id)}
+        />
+      )}
 
-      {/* Status footer */}
-      <div className="pointer-events-none absolute bottom-2 left-2 rounded bg-background/80 px-2 py-0.5 font-mono text-xs text-muted-foreground backdrop-blur">
-        {cursorMm ? `${cursorMm[0].toFixed(1)}, ${cursorMm[1].toFixed(1)} mm` : "—"}
-      </div>
-      <div className="pointer-events-none absolute bottom-2 right-2 rounded bg-background/80 px-2 py-0.5 font-mono text-xs text-muted-foreground backdrop-blur">
-        {(view.scale * 100).toFixed(0)}%
-        {selectedPart && ` · ${selectedPart.rotationDeg.toFixed(0)}°`}
+      {/* Bottom bar: cursor readout, canvas options, zoom (xTool anatomy). */}
+      <div className="absolute inset-x-0 bottom-0 flex items-center justify-between gap-2 border-t bg-background/90 px-2 py-1 backdrop-blur">
+        <span className="shrink-0 font-mono text-xs text-muted-foreground">
+          {cursorMm ? `${cursorMm[0].toFixed(1)}, ${cursorMm[1].toFixed(1)} mm` : "—"}
+        </span>
+        <div className="flex items-center gap-1">
+          <Button
+            variant={snap ? "secondary" : "ghost"}
+            size="icon"
+            className={iconBtn}
+            title={`Snap to grid (${snapStep}mm)`}
+            onClick={() => setSnap((s) => !s)}
+          >
+            <Magnet className="size-4" />
+          </Button>
+          <Select value={String(snapStep)} onValueChange={(v) => setSnapStep(Number(v))}>
+            <SelectTrigger size="sm" className="h-7 w-[72px] text-xs">
+              <SelectValue />
+            </SelectTrigger>
+            <SelectContent>
+              {SNAP_STEPS.map((s) => (
+                <SelectItem key={s} value={String(s)}>
+                  {s} mm
+                </SelectItem>
+              ))}
+            </SelectContent>
+          </Select>
+          <Separator orientation="vertical" className="h-5" />
+          <Button
+            variant={showGrid ? "secondary" : "ghost"}
+            size="icon"
+            className={iconBtn}
+            title="Toggle grid"
+            onClick={() => setShowGrid((g) => !g)}
+          >
+            <Grid3x3 className="size-4" />
+          </Button>
+          <Button
+            variant="ghost"
+            size="icon"
+            className={iconBtn}
+            title={darkCanvas ? "Light canvas" : "Dark canvas"}
+            onClick={() => setDarkCanvas((d) => !d)}
+          >
+            {darkCanvas ? <Sun className="size-4" /> : <Moon className="size-4" />}
+          </Button>
+          <Separator orientation="vertical" className="h-5" />
+          <Button variant="ghost" size="icon" className={iconBtn} title="Zoom out"
+            onClick={() => zoomAt([size.w / 2, size.h / 2], 1 / 1.3)}>
+            <ZoomOut className="size-4" />
+          </Button>
+          <span className="w-[44px] text-center font-mono text-xs text-muted-foreground">
+            {(view.scale * 100).toFixed(0)}%
+          </span>
+          <Button variant="ghost" size="icon" className={iconBtn} title="Zoom in"
+            onClick={() => zoomAt([size.w / 2, size.h / 2], 1.3)}>
+            <ZoomIn className="size-4" />
+          </Button>
+          <Button variant="ghost" size="icon" className={iconBtn} title="Fit to view" onClick={fitToView}>
+            <Maximize className="size-4" />
+          </Button>
+        </div>
       </div>
     </div>
   );

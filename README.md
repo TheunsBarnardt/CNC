@@ -9,9 +9,14 @@ serial connection.
 > machine**: any machine running GRBL/grblHAL is a target.
 
 ## Status
-**Milestone 1 (CAM core) complete — Tasks 0–6.** The app covers the full CAM workflow:
-import vector art, arrange it on the table, generate kerf-compensated plasma toolpaths,
-simulate the cut, and export GRBL G-code:
+**Milestone 1 (CAM core) complete — Tasks 0–6, plus the Task 6b workspace rework.**
+The app covers the full CAM workflow: import vector art, arrange it on the table,
+generate kerf-compensated plasma toolpaths, simulate the cut, and export GRBL G-code:
+- xTool Studio–style workspace (Task 6b): left creation rail (import; shape/text tools
+  arrive in Milestone 5), floating edit toolbar on selection (precise X/Y/angle, align,
+  duplicate/delete), right panel with device status + processing parameters, bottom bar
+  (zoom, snap, grid, light/dark canvas), and a Process button that switches to a
+  read-only processing preview with time estimate, simulation playback, and G-code export.
 - Material profiles: app-level presets (per material + thickness) for kerf, feed,
   pierce delay, and cut/pierce heights — pick one and it populates the CAM settings;
   save, update, delete, and share them (export/import endpoints).

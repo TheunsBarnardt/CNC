@@ -154,10 +154,25 @@ them — one focused task at a time gives the best results. Tick the box when do
 > - Persist profiles with the app (and optionally export/import).
 > This completes Milestone 1. Stop and summarize what M1 now does end-to-end.
 
-### [ ] Task 6b — Workspace UX alignment with xTool Studio
+### [x] Task 6b — Workspace UX alignment with xTool Studio
 *Reference: the xTool Studio Basics course (https://support.xtool.com/academy/course?id=6)
 and desktop UI overview (https://support.xtool.com/article/2409). Goal: the app should
 feel familiar to xTool/XCS users — same workspace anatomy, our CAM underneath.*
+<!-- DONE: frontend-only reshuffle, no CAM/backend changes. Left creation rail
+     (CreationSidebar: import via file picker, shapes/text disabled stubs → Task 14;
+     drag-drop import moved onto the canvas, ImportDropzone removed). Floating
+     EditToolbar over the canvas on selection: precise X/Y (world-bbox min) + angle
+     inputs, W×H readout, rotate ±90°, align ×6, duplicate, delete — absorbed the old
+     top-of-canvas button row; wraps on narrow canvases. Bottom bar inside the
+     viewport: cursor mm readout, snap+step, grid toggle, light/dark canvas (fixed
+     palette, independent of app theme), zoom −/%/+/fit. Right panel: Device status
+     card first (StatusBar moved out of header), then Files / Table & sheet / Cut
+     settings. New Process button (header) → preview mode: viewport goes read-only
+     (pan/zoom only), simulation auto-generates, Processing card (estimated time,
+     pierces, cut length) + G-code card replace the edit cards; SimulationBar lives
+     here. Deferred (need part-model support, NOT silently added): mirror H/V +
+     editable size (disabled/read-only in toolbar), stacking order (no UI). -->
+
 **Paste this:**
 > Read the plan and CLAUDE.md. Rework the workspace layout to follow xTool Studio's
 > anatomy (see the reference links in TASKS.md Task 6b) without changing any CAM/backend

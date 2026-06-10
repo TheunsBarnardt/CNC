@@ -49,7 +49,18 @@ them — one focused task at a time gives the best results. Tick the box when do
 > Don't build toolpaths or the canvas yet beyond what's needed to confirm parsing works
 > (a simple list/log of parsed entities is fine). Stop and summarize.
 
-### [ ] Task 2 — Table viewport + part placement
+### [x] Task 2 — Table viewport + part placement
+<!-- Done: Part model (fileId + x/y translation + rotation CCW about local bbox center) —
+     the shared nesting-ready transform; PartTransform (backend) mirrored in frontend
+     lib/geometry.ts. Imports auto-place via naive shelf placement (PartPlacer; real
+     packing = M2). REST: parts create/patch/duplicate/delete + /geometry (local-space
+     polylines). Canvas 2D viewport: table + adaptive grid + origin marker (per origin
+     setting), pan (drag empty/middle), wheel zoom at cursor, fit; select (point-in-
+     polygon hit test), drag-move with snap-to-grid (1-50mm), rotation handle (shift=15°),
+     rotate ±90 buttons, duplicate (Ctrl+D), delete (Del), arrow-key nudge, align to
+     table edges/center; out-of-bounds parts stroke red. 34 backend tests. Verified in
+     browser (drag/rotate/align persisted via PATCH). Deferred: multi-select/marquee,
+     part-level visibility (file-level only). -->
 **Paste this:**
 > Read the plan and CLAUDE.md. Build the 2D viewport (Canvas 2D):
 > - Render the table (from project table size) with grid and origin marker.
@@ -119,7 +130,7 @@ them — one focused task at a time gives the best results. Tick the box when do
 > Read the plan and CLAUDE.md. Implement a real GRBL serial connection behind the existing
 > `IMachineConnection` interface (System.IO.Ports): list ports, connect/disconnect, send
 > lines, read status reports, surface state over the SignalR hub. Keep `FakeMachine` for
-> testing. NO motion/streaming yet — connection + status only. Stop and summarize.
+> testing and simulation. NO motion/streaming yet — connection + status only. Stop and summarize.
 
 ### [ ] Task 9 — Jog, home, and run job
 **Paste this:**

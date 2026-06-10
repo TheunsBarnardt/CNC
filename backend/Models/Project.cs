@@ -66,6 +66,24 @@ public sealed class ImportedFile
     public List<string> Warnings { get; init; } = [];
 }
 
+/// <summary>
+/// A placed instance of an imported file on the table.
+///
+/// This is THE part-transform model the plan requires to be nesting-ready:
+/// placement is exactly (translation X/Y in mm) + (rotation in degrees CCW
+/// about the file's local bounding-box center). Manual dragging sets these
+/// fields today; the auto-nester (Milestone 2) will set the same fields.
+/// Duplicating a part = a second Part referencing the same file geometry.
+/// </summary>
+public sealed class Part
+{
+    public Guid Id { get; init; } = Guid.NewGuid();
+    public required Guid FileId { get; init; }
+    public double X { get; set; }
+    public double Y { get; set; }
+    public double RotationDeg { get; set; }
+}
+
 /// <summary>A whole project: table setup + imported files. Saved as one JSON file.</summary>
 public sealed class Project
 {
@@ -75,4 +93,5 @@ public sealed class Project
     public Units Units { get; set; } = Units.Millimeters;
     public TableSettings Table { get; set; } = new();
     public List<ImportedFile> Files { get; init; } = [];
+    public List<Part> Parts { get; init; } = [];
 }

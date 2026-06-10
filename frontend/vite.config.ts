@@ -11,4 +11,8 @@ export default defineConfig({
       "@": path.resolve(__dirname, "./src"),
     },
   },
+  server: {
+    // Honor an externally assigned port (e.g. tooling); default 5173.
+    port: process.env.PORT ? Number(process.env.PORT) : 5173,
+  },
 })

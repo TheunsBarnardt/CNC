@@ -13,58 +13,107 @@ import { ImportDropzone } from "@/components/ImportDropzone";
 import { FileListPanel } from "@/components/FileListPanel";
 import { ProjectSettingsCard } from "@/components/ProjectSettingsCard";
 import { StatusBar } from "@/components/StatusBar";
-import { projectApi, type ProjectDto, type Units, type TableSettings } from "@/lib/project";
+import { Viewport } from "@/components/Viewport";
+import {
+  projectApi,
+  type FileGeometry,
+  type GeometryPath,
+  type Part,
+  type ProjectDto,
+  type TableSettings,
+  type Units,
+} from "@/lib/project";
 
 function App() {
   const [project, setProject] = useState<ProjectDto | null>(null);
+  const [geometry, setGeometry] = useState<Map<string, GeometryPath[]>>(new Map());
+  const [selectedPartId, setSelectedPartId] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [importing, setImporting] = useState(false);
   const [importErrors, setImportErrors] = useState<string[]>([]);
   const openProjectRef = useRef<HTMLInputElement>(null);
 
-  const run = useCallback(async (action: () => Promise<ProjectDto>) => {
+  const applyGeometry = (files: FileGeometry[]) =>
+    setGeometry(new Map(files.map((f) => [f.fileId, f.paths])));
+
+  const refreshGeometry = useCallback(async () => {
+    applyGeometry((await projectApi.getGeometry()).files);
+  }, []);
+
+  /** Run a project-mutating call; geometry is refetched when file set changes. */
+  const run = useCallback(
+    async (action: () => Promise<ProjectDto>, reloadGeometry = false) => {
+      try {
+        const updated = await action();
+        setProject(updated);
+        if (reloadGeometry) await refreshGeometry();
+        setError(null);
+        return updated;
+      } catch (err) {
+        setError((err as Error).message);
+        return null;
+      }
+    },
+    [refreshGeometry],
+  );
+
+  useEffect(() => {
+    void run(projectApi.get, true);
+  }, [run]);
+
+  // Drop selection if the selected part disappeared (delete/load/new).
+  useEffect(() => {
+    if (selectedPartId && !project?.parts.some((p) => p.id === selectedPartId))
+      setSelectedPartId(null);
+  }, [project, selectedPartId]);
+
+  const handleImport = useCallback(async (files: File[]) => {
+    setImporting(true);
+    setImportErrors([]);
     try {
-      setProject(await action());
+      const { results, project: updated } = await projectApi.importFiles(files);
+      setProject(updated);
+      await refreshGeometry();
+      setImportErrors(
+        results.filter((r) => !r.ok).map((r) => `${r.fileName}: ${r.error}`),
+      );
       setError(null);
     } catch (err) {
       setError((err as Error).message);
+    } finally {
+      setImporting(false);
     }
-  }, []);
-
-  useEffect(() => {
-    void run(projectApi.get);
-  }, [run]);
-
-  const handleImport = useCallback(
-    async (files: File[]) => {
-      setImporting(true);
-      setImportErrors([]);
-      try {
-        const { results, project: updated } = await projectApi.importFiles(files);
-        setProject(updated);
-        setImportErrors(
-          results.filter((r) => !r.ok).map((r) => `${r.fileName}: ${r.error}`),
-        );
-        setError(null);
-      } catch (err) {
-        setError((err as Error).message);
-      } finally {
-        setImporting(false);
-      }
-    },
-    [],
-  );
+  }, [refreshGeometry]);
 
   const updateSettings = useCallback(
     (settings: { name?: string; units?: Units; table?: TableSettings }) =>
-      run(() => projectApi.updateSettings(settings)),
+      void run(() => projectApi.updateSettings(settings)),
+    [run],
+  );
+
+  /** Optimistic local update while dragging in the viewport. */
+  const handlePartChange = useCallback((part: Part) => {
+    setProject((p) =>
+      p ? { ...p, parts: p.parts.map((x) => (x.id === part.id ? part : x)) } : p,
+    );
+  }, []);
+
+  const handlePartCommit = useCallback(
+    (part: Part) =>
+      void run(() =>
+        projectApi.updatePart(part.id, {
+          x: part.x,
+          y: part.y,
+          rotationDeg: part.rotationDeg,
+        }),
+      ),
     [run],
   );
 
   return (
-    <div className="min-h-screen bg-background text-foreground">
-      <header className="border-b">
-        <div className="mx-auto flex max-w-5xl items-center justify-between gap-4 px-6 py-3">
+    <div className="flex h-screen flex-col bg-background text-foreground">
+      <header className="shrink-0 border-b">
+        <div className="flex items-center justify-between gap-4 px-4 py-2.5">
           <div className="flex items-baseline gap-3">
             <h1 className="text-lg font-semibold tracking-tight">
               DIY GRBL Cutting CAM
@@ -86,7 +135,7 @@ function App() {
                     project.files.length === 0 ||
                     confirm("Start a new project? Unsaved changes are lost.")
                   )
-                    void run(projectApi.newProject);
+                    void run(projectApi.newProject, true);
                 }}
               >
                 <FilePlus2 className="size-4" /> New
@@ -110,7 +159,7 @@ function App() {
                 hidden
                 onChange={(e) => {
                   const file = e.target.files?.[0];
-                  if (file) void run(() => projectApi.loadProject(file));
+                  if (file) void run(() => projectApi.loadProject(file), true);
                   e.target.value = "";
                 }}
               />
@@ -119,66 +168,77 @@ function App() {
         </div>
       </header>
 
-      <main className="mx-auto max-w-5xl space-y-6 px-6 py-6">
-        {error && (
-          <div className="rounded-md border border-destructive/50 bg-destructive/10 px-4 py-2 text-sm text-destructive">
-            {error}
-          </div>
-        )}
+      <main className="flex min-h-0 flex-1 gap-4 p-4">
+        {/* Viewport — the main work area */}
+        <div className="flex min-w-0 flex-1 flex-col gap-2">
+          {error && (
+            <div className="rounded-md border border-destructive/50 bg-destructive/10 px-4 py-2 text-sm text-destructive">
+              {error}
+            </div>
+          )}
+          {project && (
+            <Viewport
+              project={project}
+              geometry={geometry}
+              selectedPartId={selectedPartId}
+              onSelect={setSelectedPartId}
+              onPartChange={handlePartChange}
+              onPartCommit={handlePartCommit}
+              onDuplicate={(id) => void run(() => projectApi.duplicatePart(id))}
+              onDelete={(id) => void run(() => projectApi.deletePart(id))}
+            />
+          )}
+        </div>
 
-        <div className="grid gap-6 md:grid-cols-[1fr_minmax(280px,340px)]">
-          <div className="space-y-6">
-            <Card>
-              <CardHeader>
-                <CardTitle>Import</CardTitle>
-                <CardDescription>
-                  Vector artwork (SVG, DXF) — parsed into cutting geometry.
-                </CardDescription>
-              </CardHeader>
-              <CardContent className="space-y-3">
-                <ImportDropzone onImport={handleImport} busy={importing} />
-                {importErrors.map((msg) => (
-                  <div
-                    key={msg}
-                    className="rounded-md border border-destructive/50 bg-destructive/10 px-3 py-1.5 text-xs text-destructive"
-                  >
-                    {msg}
-                  </div>
-                ))}
-              </CardContent>
-            </Card>
+        {/* Sidebar */}
+        <aside className="flex w-[330px] shrink-0 flex-col gap-4 overflow-y-auto">
+          <Card>
+            <CardHeader className="pb-3">
+              <CardTitle className="text-base">Import</CardTitle>
+            </CardHeader>
+            <CardContent className="space-y-3">
+              <ImportDropzone onImport={handleImport} busy={importing} />
+              {importErrors.map((msg) => (
+                <div
+                  key={msg}
+                  className="rounded-md border border-destructive/50 bg-destructive/10 px-3 py-1.5 text-xs text-destructive"
+                >
+                  {msg}
+                </div>
+              ))}
+            </CardContent>
+          </Card>
 
-            <Card>
-              <CardHeader>
-                <CardTitle>Files</CardTitle>
-                <CardDescription>
-                  {project?.files.length
-                    ? `${project.files.length} imported file${project.files.length === 1 ? "" : "s"}`
-                    : "Imported files appear here"}
-                </CardDescription>
-              </CardHeader>
-              <CardContent>
-                {project && (
-                  <FileListPanel
-                    files={project.files}
-                    units={project.units}
-                    onToggleVisible={(id, visible) =>
-                      void run(() => projectApi.updateFile(id, { visible }))
-                    }
-                    onRename={(id, displayName) =>
-                      void run(() => projectApi.updateFile(id, { displayName }))
-                    }
-                    onDelete={(id) => void run(() => projectApi.deleteFile(id))}
-                  />
-                )}
-              </CardContent>
-            </Card>
-          </div>
+          <Card>
+            <CardHeader className="pb-3">
+              <CardTitle className="text-base">Files</CardTitle>
+              <CardDescription>
+                {project?.files.length
+                  ? `${project.files.length} file${project.files.length === 1 ? "" : "s"}, ${project?.parts.length} part${project?.parts.length === 1 ? "" : "s"} placed`
+                  : "Imported files appear here"}
+              </CardDescription>
+            </CardHeader>
+            <CardContent>
+              {project && (
+                <FileListPanel
+                  files={project.files}
+                  units={project.units}
+                  onToggleVisible={(id, visible) =>
+                    void run(() => projectApi.updateFile(id, { visible }))
+                  }
+                  onRename={(id, displayName) =>
+                    void run(() => projectApi.updateFile(id, { displayName }))
+                  }
+                  onDelete={(id) => void run(() => projectApi.deleteFile(id), true)}
+                  onAddToTable={(id) => void run(() => projectApi.createPart(id))}
+                />
+              )}
+            </CardContent>
+          </Card>
 
-          <Card className="h-fit">
-            <CardHeader>
-              <CardTitle>Table & sheet</CardTitle>
-              <CardDescription>Machine bed and material setup.</CardDescription>
+          <Card>
+            <CardHeader className="pb-3">
+              <CardTitle className="text-base">Table &amp; sheet</CardTitle>
             </CardHeader>
             <CardContent>
               {project && (
@@ -186,11 +246,7 @@ function App() {
               )}
             </CardContent>
           </Card>
-        </div>
-
-        <p className="text-xs text-muted-foreground">
-          Task 1 — import &amp; project foundation. The table viewport arrives in Task 2.
-        </p>
+        </aside>
       </main>
     </div>
   );

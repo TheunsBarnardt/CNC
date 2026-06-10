@@ -1,5 +1,5 @@
 import { useState } from "react";
-import { AlertTriangle, Check, Eye, EyeOff, Pencil, Trash2, X } from "lucide-react";
+import { AlertTriangle, Check, Eye, EyeOff, Pencil, PlusSquare, Trash2, X } from "lucide-react";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -16,10 +16,12 @@ interface Props {
   onToggleVisible: (id: string, visible: boolean) => void;
   onRename: (id: string, displayName: string) => void;
   onDelete: (id: string) => void;
+  /** Place another copy of this file on the table. */
+  onAddToTable: (id: string) => void;
 }
 
 /** Imported-files panel: visibility, rename, delete + parsed-geometry summary. */
-export function FileListPanel({ files, units, onToggleVisible, onRename, onDelete }: Props) {
+export function FileListPanel({ files, units, onToggleVisible, onRename, onDelete, onAddToTable }: Props) {
   if (files.length === 0) {
     return (
       <p className="py-6 text-center text-sm text-muted-foreground">
@@ -38,6 +40,7 @@ export function FileListPanel({ files, units, onToggleVisible, onRename, onDelet
           onToggleVisible={onToggleVisible}
           onRename={onRename}
           onDelete={onDelete}
+          onAddToTable={onAddToTable}
         />
       ))}
     </ul>
@@ -50,6 +53,7 @@ function FileRow({
   onToggleVisible,
   onRename,
   onDelete,
+  onAddToTable,
 }: { file: FileSummary } & Omit<Props, "files">) {
   const [editing, setEditing] = useState(false);
   const [draft, setDraft] = useState(file.displayName);
@@ -121,6 +125,16 @@ function FileRow({
             <Badge variant="outline" className="shrink-0 uppercase">
               {file.kind}
             </Badge>
+            <Button
+              variant="ghost"
+              size="icon"
+              className="size-7 shrink-0"
+              aria-label="Add a copy to the table"
+              title="Add a copy to the table"
+              onClick={() => onAddToTable(file.id)}
+            >
+              <PlusSquare className="size-4" />
+            </Button>
             <Button
               variant="ghost"
               size="icon"

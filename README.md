@@ -9,7 +9,11 @@ serial connection.
 > machine**: any machine running GRBL/grblHAL is a target.
 
 ## Status
-**Tasks 0–1 complete.** The app now has the project & import foundation:
+**Tasks 0–2 complete.** The app now has the project, import, and table-placement foundation:
+- 2D table viewport (Canvas 2D): grid, origin marker, pan/zoom/fit; select, drag-move
+  with snap-to-grid, rotate (handle or ±90°), duplicate, delete, align-to-table; parts
+  out of bounds highlight red. Placement uses the shared nesting-ready part transform
+  (translation + rotation), so Milestone 2 auto-nesting drives the same model.
 - Drag-and-drop import of multiple **SVG** and **DXF** files, parsed on the backend into
   a neutral geometry model (curves flattened to mm polylines, per-file warnings for
   unsupported entities like text).

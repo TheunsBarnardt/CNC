@@ -34,11 +34,36 @@ export interface FileSummary {
   warnings: string[];
 }
 
+/**
+ * A placed instance of a file on the table. Mirrors backend Part: translation
+ * in mm + rotation CCW (degrees) about the file's local bbox center.
+ */
+export interface Part {
+  id: string;
+  fileId: string;
+  x: number;
+  y: number;
+  rotationDeg: number;
+}
+
 export interface ProjectDto {
   name: string;
   units: Units;
   table: TableSettings;
   files: FileSummary[];
+  parts: Part[];
+}
+
+/** One file's local-space geometry, as sent by GET /api/project/geometry. */
+export interface GeometryPath {
+  layer: string | null;
+  closed: boolean;
+  points: [number, number][];
+}
+
+export interface FileGeometry {
+  fileId: string;
+  paths: GeometryPath[];
 }
 
 export interface ImportResult {
@@ -99,6 +124,38 @@ export const projectApi = {
 
   deleteFile: (id: string) =>
     fetch(`${BACKEND_URL}/api/project/files/${id}`, { method: "DELETE" }).then(
+      (r) => json<ProjectDto>(r),
+    ),
+
+  getGeometry: () =>
+    fetch(`${BACKEND_URL}/api/project/geometry`).then((r) =>
+      json<{ files: FileGeometry[] }>(r),
+    ),
+
+  createPart: (fileId: string) =>
+    fetch(`${BACKEND_URL}/api/project/parts`, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ fileId }),
+    }).then((r) => json<ProjectDto>(r)),
+
+  updatePart: (
+    id: string,
+    patch: { x?: number; y?: number; rotationDeg?: number },
+  ) =>
+    fetch(`${BACKEND_URL}/api/project/parts/${id}`, {
+      method: "PATCH",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify(patch),
+    }).then((r) => json<ProjectDto>(r)),
+
+  duplicatePart: (id: string) =>
+    fetch(`${BACKEND_URL}/api/project/parts/${id}/duplicate`, {
+      method: "POST",
+    }).then((r) => json<ProjectDto>(r)),
+
+  deletePart: (id: string) =>
+    fetch(`${BACKEND_URL}/api/project/parts/${id}`, { method: "DELETE" }).then(
       (r) => json<ProjectDto>(r),
     ),
 

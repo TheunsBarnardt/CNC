@@ -9,19 +9,16 @@ using Backend.Services;
 
 var builder = WebApplication.CreateBuilder(args);
 
-// Allowed frontend dev origins (Vite). Kept narrow on purpose; production
+// Frontend dev origins: any localhost port (Vite picks a free one when 5173
+// is busy). Loopback-only, so nothing off-machine is allowed; production
 // packaging (single desktop shell) will revisit this.
 const string FrontendCors = "frontend-dev";
-string[] frontendOrigins =
-[
-    "http://localhost:5173",
-    "http://127.0.0.1:5173",
-];
 
 builder.Services.AddCors(options =>
 {
     options.AddPolicy(FrontendCors, policy => policy
-        .WithOrigins(frontendOrigins)
+        .SetIsOriginAllowed(origin =>
+            Uri.TryCreate(origin, UriKind.Absolute, out var uri) && uri.IsLoopback)
         .AllowAnyHeader()
         .AllowAnyMethod()
         .AllowCredentials()); // required for SignalR (WebSockets carry credentials)

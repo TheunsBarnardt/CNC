@@ -203,6 +203,51 @@ feel familiar to xTool/XCS users — same workspace anatomy, our CAM underneath.
 
 ---
 
+## Milestone 5 — xTool Studio feature parity (user-requested)
+*Bring in xTool Studio's design/editing functionality so xTool/XCS users feel at home.
+Reference: https://support.xtool.com/academy/course?id=6 and
+https://support.xtool.com/article/2409. Task 6b covers the workspace layout; these
+tasks cover the functionality. Each is one session; split further if a task grows.*
+
+### [ ] Task 14 — Shape & text creation tools
+> Left-sidebar creation tools on the canvas: line, rectangle (with corner radius),
+> circle/ellipse, polygon, star; text objects with font selection, size, style, letter/
+> line spacing, and convert-text-to-paths so CAM consumes outlines (closes the current
+> "<text> not supported" import warning). Objects use the existing part-transform model.
+
+### [ ] Task 15 — Object editing: precise transforms, mirror, group, offset
+> Floating-toolbar functionality: numeric X/Y/W/H/rotation entry with aspect lock,
+> mirror horizontal/vertical, group/ungroup, stacking order, and contour offset
+> (Clipper2 — reuse the kerf offsetter, don't hand-roll).
+
+### [ ] Task 16 — Vector node editing + path operations
+> Node-level editing of imported/created paths: move/add/delete nodes, node types
+> (corner/smooth), path simplification, split path (scissors). Pathfinder booleans via
+> Clipper2: unite, subtract, intersect, weld overlapping text/shapes.
+
+### [ ] Task 17 — Arrays & material test grid
+> Grid array and circular array of parts (drives the same part-transform model as
+> nesting). Material test array generator: a grid of test cuts varying two parameters
+> (e.g. feed × pierce delay for plasma; power × speed once laser mode exists) to dial
+> in material profiles — xTool's "array test" equivalent for finding good settings.
+
+### [ ] Task 18 — Bitmap import + trace to vector
+> Import PNG/JPG, auto-trace (and center-line trace) to vector paths for cutting.
+> Image filters/adjustments (grayscale, invert, brightness/contrast, halftone/dither)
+> matter mainly for laser engraving — implement alongside or after Task 12 (laser mode),
+> where engrave processing actually consumes them.
+
+### [ ] Task 19 — Templates & element library, canvas QoL
+> Project templates and a reusable element/shape library; canvas light/dark toggle,
+> grid show/hide, snap settings UI; per-object processing-mode assignment UI
+> (cut/engrave/score per layer or object — wires the existing per-layer provenance
+> into operations).
+
+> Out of parity scope (flag if requested): AImake/AI image generation, xTool account
+> login, xTool-proprietary device features (smart detection, camera framing).
+
+---
+
 ## Working agreement for Claude Code
 - One task per session. Read the plan + CLAUDE.md first.
 - Don't pull later tasks forward. Flag scope creep instead of acting on it.

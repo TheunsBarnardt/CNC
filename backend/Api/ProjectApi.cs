@@ -1,6 +1,7 @@
 using Backend.Cam;
 using Backend.Import;
 using Backend.Models;
+using Backend.Nest;
 using Backend.Post;
 using Backend.Services;
 
@@ -177,6 +178,33 @@ public static class ProjectApi
             return removed ? Results.Ok(projects.With(ToDto)) : Results.NotFound();
         });
 
+        // Auto-nest: reposition all parts to save material. Same transform
+        // fields as manual dragging — users can adjust the result by hand.
+        group.MapPost("/nest", (NestRequest? request, ProjectService projects) =>
+        {
+            var settings = new NestSettings
+            {
+                MarginMm = request?.MarginMm ?? 10,
+                SpacingMm = request?.SpacingMm ?? 5,
+                RotationStepDeg = request?.RotationStepDeg ?? 90,
+            };
+            try
+            {
+                settings.Validate();
+            }
+            catch (ArgumentException ex)
+            {
+                return Results.BadRequest(new { error = ex.Message });
+            }
+
+            return Results.Ok(projects.With(p =>
+            {
+                var outcome = Nester.Nest(p, settings);
+                return new NestResultDto(
+                    ToDto(p), outcome.PlacedCount, outcome.SkippedCount, outcome.Warnings);
+            }));
+        });
+
         // --- CAM ----------------------------------------------------------
 
         // Persisted CAM settings (kerf, feeds, leads). Saved in the project file.
@@ -322,6 +350,11 @@ public static class ProjectApi
     public sealed record CreatePartRequest(Guid FileId);
 
     public sealed record UpdatePartRequest(double? X, double? Y, double? RotationDeg);
+
+    public sealed record NestRequest(double? MarginMm, double? SpacingMm, int? RotationStepDeg);
+
+    public sealed record NestResultDto(
+        ProjectDto Project, int PlacedCount, int SkippedCount, IReadOnlyList<string> Warnings);
 
     public sealed record PostProcessorDto(
         string Id, string DisplayName, string Description, string FileExtension, bool IsDefault);

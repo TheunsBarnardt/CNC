@@ -32,9 +32,12 @@ builder.Services
         options.PayloadSerializerOptions.Converters.Add(new JsonStringEnumConverter()));
 builder.Services.AddOpenApi();
 
-// Machine link: fake until real serial arrives in Milestone 3. Singleton so the
-// heartbeat broadcaster and hub share one consistent status source.
-builder.Services.AddSingleton<IMachineConnection, FakeMachineConnection>();
+// Machine link: MachineConnectionManager starts with FakeMachineConnection and can
+// swap to a real SerialMachineConnection at runtime via the /api/machine/* endpoints.
+builder.Services.AddSingleton<FakeMachineConnection>();
+builder.Services.AddSingleton<MachineConnectionManager>();
+builder.Services.AddSingleton<IMachineConnection>(sp =>
+    sp.GetRequiredService<MachineConnectionManager>());
 builder.Services.AddHostedService<HeartbeatBroadcaster>();
 
 // Project state + vector file import.
@@ -73,6 +76,7 @@ app.MapGet("/api/health", () => Results.Ok(new
 
 app.MapProjectApi();
 app.MapProfileApi();
+app.MapMachineApi();
 app.MapHub<MachineHub>("/hubs/machine");
 
 app.Run();

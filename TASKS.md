@@ -192,7 +192,16 @@ feel familiar to xTool/XCS users — same workspace anatomy, our CAM underneath.
 ---
 
 ## Milestone 2 — Auto-Nesting
-### [ ] Task 7 — Auto-nesting
+### [x] Task 7 — Auto-nesting
+<!-- Done: Backend Nester.cs uses SVGnest/DeepNest greedy approach via Clipper2: parts
+     ordered largest-first, each tried at discrete rotation candidates (0/45/90/180°
+     configurable), placed at bottom-left feasible grid position; collision tested with
+     Clipper2 Intersect (inflated by spacing); margin enforced against table bounds.
+     Drives the same Part.X/Y/RotationDeg transform as manual dragging. REST:
+     POST /api/project/nest → {project, placedCount, skippedCount, warnings}.
+     Frontend: NestCard (margin/spacing/rotation settings + Nest button + outcome
+     summary + per-part warnings), wired into right-panel "Arrange" card.
+     8 unit tests in NesterTests.cs. Manual placement unaffected. -->
 **Paste this:**
 > Read the plan and CLAUDE.md. Add auto-nesting that arranges parts on the sheet to save
 > material, reusing the existing part-transform/placement model (manual placement must
@@ -203,7 +212,19 @@ feel familiar to xTool/XCS users — same workspace anatomy, our CAM underneath.
 ---
 
 ## Milestone 3 — Machine Control (GRBL)  ⚠️ safety-critical
-### [ ] Task 8 — Real serial connection (replace fake)
+### [x] Task 8 — Real serial connection (replace fake)
+<!-- Done: SerialMachineConnection implements IMachineConnection via System.IO.Ports:
+     opens port (DtrEnable=false to prevent Arduino auto-reset / plasma relay energize),
+     sends '?' every 200ms in a background Task.Run loop, parses GRBL status reports
+     (<State|WPos:x,y,z|...>) preferring WPos over MPos, fires StatusChanged and caches
+     last status for GetStatus(). MachineConnectionManager wraps the active connection
+     (starts as FakeMachineConnection, swaps to SerialMachineConnection at runtime via
+     ConnectSerialAsync/DisconnectSerialAsync, thread-safe inner swap with event
+     re-subscription, reverts to Fake on disconnect). REST: GET /api/machine/ports,
+     GET /api/machine/connection, POST /api/machine/connect, POST /api/machine/disconnect.
+     System.IO.Ports NuGet added. Frontend DevicePanel: port dropdown + refresh, baud
+     selector, Connect/Disconnect button, live DRO (X/Y/Z from SignalR) shown when
+     connected. FakeMachineConnection retained for testing/simulation. No motion. -->
 **Paste this:**
 > Read the plan and CLAUDE.md. Implement a real GRBL serial connection behind the existing
 > `IMachineConnection` interface (System.IO.Ports): list ports, connect/disconnect, send

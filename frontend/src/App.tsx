@@ -12,10 +12,11 @@ import { Separator } from "@/components/ui/separator";
 import { CreationSidebar } from "@/components/CreationSidebar";
 import { CutSettingsCard } from "@/components/CutSettingsCard";
 import { FileListPanel } from "@/components/FileListPanel";
+import { NestCard } from "@/components/NestCard";
 import { GcodePanel } from "@/components/GcodePanel";
 import { ProjectSettingsCard } from "@/components/ProjectSettingsCard";
 import { SimulationBar } from "@/components/SimulationBar";
-import { StatusBar } from "@/components/StatusBar";
+import { DevicePanel } from "@/components/DevicePanel";
 import { Viewport } from "@/components/Viewport";
 import { buildSimulation, formatTime, type Simulation } from "@/lib/simulation";
 import {
@@ -283,9 +284,10 @@ function App() {
           <Card>
             <CardHeader className="pb-3">
               <CardTitle className="text-base">Device</CardTitle>
+              <CardDescription>GRBL serial connection</CardDescription>
             </CardHeader>
             <CardContent>
-              <StatusBar />
+              <DevicePanel />
             </CardContent>
           </Card>
 
@@ -315,6 +317,18 @@ function App() {
                       onAddToTable={(id) => void run(() => projectApi.createPart(id))}
                     />
                   )}
+                </CardContent>
+              </Card>
+
+              <Card>
+                <CardHeader className="pb-3">
+                  <CardTitle className="text-base">Arrange</CardTitle>
+                  <CardDescription>
+                    Auto-nest parts to save material
+                  </CardDescription>
+                </CardHeader>
+                <CardContent>
+                  <NestCard hasParts={hasParts} onNested={setProject} />
                 </CardContent>
               </Card>
 

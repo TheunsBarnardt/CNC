@@ -124,6 +124,20 @@ export interface ToolpathResult {
   warnings: string[];
 }
 
+/** Settings for one auto-nest run (POST /api/project/nest). */
+export interface NestSettings {
+  marginMm: number;
+  spacingMm: number;
+  rotationStepDeg: number;
+}
+
+export interface NestResult {
+  project: ProjectDto;
+  placedCount: number;
+  skippedCount: number;
+  warnings: string[];
+}
+
 /** A registered post-processor (GET /api/posts). */
 export interface PostProcessorInfo {
   id: string;
@@ -262,6 +276,13 @@ export const projectApi = {
     fetch(`${BACKEND_URL}/api/profiles/${id}`, { method: "DELETE" }).then((r) => {
       if (!r.ok) throw new Error(`${r.status} ${r.statusText}`);
     }),
+
+  nest: (settings: NestSettings) =>
+    fetch(`${BACKEND_URL}/api/project/nest`, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify(settings),
+    }).then((r) => json<NestResult>(r)),
 
   generateToolpath: () =>
     fetch(`${BACKEND_URL}/api/project/toolpath`, { method: "POST" }).then((r) =>

@@ -71,7 +71,18 @@ them — one focused task at a time gives the best results. Tick the box when do
 > - Snap-to-grid and basic alignment.
 > Keep CAM out of this task. Stop and summarize.
 
-### [ ] Task 3 — CAM engine: kerf, lead-in/out, pierce, ordering
+### [x] Task 3 — CAM engine: kerf, lead-in/out, pierce, ordering
+<!-- Done: backend/Cam/. Cut sides auto-classified by containment depth (even=Outside,
+     odd=Inside, open=OnLine). Kerf via Clipper2 InflatePaths (±kerf/2, round joins,
+     per-contour; too-small contours warn + skip). Direction normalized: outer CCW,
+     holes CW → waste always right of travel; leads (line/arc quarter-circle, tangent
+     at pierce) approach from waste side; pierce at longest-segment midpoint. Ordering:
+     children-before-parents constraint + nearest-neighbor rapids from origin. Neutral
+     Toolpath model (Cut: points incl. leads, lead point counts, side, feeds, pierce
+     delay). CamSettings persisted on Project; REST: GET/PUT /api/project/cam, POST
+     /api/project/toolpath. 18 new unit tests (52 total). Deferred: per-path cut-side
+     UI overrides (engine classifies automatically; override model can come with the
+     operations UI in Task 4/6); kerf interaction between near-touching contours. -->
 **Paste this:**
 > Read the plan and CLAUDE.md. Implement the plasma CAM engine on the backend using
 > Clipper2:

@@ -9,7 +9,11 @@ serial connection.
 > machine**: any machine running GRBL/grblHAL is a target.
 
 ## Status
-**Tasks 0–2 complete.** The app now has the project, import, and table-placement foundation:
+**Tasks 0–3 complete.** The app now has the project, import, placement, and CAM foundation:
+- Plasma CAM engine (backend, Clipper2): cut-side classification (outer/hole/on-line),
+  kerf compensation, line/arc lead-in/out with waste-side pierces on longest segments,
+  inner-before-outer cut ordering with nearest-neighbor rapids — emitted as a neutral,
+  controller-agnostic toolpath (G-code dialects arrive with the post-processor task).
 - 2D table viewport (Canvas 2D): grid, origin marker, pan/zoom/fit; select, drag-move
   with snap-to-grid, rotate (handle or ±90°), duplicate, delete, align-to-table; parts
   out of bounds highlight red. Placement uses the shared nesting-ready part transform

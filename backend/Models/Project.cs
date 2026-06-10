@@ -1,3 +1,4 @@
+using Backend.Cam;
 using Backend.Geometry;
 
 namespace Backend.Models;
@@ -92,6 +93,7 @@ public sealed class Project
     public string Name { get; set; } = "Untitled";
     public Units Units { get; set; } = Units.Millimeters;
     public TableSettings Table { get; set; } = new();
+    public CamSettings Cam { get; set; } = new();
     public List<ImportedFile> Files { get; init; } = [];
     public List<Part> Parts { get; init; } = [];
 }

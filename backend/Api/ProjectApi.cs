@@ -1,3 +1,4 @@
+using Backend.Cam;
 using Backend.Import;
 using Backend.Models;
 using Backend.Services;
@@ -175,6 +176,28 @@ public static class ProjectApi
             return removed ? Results.Ok(projects.With(ToDto)) : Results.NotFound();
         });
 
+        // --- CAM ----------------------------------------------------------
+
+        // Persisted CAM settings (kerf, feeds, leads). Saved in the project file.
+        group.MapPut("/cam", (CamSettings settings, ProjectService projects) =>
+        {
+            if (settings.KerfWidthMm < 0 || settings.FeedRateMmMin <= 0 ||
+                settings.PierceDelayS < 0 || settings.LeadInLengthMm < 0 || settings.LeadOutLengthMm < 0)
+                return Results.BadRequest(new { error = "CAM settings out of range." });
+            projects.Mutate(p => p.Cam = settings);
+            return Results.Ok(projects.With(p => p.Cam));
+        });
+
+        group.MapGet("/cam", (ProjectService projects) =>
+            Results.Ok(projects.With(p => p.Cam)));
+
+        // Generate the neutral toolpath from the current placement + settings.
+        group.MapPost("/toolpath", (ProjectService projects) =>
+        {
+            var toolpath = projects.With(p => CamEngine.Generate(p, p.Cam));
+            return Results.Ok(ToToolpathDto(toolpath));
+        });
+
         // Save: the whole project (settings + geometry) as one JSON file.
         group.MapGet("/export", (ProjectService projects) =>
         {
@@ -268,6 +291,43 @@ public static class ProjectApi
         deg %= 360;
         return deg < 0 ? deg + 360 : deg;
     }
+
+    public sealed record CutDto(
+        Guid PartId,
+        Guid SourcePathId,
+        string? Layer,
+        CutSide Side,
+        bool Closed,
+        int LeadInPointCount,
+        int LeadOutPointCount,
+        double PierceDelayS,
+        double FeedRateMmMin,
+        double CutLengthMm,
+        IReadOnlyList<double[]> Points);
+
+    public sealed record ToolpathDto(
+        IReadOnlyList<CutDto> Cuts,
+        double TotalCutLengthMm,
+        double TotalRapidLengthMm,
+        IReadOnlyList<string> Warnings);
+
+    private static ToolpathDto ToToolpathDto(Toolpath tp) => new(
+        tp.Cuts.Select(c => new CutDto(
+            c.PartId,
+            c.SourcePathId,
+            c.Layer,
+            c.Side,
+            c.IsClosedContour,
+            c.LeadInPointCount,
+            c.LeadOutPointCount,
+            c.PierceDelayS,
+            c.FeedRateMmMin,
+            Math.Round(c.CutLengthMm(), 2),
+            c.Points.Select(p => new[] { Math.Round(p.X, 2), Math.Round(p.Y, 2) }).ToList()))
+            .ToList(),
+        Math.Round(tp.TotalCutLengthMm, 2),
+        Math.Round(tp.TotalRapidLengthMm(new Backend.Geometry.Point2(0, 0)), 2),
+        tp.Warnings);
 
     private static ProjectDto ToDto(Project p) => new(
         p.Name,

@@ -1,5 +1,22 @@
 import { useCallback, useEffect, useState } from "react";
-import { Cable, Unplug, RefreshCw, Loader2 } from "lucide-react";
+import {
+  Cable,
+  Unplug,
+  RefreshCw,
+  Loader2,
+  Home,
+  CrosshairIcon,
+  Play,
+  Pause,
+  Square,
+  RotateCcw,
+  ChevronUp,
+  ChevronDown,
+  ChevronLeft,
+  ChevronRight,
+  ArrowUp,
+  ArrowDown,
+} from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Label } from "@/components/ui/label";
 import {
@@ -9,16 +26,15 @@ import {
   SelectTrigger,
   SelectValue,
 } from "@/components/ui/select";
+import { Progress } from "@/components/ui/progress";
 import { cn } from "@/lib/utils";
 import { machineApi, type ConnectionInfo } from "@/lib/machineApi";
 import { useMachineHeartbeat } from "@/hooks/useMachineHeartbeat";
 
 const BAUD_OPTIONS = [115200, 57600, 38400, 19200, 9600];
+const JOG_STEPS = [0.1, 1, 10, 100];
+const JOG_FEED = 1000; // mm/min default
 
-/**
- * Connection controls + live DRO for the right-panel Device card.
- * REST handles port selection / connect / disconnect; SignalR delivers live status.
- */
 export function DevicePanel() {
   const { status } = useMachineHeartbeat();
 
@@ -27,6 +43,7 @@ export function DevicePanel() {
   const [selectedBaud, setSelectedBaud] = useState(115200);
   const [connInfo, setConnInfo] = useState<ConnectionInfo | null>(null);
   const [busy, setBusy] = useState(false);
+  const [jogStep, setJogStep] = useState(1);
   const [error, setError] = useState<string | null>(null);
 
   const loadPorts = useCallback(async () => {
@@ -34,9 +51,7 @@ export function DevicePanel() {
       const list = await machineApi.ports();
       setPorts(list);
       if (list.length > 0 && !selectedPort) setSelectedPort(list[0]);
-    } catch {
-      /* ignore — backend may be briefly unavailable */
-    }
+    } catch { /* ignore */ }
   }, [selectedPort]);
 
   const loadConnection = useCallback(async () => {
@@ -47,9 +62,7 @@ export function DevicePanel() {
         setSelectedPort(info.port);
         setSelectedBaud(info.baud ?? 115200);
       }
-    } catch {
-      /* ignore */
-    }
+    } catch { /* ignore */ }
   }, []);
 
   useEffect(() => {
@@ -57,13 +70,12 @@ export function DevicePanel() {
     void loadConnection();
   }, [loadPorts, loadConnection]);
 
-  const handleConnect = async () => {
-    if (!selectedPort) return;
+  const act = async (fn: () => Promise<unknown>, reloadConn = false) => {
     setBusy(true);
     setError(null);
     try {
-      await machineApi.connect(selectedPort, selectedBaud);
-      await loadConnection();
+      await fn();
+      if (reloadConn) await loadConnection();
     } catch (err) {
       setError((err as Error).message);
     } finally {
@@ -71,30 +83,32 @@ export function DevicePanel() {
     }
   };
 
-  const handleDisconnect = async () => {
-    setBusy(true);
-    setError(null);
-    try {
-      await machineApi.disconnect();
-      await loadConnection();
-    } catch (err) {
-      setError((err as Error).message);
-    } finally {
-      setBusy(false);
-    }
-  };
+  const jog = (axis: string, sign: 1 | -1) =>
+    void act(() => machineApi.jog(axis, sign * jogStep, JOG_FEED));
 
   const isConnected = connInfo?.isConnected ?? false;
+  const isJobRunning = connInfo?.isJobRunning ?? false;
   const machineState = status?.machineState ?? "—";
-  const stateColor =
-    machineState === "Idle" ? "text-emerald-500"
-    : machineState === "Run" ? "text-blue-500"
-    : machineState.startsWith("Alarm") ? "text-destructive"
-    : "text-muted-foreground";
+  const isAlarm = machineState.toLowerCase().startsWith("alarm");
+  const isHold = machineState.toLowerCase() === "hold";
+  const isRun = machineState.toLowerCase() === "run";
+
+  const stateColor = isAlarm
+    ? "text-destructive"
+    : isRun
+      ? "text-blue-500"
+      : machineState === "Idle"
+        ? "text-emerald-500"
+        : "text-muted-foreground";
+
+  const jobPct =
+    status?.jobTotal && status.jobDone != null
+      ? Math.round((status.jobDone / status.jobTotal) * 100)
+      : null;
 
   return (
     <div className="grid gap-3">
-      {/* Connection state chip */}
+      {/* ── Connection status chip ─────────────────────── */}
       <div className="flex items-center gap-2">
         <span
           className={cn(
@@ -104,32 +118,42 @@ export function DevicePanel() {
         />
         <span className="text-xs text-muted-foreground">
           {isConnected
-            ? `${connInfo?.port} · ${connInfo?.baud} baud`
+            ? `${connInfo?.port} · ${connInfo?.baud?.toLocaleString()} baud`
             : "Not connected"}
         </span>
       </div>
 
-      {/* DRO — only shown when a status is streaming */}
+      {/* ── DRO ───────────────────────────────────────── */}
       {isConnected && status && (
         <div className="rounded-md border bg-muted/30 px-3 py-2">
-          <div className="mb-1 flex items-center justify-between">
-            <span className={cn("text-xs font-medium", stateColor)}>{machineState}</span>
+          <div className="mb-1.5 flex items-center gap-2">
+            <span className={cn("text-xs font-semibold", stateColor)}>
+              {machineState}
+            </span>
+            {jobPct != null && (
+              <span className="ml-auto text-xs text-muted-foreground">
+                {status.jobDone}/{status.jobTotal} lines
+              </span>
+            )}
           </div>
-          <div className="grid grid-cols-3 gap-1 font-mono text-xs">
-            <span className="text-muted-foreground">X</span>
-            <span className="text-muted-foreground">Y</span>
-            <span className="text-muted-foreground">Z</span>
-            <span>{status.x.toFixed(3)}</span>
-            <span>{status.y.toFixed(3)}</span>
-            <span>{status.z.toFixed(3)}</span>
+          {jobPct != null && (
+            <Progress value={jobPct} className="mb-2 h-1.5" />
+          )}
+          <div className="grid grid-cols-3 gap-x-2 font-mono text-xs">
+            {(["X", "Y", "Z"] as const).map((ax) => (
+              <div key={ax} className="flex flex-col">
+                <span className="text-muted-foreground">{ax}</span>
+                <span>{(status[ax.toLowerCase() as "x" | "y" | "z"]).toFixed(3)}</span>
+              </div>
+            ))}
           </div>
         </div>
       )}
 
-      {/* Controls: hidden when connected */}
+      {/* ── Connection controls (disconnected) ────────── */}
       {!isConnected && (
         <div className="grid gap-2">
-          <div className="flex gap-1">
+          <div className="flex items-end gap-1">
             <div className="flex-1">
               <Label className="text-xs">Port</Label>
               <Select value={selectedPort} onValueChange={setSelectedPort}>
@@ -138,26 +162,21 @@ export function DevicePanel() {
                 </SelectTrigger>
                 <SelectContent>
                   {ports.map((p) => (
-                    <SelectItem key={p} value={p}>
-                      {p}
-                    </SelectItem>
+                    <SelectItem key={p} value={p}>{p}</SelectItem>
                   ))}
                 </SelectContent>
               </Select>
             </div>
-            <div className="mt-auto">
-              <Button
-                variant="ghost"
-                size="icon"
-                className="h-8 w-8"
-                onClick={() => void loadPorts()}
-                title="Refresh port list"
-              >
-                <RefreshCw className="size-3.5" />
-              </Button>
-            </div>
+            <Button
+              variant="ghost"
+              size="icon"
+              className="h-8 w-8 shrink-0"
+              onClick={() => void loadPorts()}
+              title="Refresh ports"
+            >
+              <RefreshCw className="size-3.5" />
+            </Button>
           </div>
-
           <div>
             <Label className="text-xs">Baud rate</Label>
             <Select
@@ -176,36 +195,145 @@ export function DevicePanel() {
               </SelectContent>
             </Select>
           </div>
+          <Button
+            size="sm"
+            onClick={() => void act(() => machineApi.connect(selectedPort, selectedBaud), true)}
+            disabled={busy || !selectedPort}
+          >
+            {busy ? <Loader2 className="size-4 animate-spin" /> : <Cable className="size-4" />}
+            Connect
+          </Button>
         </div>
       )}
 
-      {/* Connect / Disconnect button */}
-      {isConnected ? (
+      {/* ── Jog controls (connected, not running) ─────── */}
+      {isConnected && !isJobRunning && (
+        <div className="grid gap-2">
+          {/* Step size */}
+          <div className="flex items-center gap-1">
+            <span className="text-xs text-muted-foreground">Step (mm)</span>
+            <div className="ml-auto flex gap-1">
+              {JOG_STEPS.map((s) => (
+                <Button
+                  key={s}
+                  size="sm"
+                  variant={jogStep === s ? "default" : "outline"}
+                  className="h-6 px-2 text-xs"
+                  onClick={() => setJogStep(s)}
+                >
+                  {s}
+                </Button>
+              ))}
+            </div>
+          </div>
+
+          {/* XY grid */}
+          <div className="grid grid-cols-3 gap-1">
+            <div />
+            <Button size="icon" variant="outline" className="h-8 w-full"
+              onClick={() => jog("Y", 1)} disabled={busy}>
+              <ChevronUp className="size-4" />
+            </Button>
+            <div />
+            <Button size="icon" variant="outline" className="h-8 w-full"
+              onClick={() => jog("X", -1)} disabled={busy}>
+              <ChevronLeft className="size-4" />
+            </Button>
+            <div className="flex items-center justify-center text-xs text-muted-foreground">XY</div>
+            <Button size="icon" variant="outline" className="h-8 w-full"
+              onClick={() => jog("X", 1)} disabled={busy}>
+              <ChevronRight className="size-4" />
+            </Button>
+            <div />
+            <Button size="icon" variant="outline" className="h-8 w-full"
+              onClick={() => jog("Y", -1)} disabled={busy}>
+              <ChevronDown className="size-4" />
+            </Button>
+            <div />
+          </div>
+
+          {/* Z axis */}
+          <div className="grid grid-cols-3 gap-1">
+            <Button size="icon" variant="outline" className="h-8 w-full"
+              onClick={() => jog("Z", 1)} disabled={busy}>
+              <ArrowUp className="size-4" />
+            </Button>
+            <div className="flex items-center justify-center text-xs text-muted-foreground">Z</div>
+            <Button size="icon" variant="outline" className="h-8 w-full"
+              onClick={() => jog("Z", -1)} disabled={busy}>
+              <ArrowDown className="size-4" />
+            </Button>
+          </div>
+
+          {/* Home + Zero */}
+          <div className="grid grid-cols-2 gap-1">
+            <Button size="sm" variant="outline"
+              onClick={() => void act(() => machineApi.home())}
+              disabled={busy}>
+              <Home className="size-4" />
+              Home
+            </Button>
+            <Button size="sm" variant="outline"
+              onClick={() => void act(() => machineApi.zero())}
+              disabled={busy}>
+              <CrosshairIcon className="size-4" />
+              Set Zero
+            </Button>
+          </div>
+        </div>
+      )}
+
+      {/* ── Job controls (connected) ───────────────────── */}
+      {isConnected && (
+        <div className="grid gap-1">
+          {!isJobRunning && !isHold && (
+            <Button size="sm"
+              onClick={() => void act(() => machineApi.run(), true)}
+              disabled={busy || isAlarm}>
+              <Play className="size-4" />
+              Run Job
+            </Button>
+          )}
+          {isJobRunning && !isHold && (
+            <Button size="sm" variant="outline"
+              onClick={() => void act(() => machineApi.feedHold())}>
+              <Pause className="size-4" />
+              Feed Hold
+            </Button>
+          )}
+          {isHold && (
+            <Button size="sm" variant="outline"
+              onClick={() => void act(() => machineApi.resume())}>
+              <RotateCcw className="size-4" />
+              Resume
+            </Button>
+          )}
+        </div>
+      )}
+
+      {/* ── E-Stop (always visible when connected) ────── */}
+      {isConnected && (
+        <Button
+          size="sm"
+          variant="destructive"
+          onClick={() => void act(() => machineApi.stop(), true)}
+          className="w-full"
+        >
+          <Square className="size-4" />
+          E-Stop
+        </Button>
+      )}
+
+      {/* ── Disconnect ────────────────────────────────── */}
+      {isConnected && (
         <Button
           size="sm"
           variant="outline"
-          onClick={() => void handleDisconnect()}
+          onClick={() => void act(() => machineApi.disconnect(), true)}
           disabled={busy}
         >
-          {busy ? (
-            <Loader2 className="size-4 animate-spin" />
-          ) : (
-            <Unplug className="size-4" />
-          )}
+          <Unplug className="size-4" />
           Disconnect
-        </Button>
-      ) : (
-        <Button
-          size="sm"
-          onClick={() => void handleConnect()}
-          disabled={busy || !selectedPort}
-        >
-          {busy ? (
-            <Loader2 className="size-4 animate-spin" />
-          ) : (
-            <Cable className="size-4" />
-          )}
-          Connect
         </Button>
       )}
 

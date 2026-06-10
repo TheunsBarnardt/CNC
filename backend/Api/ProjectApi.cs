@@ -248,6 +248,8 @@ public static class ProjectApi
             {
                 var toolpath = CamEngine.Generate(p, p.Cam);
                 var program = post.Generate(toolpath, p);
+                // Cache lines so /api/machine/run can stream without re-generating.
+                projects.CacheGcode(program.Lines);
                 // Rapid stats measured from the work origin — that's where the
                 // generated program starts and parks.
                 var origin = GrblPlasmaPostProcessor.OriginPoint(p.Table);

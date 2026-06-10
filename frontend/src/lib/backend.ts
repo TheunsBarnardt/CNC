@@ -19,6 +19,10 @@ export interface MachineStatus {
   z: number;
   timestamp: string;
   heartbeatSequence: number;
+  /** Total G-code lines in the running job, null when idle. */
+  jobTotal: number | null;
+  /** Lines streamed so far, null when idle. */
+  jobDone: number | null;
 }
 
 export async function fetchHealth(signal?: AbortSignal): Promise<HealthResponse> {

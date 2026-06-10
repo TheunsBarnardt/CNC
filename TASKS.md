@@ -231,7 +231,23 @@ feel familiar to xTool/XCS users — same workspace anatomy, our CAM underneath.
 > lines, read status reports, surface state over the SignalR hub. Keep `FakeMachine` for
 > testing and simulation. NO motion/streaming yet — connection + status only. Stop and summarize.
 
-### [ ] Task 9 — Jog, home, and run job
+### [x] Task 9 — Jog, home, and run job
+<!-- Done: SerialMachineConnection refactored to separate ReadLoopAsync (dispatches lines
+     to status parser or Channel<string> response queue) + PollSenderAsync (sends '?' every
+     200ms, skips tick if write lock held). SemaphoreSlim write lock prevents concurrent
+     writes. Motion: JogAsync ($J=G91 G21 Xd Ff), HomeAsync ($H), SetZeroAsync (G10 L20 P1),
+     FeedHold/Resume/SoftReset as real-time bytes (no lock). RunGcodeAsync: character-counting
+     protocol — tracks in-flight byte count vs GrblBuffer=127, waits for ok from response
+     channel, throws on error:X. MachineConnectionManager: StartJob (background Task),
+     StopJobAsync (cancel+await), enriches MachineStatus with JobTotal/JobDone.
+     HeartbeatBroadcaster now subscribes to StatusChanged for immediate push + keeps 2s
+     periodic heartbeat. MachineStatus record: +JobTotal/JobDone (nullable, default null).
+     G-code cached in ProjectService after POST /api/project/gcode.
+     REST: POST /api/machine/jog, /home, /zero, /run (202), /feed-hold, /resume, /stop.
+     GET /api/machine/connection now includes isJobRunning. Frontend DevicePanel:
+     jog grid (XY + Z), step-size selector (0.1/1/10/100mm), Home/Set Zero buttons, Run Job,
+     Feed Hold/Resume, E-Stop (destructive), Disconnect. Progress bar + line counter during job.
+     Controls shown only when serial-connected; jog hidden during active job. -->
 **Paste this:**
 > Read the plan and CLAUDE.md. Add machine control UI + backend: jog (with step sizes),
 > homing, set work zero, and G-code streaming with the GRBL character-counting/ok flow.
@@ -263,15 +279,20 @@ feel familiar to xTool/XCS users — same workspace anatomy, our CAM underneath.
 
 ## Milestone 5 — xTool Studio feature parity (user-requested)
 *Bring in xTool Studio's design/editing functionality so xTool/XCS users feel at home.
-Reference: https://support.xtool.com/academy/course?id=6 and
-https://support.xtool.com/article/2409. Task 6b covers the workspace layout; these
-tasks cover the functionality. Each is one session; split further if a task grows.*
+Reference: https://support.xtool.com/academy/course?id=6,
+https://support.xtool.com/article/2409, and the full learning center at
+https://support.xtool.com/learning-center?campaign=support_academy&node=c8007d78-ec47-49e2-b168-b32e37c3b387.
+Task 6b covers the workspace layout; these tasks cover the functionality.
+Each is one session; split further if a task grows.*
 
-### [ ] Task 14 — Shape & text creation tools
+### [ ] Task 14 — Shape, pen & text creation tools
 > Left-sidebar creation tools on the canvas: line, rectangle (with corner radius),
-> circle/ellipse, polygon, star; text objects with font selection, size, style, letter/
-> line spacing, and convert-text-to-paths so CAM consumes outlines (closes the current
-> "<text> not supported" import warning). Objects use the existing part-transform model.
+> circle/ellipse, polygon, star; **Pen tool** (Bézier path drawing — click for corner
+> nodes, drag to pull smooth handles, close path to form a shape; output is the same
+> polyline/curve geometry as imported SVG/DXF so CAM picks it up unchanged); text
+> objects with font selection, size, style, letter/line spacing, and convert-text-to-paths
+> so CAM consumes outlines (closes the current "<text> not supported" import warning).
+> Objects use the existing part-transform model.
 
 ### [ ] Task 15 — Object editing: precise transforms, mirror, group, offset
 > Floating-toolbar functionality: numeric X/Y/W/H/rotation entry with aspect lock,
@@ -295,11 +316,14 @@ tasks cover the functionality. Each is one session; split further if a task grow
 > matter mainly for laser engraving — implement alongside or after Task 12 (laser mode),
 > where engrave processing actually consumes them.
 
-### [ ] Task 19 — Templates & element library, canvas QoL
+### [ ] Task 19 — Templates, element library, canvas QoL & efficiency tools
 > Project templates and a reusable element/shape library; canvas light/dark toggle,
 > grid show/hide, snap settings UI; per-object processing-mode assignment UI
 > (cut/engrave/score per layer or object — wires the existing per-layer provenance
-> into operations).
+> into operations). **Efficiency tools** (xTool Studio "Design Editing > Efficiency
+> Tools" section): smart fill (flood-fill a closed region to create a cut path),
+> object measurement/ruler overlay, step-and-repeat / quick-duplicate with offset,
+> batch processing-parameter assignment across a selection.
 
 > Out of parity scope (flag if requested): AImake/AI image generation, xTool account
 > login, xTool-proprietary device features (smart detection, camera framing).

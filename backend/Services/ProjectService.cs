@@ -13,6 +13,7 @@ public sealed class ProjectService
 {
     private readonly object _gate = new();
     private Project _project = new();
+    private IReadOnlyList<string>? _lastGcodeLines;
 
     public static readonly JsonSerializerOptions JsonOptions = new()
     {
@@ -61,5 +62,17 @@ public sealed class ProjectService
                 $"Project file schema v{loaded.SchemaVersion} is newer than this app supports (v1).");
 
         lock (_gate) _project = loaded;
+    }
+
+    /// <summary>Cache the last generated G-code so /api/machine/run can stream it.</summary>
+    public void CacheGcode(IReadOnlyList<string> lines)
+    {
+        lock (_gate) { _lastGcodeLines = lines; }
+    }
+
+    /// <summary>Returns the last cached G-code lines, or null if none generated yet.</summary>
+    public IReadOnlyList<string>? GetCachedGcode()
+    {
+        lock (_gate) { return _lastGcodeLines; }
     }
 }

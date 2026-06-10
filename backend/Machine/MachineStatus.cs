@@ -38,4 +38,8 @@ public sealed record MachineStatus(
     double Y,
     double Z,
     DateTimeOffset Timestamp,
-    long HeartbeatSequence);
+    long HeartbeatSequence,
+    /// <summary>Total G-code lines in the running job, null when idle.</summary>
+    int? JobTotal = null,
+    /// <summary>Lines streamed so far, null when idle.</summary>
+    int? JobDone = null);

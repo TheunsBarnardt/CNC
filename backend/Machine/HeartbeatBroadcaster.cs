@@ -4,14 +4,16 @@ using Microsoft.AspNetCore.SignalR;
 namespace Backend.Machine;
 
 /// <summary>
-/// Background service that pushes a machine-status heartbeat to all connected
-/// SignalR clients on a fixed interval. This is the skeleton's "is everything
-/// wired up?" signal; in later milestones the cadence/source becomes the real
-/// machine's status reports.
+/// Pushes machine status to all SignalR clients.
+/// Two delivery paths:
+///  1. Immediate — via StatusChanged event (fires on every GRBL status report,
+///     jog acknowledgement, or job-progress update; ~200 ms cadence when connected).
+///  2. Heartbeat — PeriodicTimer every 2 s (keeps the stream alive when the machine
+///     is idle and no events fire).
 /// </summary>
 public sealed class HeartbeatBroadcaster : BackgroundService
 {
-    private static readonly TimeSpan Interval = TimeSpan.FromSeconds(2);
+    private static readonly TimeSpan HeartbeatInterval = TimeSpan.FromSeconds(2);
 
     private readonly IHubContext<MachineHub> _hub;
     private readonly IMachineConnection _machine;
@@ -29,20 +31,31 @@ public sealed class HeartbeatBroadcaster : BackgroundService
 
     protected override async Task ExecuteAsync(CancellationToken stoppingToken)
     {
-        _logger.LogInformation("Heartbeat broadcaster started (every {Seconds}s).", Interval.TotalSeconds);
-        using var timer = new PeriodicTimer(Interval);
-
+        _logger.LogInformation("HeartbeatBroadcaster started.");
+        _machine.StatusChanged += OnStatusChanged;
         try
         {
+            using var timer = new PeriodicTimer(HeartbeatInterval);
             while (await timer.WaitForNextTickAsync(stoppingToken))
             {
-                var status = _machine.GetStatus();
-                await _hub.Clients.All.SendAsync(MachineHub.StatusEvent, status, stoppingToken);
+                // Periodic push — keeps clients alive when machine is truly idle.
+                await PushAsync(_machine.GetStatus(), stoppingToken);
             }
         }
-        catch (OperationCanceledException)
+        catch (OperationCanceledException) { }
+        finally
         {
-            // Normal shutdown.
+            _machine.StatusChanged -= OnStatusChanged;
         }
     }
+
+    private async void OnStatusChanged(object? sender, MachineStatus status)
+    {
+        // Fire-and-forget push. Errors here don't crash the broadcaster.
+        try { await PushAsync(status, CancellationToken.None); }
+        catch { /* client disconnects are normal */ }
+    }
+
+    private Task PushAsync(MachineStatus status, CancellationToken ct) =>
+        _hub.Clients.All.SendAsync(MachineHub.StatusEvent, status, ct);
 }

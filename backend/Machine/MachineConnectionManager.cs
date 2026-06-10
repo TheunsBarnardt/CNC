@@ -1,3 +1,5 @@
+using Backend.Services;
+
 namespace Backend.Machine;
 
 /// <summary>
@@ -12,10 +14,14 @@ namespace Backend.Machine;
 /// emitted while a job is running — both via <see cref="StatusChanged"/> events and
 /// via <see cref="GetStatus"/>. This keeps the neutral status record as the single
 /// data shape flowing to SignalR clients.
+///
+/// Checkpoints are written to disk via <see cref="CheckpointService"/> so a
+/// power-loss or crash recovery can resume from a safe point.
 /// </summary>
 public sealed class MachineConnectionManager : IMachineConnection
 {
     private readonly FakeMachineConnection _fake;
+    private readonly CheckpointService _checkpoints;
     private readonly object _gate = new();
     private IMachineConnection _inner;
     private SerialMachineConnection? _serial;
@@ -25,6 +31,7 @@ public sealed class MachineConnectionManager : IMachineConnection
     private Task? _jobTask;
     private int? _jobTotal;
     private int? _jobDone;
+    private string? _activeJobId;
 
     // Job log (separate lock so we never hold _gate while appending).
     private readonly object _logGate = new();
@@ -35,9 +42,10 @@ public sealed class MachineConnectionManager : IMachineConnection
 
     public event EventHandler<MachineStatus>? StatusChanged;
 
-    public MachineConnectionManager(FakeMachineConnection fake)
+    public MachineConnectionManager(FakeMachineConnection fake, CheckpointService checkpoints)
     {
         _fake = fake;
+        _checkpoints = checkpoints;
         _inner = fake;
         fake.StatusChanged += OnInnerStatus;
     }
@@ -156,15 +164,20 @@ public sealed class MachineConnectionManager : IMachineConnection
     /// <summary>
     /// Start streaming <paramref name="lines"/> in the background.
     /// Returns false if a job is already running or no serial connection is active.
+    /// Writes a checkpoint to disk so power-loss recovery is possible; clears it
+    /// on clean completion and retains it on stop/error for recovery.
     /// </summary>
     public bool StartJob(IReadOnlyList<string> lines)
     {
         SerialMachineConnection? serial;
+        string jobId;
         lock (_gate)
         {
             serial = _serial;
             if (serial is null || _jobTask is not null) return false;
 
+            jobId = DateTimeOffset.UtcNow.ToString("yyyyMMdd-HHmmss");
+            _activeJobId = jobId;
             _jobCts = new CancellationTokenSource();
             _jobTotal = lines.Count(l => l.TrimEnd().Length > 0);
             _jobDone = 0;
@@ -177,6 +190,9 @@ public sealed class MachineConnectionManager : IMachineConnection
             startPos.X, startPos.Y, startPos.Z,
             $"Streaming {_jobTotal} lines");
 
+        // Write initial checkpoint — G-code stored once; progress updated below.
+        _checkpoints.SaveJobStart(jobId, DateTimeOffset.UtcNow, _jobTotal!.Value, lines);
+
         var cts = _jobCts!;
         _jobTask = Task.Run(async () =>
         {
@@ -185,11 +201,13 @@ public sealed class MachineConnectionManager : IMachineConnection
                 await serial.RunGcodeAsync(lines, (done, total) =>
                 {
                     lock (_gate) { _jobDone = done; _jobTotal = total; }
-                    // Log a progress entry every 50 lines.
+                    // Update checkpoint + log every 50 lines.
                     if (done % 50 == 0 || done == total)
                     {
                         var pos = serial.GetStatus();
                         AppendLog(JobLogEvent.Progress, done, total,
+                            pos.X, pos.Y, pos.Z);
+                        _checkpoints.UpdateProgress(done, DateTimeOffset.UtcNow,
                             pos.X, pos.Y, pos.Z);
                     }
                     // Push enriched status immediately so frontend tracks progress.
@@ -197,29 +215,40 @@ public sealed class MachineConnectionManager : IMachineConnection
                     StatusChanged?.Invoke(this, s);
                 }, cts.Token);
 
-                // Clean completion.
+                // Clean completion — checkpoint no longer needed.
                 var endPos = serial.GetStatus();
                 AppendLog(JobLogEvent.Completed, _jobDone, _jobTotal,
                     endPos.X, endPos.Y, endPos.Z, "Job completed");
+                _checkpoints.Clear();
             }
             catch (OperationCanceledException)
             {
+                // User stopped — persist final position for recovery.
                 var pos = serial.GetStatus();
                 AppendLog(JobLogEvent.Stopped, _jobDone, _jobTotal,
                     pos.X, pos.Y, pos.Z, "Job stopped by user");
+                _checkpoints.UpdateProgress(_jobDone ?? 0, DateTimeOffset.UtcNow,
+                    pos.X, pos.Y, pos.Z);
             }
             catch (Exception ex)
             {
+                // Streaming error — persist final position for recovery.
                 var pos = serial.GetStatus();
                 AppendLog(JobLogEvent.Error, _jobDone, _jobTotal,
                     pos.X, pos.Y, pos.Z, ex.Message.Split('\n')[0]);
+                _checkpoints.UpdateProgress(_jobDone ?? 0, DateTimeOffset.UtcNow,
+                    pos.X, pos.Y, pos.Z);
                 // Surface streaming error as a status event so the UI sees it.
                 var s = serial.GetStatus() with { MachineState = $"Error: {ex.Message.Split('\n')[0]}" };
                 StatusChanged?.Invoke(this, s);
             }
             finally
             {
-                lock (_gate) { _jobTotal = null; _jobDone = null; _jobTask = null; _jobCts = null; }
+                lock (_gate)
+                {
+                    _jobTotal = null; _jobDone = null;
+                    _jobTask = null; _jobCts = null; _activeJobId = null;
+                }
                 cts.Dispose();
                 // Push a clean idle status.
                 StatusChanged?.Invoke(this, serial.GetStatus());
@@ -283,7 +312,12 @@ public sealed class MachineConnectionManager : IMachineConnection
             bool isRun   = s.MachineState.Equals("Run",  StringComparison.OrdinalIgnoreCase);
 
             if (!wasHold && isHold)
+            {
                 AppendLog(JobLogEvent.FeedHold, done, total, s.X, s.Y, s.Z, "Feed hold");
+                // Write checkpoint on hold so recovery has the exact hold position.
+                _checkpoints.UpdateProgress(done ?? 0, DateTimeOffset.UtcNow,
+                    s.X, s.Y, s.Z);
+            }
             else if (wasHold && isRun)
                 AppendLog(JobLogEvent.Resumed, done, total, s.X, s.Y, s.Z, "Resumed");
         }

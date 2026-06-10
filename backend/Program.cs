@@ -54,6 +54,9 @@ builder.Services.AddSingleton<PostProcessorRegistry>();
 // Material profiles: app-level presets persisted under LocalAppData.
 builder.Services.AddSingleton<ProfileStore>();
 
+// Job checkpoints: power-loss recovery persisted under LocalAppData.
+builder.Services.AddSingleton<CheckpointService>();
+
 builder.Services.ConfigureHttpJsonOptions(options =>
     options.SerializerOptions.Converters.Add(new JsonStringEnumConverter()));
 

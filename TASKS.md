@@ -277,7 +277,24 @@ feel familiar to xTool/XCS users — same workspace anatomy, our CAM underneath.
 ---
 
 ## Milestone 4 — Power-Loss Recovery & Machine-Type Modes  ⚠️ hard / careful
-### [ ] Task 11 — Power-loss recovery
+### [x] Task 11 — Power-loss recovery
+<!-- Done: CheckpointService persists job checkpoints to %LOCALAPPDATA%/diy-grbl-cam/
+     two-file layout: job-checkpoint-gcode.txt (written once on job start) +
+     job-checkpoint-meta.json (updated every 50 lines, on FeedHold, on error/stop).
+     Checkpoint cleared on clean completion; retained on stop/error/power-loss.
+     BuildRecoveryGcode: finds the last M3 at or before lastLineDone, scans back to
+     its preceding G0 (rapid-to-position), returns preamble + everything from that G0
+     so the interrupted cut re-runs from scratch (fresh pierce — correct for plasma).
+     REST: GET /api/machine/recovery (info + resumeFromLine), POST /api/machine/
+     recovery/start (verifies Idle, builds + streams recovery G-code), DELETE
+     /api/machine/recovery (dismiss checkpoint). MachineConnectionManager: injects
+     CheckpointService, writes checkpoint at start+progress+events.
+     Frontend: RecoveryPanel shows job summary + 3-step guided recovery (Home →
+     Set Zero confirmation → Start Recovery); gated — Start Recovery requires Idle
+     state + user confirmation of zero. Checkpoint info loaded on panel mount.
+     8 unit tests in CheckpointServiceTests.cs. Deferred: recovery across app restarts
+     needs no extra work (files persist); multi-session job ID tracking not needed
+     for MVP. -->
 > Persist job checkpoint (line + position); on restart offer safe recovery: re-home,
 > re-establish position, re-pierce, resume from a safe point. Treat with extreme care.
 > Summarize, compact and commit. 

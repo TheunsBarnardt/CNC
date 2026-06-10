@@ -10,6 +10,70 @@ public static class MachineApi
     {
         var group = app.MapGroup("/api/machine");
 
+        // ── Power-loss recovery ───────────────────────────────────────────
+
+        /// Return recovery info if a checkpoint exists, or hasCheckpoint=false.
+        group.MapGet("/recovery", (CheckpointService checkpoints) =>
+        {
+            var cp = checkpoints.Load();
+            if (cp is null)
+                return Results.Ok(new { hasCheckpoint = false });
+
+            var (_, resumeLine) = CheckpointService.BuildRecoveryGcode(cp.GcodeLines, cp.LastLineDone);
+            return Results.Ok(new
+            {
+                hasCheckpoint = true,
+                jobId = cp.JobId,
+                startedAt = cp.StartedAt,
+                checkpointAt = cp.CheckpointAt,
+                lastLineDone = cp.LastLineDone,
+                totalLines = cp.TotalLines,
+                resumeFromLine = resumeLine,
+                lastX = cp.LastX,
+                lastY = cp.LastY,
+                lastZ = cp.LastZ,
+            });
+        });
+
+        /// Start recovery: rebuild G-code from the safe resume point and stream it.
+        /// Machine must be in Idle state (after re-homing and re-zeroing).
+        group.MapPost("/recovery/start", (MachineConnectionManager manager, CheckpointService checkpoints) =>
+        {
+            var cp = checkpoints.Load();
+            if (cp is null)
+                return Results.NotFound(new { error = "No recovery checkpoint available." });
+
+            var status = manager.GetStatus();
+            if (!manager.IsSerialConnected)
+                return Results.BadRequest(new { error = "Not connected to a machine." });
+            if (!string.Equals(status.MachineState, "Idle", StringComparison.OrdinalIgnoreCase))
+                return Results.BadRequest(new
+                {
+                    error = $"Machine must be Idle before recovery (currently: {status.MachineState}). " +
+                            "Home the machine and set work zero first."
+                });
+
+            var (recoveryLines, resumeFromLine) =
+                CheckpointService.BuildRecoveryGcode(cp.GcodeLines, cp.LastLineDone);
+
+            if (!manager.StartJob(recoveryLines))
+                return Results.Conflict(new { error = "A job is already running." });
+
+            return Results.Accepted(null, new
+            {
+                message = "Recovery job started.",
+                resumeFromLine,
+                total = recoveryLines.Count,
+            });
+        });
+
+        /// Dismiss the checkpoint without running recovery.
+        group.MapDelete("/recovery", (CheckpointService checkpoints) =>
+        {
+            checkpoints.Clear();
+            return Results.Ok(new { message = "Recovery checkpoint cleared." });
+        });
+
         // ── Connection management ─────────────────────────────────────────
 
         group.MapGet("/ports", () =>

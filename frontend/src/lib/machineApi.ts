@@ -27,6 +27,23 @@ export interface JobLogEntry {
   message: string | null;
 }
 
+export interface RecoveryInfo {
+  hasCheckpoint: true;
+  jobId: string;
+  startedAt: string;
+  checkpointAt: string;
+  lastLineDone: number;
+  totalLines: number;
+  resumeFromLine: number;
+  lastX: number;
+  lastY: number;
+  lastZ: number;
+}
+
+export interface NoRecovery {
+  hasCheckpoint: false;
+}
+
 async function json<T>(r: Response): Promise<T> {
   if (!r.ok) {
     const body = await r.json().catch(() => ({ error: r.statusText })) as { error?: string };
@@ -87,4 +104,12 @@ export const machineApi = {
 
   jobLog: (): Promise<JobLogEntry[]> =>
     fetch(`${BACKEND_URL}/api/machine/job-log`).then((r) => json<JobLogEntry[]>(r)),
+
+  recovery: (): Promise<RecoveryInfo | NoRecovery> =>
+    fetch(`${BACKEND_URL}/api/machine/recovery`).then((r) => json(r)),
+
+  startRecovery: (): Promise<{ message: string; resumeFromLine: number; total: number }> =>
+    fetch(`${BACKEND_URL}/api/machine/recovery/start`, { method: "POST" }).then((r) => json(r)),
+
+  dismissRecovery: () => send("DELETE", "recovery"),
 };

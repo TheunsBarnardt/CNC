@@ -30,9 +30,10 @@ import {
 } from "@/components/ui/select";
 import { Progress } from "@/components/ui/progress";
 import { cn } from "@/lib/utils";
-import { machineApi, type ConnectionInfo } from "@/lib/machineApi";
+import { machineApi, type ConnectionInfo, type RecoveryInfo } from "@/lib/machineApi";
 import { useMachineHeartbeat } from "@/hooks/useMachineHeartbeat";
 import { JobLogPanel } from "@/components/JobLogPanel";
+import { RecoveryPanel } from "@/components/RecoveryPanel";
 
 const BAUD_OPTIONS = [115200, 57600, 38400, 19200, 9600];
 const JOG_STEPS = [0.1, 1, 10, 100];
@@ -45,6 +46,7 @@ export function DevicePanel() {
   const [selectedPort, setSelectedPort] = useState<string>("");
   const [selectedBaud, setSelectedBaud] = useState(115200);
   const [connInfo, setConnInfo] = useState<ConnectionInfo | null>(null);
+  const [recovery, setRecovery] = useState<RecoveryInfo | null>(null);
   const [busy, setBusy] = useState(false);
   const [jogStep, setJogStep] = useState(1);
   const [error, setError] = useState<string | null>(null);
@@ -68,10 +70,18 @@ export function DevicePanel() {
     } catch { /* ignore */ }
   }, []);
 
+  const loadRecovery = useCallback(async () => {
+    try {
+      const r = await machineApi.recovery();
+      setRecovery(r.hasCheckpoint ? r : null);
+    } catch { /* ignore */ }
+  }, []);
+
   useEffect(() => {
     void loadPorts();
     void loadConnection();
-  }, [loadPorts, loadConnection]);
+    void loadRecovery();
+  }, [loadPorts, loadConnection, loadRecovery]);
 
   const act = async (fn: () => Promise<unknown>, reloadConn = false) => {
     setBusy(true);
@@ -358,6 +368,17 @@ export function DevicePanel() {
           <OctagonX className="size-4" />
           E-Stop
         </Button>
+      )}
+
+      {/* ── Recovery panel ────────────────────────────── */}
+      {recovery && (
+        <RecoveryPanel
+          info={recovery}
+          machineState={machineState}
+          isConnected={isConnected}
+          onDismiss={() => setRecovery(null)}
+          onRecoveryStarted={() => { setRecovery(null); void loadConnection(); }}
+        />
       )}
 
       {/* ── Job log ───────────────────────────────────── */}

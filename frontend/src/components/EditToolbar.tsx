@@ -17,6 +17,7 @@ import {
   Link2Off,
   RotateCcw,
   RotateCw,
+  Spline,
   Trash2,
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
@@ -40,6 +41,8 @@ interface Props {
   onDelete: () => void;
   onReorder: (direction: "up" | "down" | "front" | "back") => void;
   onOffset: (offsetMm: number) => void;
+  /** Simplify path nodes (RDP). Double-click part to enter node-edit mode. */
+  onSimplify?: () => void;
 }
 
 export function EditToolbar({
@@ -53,6 +56,7 @@ export function EditToolbar({
   onDelete,
   onReorder,
   onOffset,
+  onSimplify,
 }: Props) {
   const [draft, setDraft] = useState<Record<string, string>>({});
   const [aspectLocked, setAspectLocked] = useState(true);
@@ -244,6 +248,14 @@ export function EditToolbar({
       </label>
 
       <Separator orientation="vertical" className="h-5" />
+
+      {onSimplify && (
+        <Button variant="ghost" size="icon" className={iconBtn}
+          title="Simplify path nodes (Ramer-Douglas-Peucker, 0.1mm tolerance)"
+          onClick={onSimplify}>
+          <Spline className="size-4" />
+        </Button>
+      )}
 
       <Button variant="ghost" size="icon" className={iconBtn} title="Duplicate (Ctrl+D)"
         onClick={onDuplicate}>

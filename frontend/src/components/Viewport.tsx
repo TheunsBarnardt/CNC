@@ -10,6 +10,7 @@ import {
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { EditToolbar, type AlignEdge } from "@/components/EditToolbar";
+import { BooleanToolbar } from "@/components/BooleanToolbar";
 import { TextPanel } from "@/components/TextPanel";
 import {
   Select,
@@ -43,13 +44,18 @@ interface ViewportProps {
   project: ProjectDto;
   geometry: Map<string, GeometryPath[]>;
   selectedPartId: string | null;
+  secondaryPartId?: string | null;
   onSelect: (id: string | null) => void;
+  onSecondarySelect?: (id: string | null) => void;
   onPartChange: (part: Part) => void;
   onPartCommit: (part: Part) => void;
   onDuplicate: (id: string) => void;
   onDelete: (id: string) => void;
   onReorder?: (id: string, direction: "up" | "down" | "front" | "back") => void;
   onOffset?: (id: string, offsetMm: number) => void;
+  onNodesChanged?: (fileId: string, pathId: string, points: [number, number][]) => void;
+  onSimplify?: (fileId: string) => void;
+  onBoolean?: (op: "unite" | "subtract" | "intersect") => void;
   simulation?: Simulation | null;
   simTime?: number;
   readOnly?: boolean;
@@ -64,7 +70,7 @@ interface View {
   ty: number;
 }
 
-type DragMode = "pan" | "move" | "rotate";
+type DragMode = "pan" | "move" | "rotate" | "node";
 
 interface DragState {
   mode: DragMode;
@@ -74,6 +80,23 @@ interface DragState {
   startPart?: Part;
   lastPart?: Part;
   moved: boolean;
+  // Node-drag fields:
+  nodePathIdx?: number;
+  nodeIdx?: number;
+  nodeStartWorld?: Vec;
+  nodeDragWorld?: Vec; // live position during drag (for canvas preview)
+}
+
+/** Node editing state: tracks which path/node is selected/hovered. */
+interface NodeEditState {
+  partId: string;
+  fileId: string;
+  /** The path + node index of the currently selected node (or null). */
+  selectedNode: { pathIdx: number; nodeIdx: number } | null;
+  /** Hovered node (for highlight). */
+  hoveredNode: { pathIdx: number; nodeIdx: number } | null;
+  /** Hovered segment midpoint (for "add node" affordance). */
+  hoveredSeg: { pathIdx: number; segIdx: number } | null;
 }
 
 // Shape drawing state: rubber-band from start to current world point.
@@ -113,13 +136,18 @@ export function Viewport({
   project,
   geometry,
   selectedPartId,
+  secondaryPartId = null,
   onSelect,
+  onSecondarySelect,
   onPartChange,
   onPartCommit,
   onDuplicate,
   onDelete,
   onReorder,
   onOffset,
+  onNodesChanged,
+  onSimplify,
+  onBoolean,
   simulation = null,
   simTime = 0,
   readOnly = false,
@@ -137,6 +165,7 @@ export function Viewport({
   const [darkCanvas, setDarkCanvas] = useState(false);
   const [cursorMm, setCursorMm] = useState<Vec | null>(null);
   const [drawState, setDrawState] = useState<DrawState>(null);
+  const [nodeEdit, setNodeEdit] = useState<NodeEditState | null>(null);
   const dragRef = useRef<DragState | null>(null);
   const fittedRef = useRef(false);
 
@@ -148,7 +177,13 @@ export function Viewport({
   // Reset draw state when tool changes.
   useEffect(() => {
     setDrawState(null);
+    setNodeEdit(null);
   }, [activeTool.type]);
+
+  // Exit node-edit when selection moves to a different part.
+  useEffect(() => {
+    setNodeEdit((ne) => (ne && ne.partId !== selectedPartId ? null : ne));
+  }, [selectedPartId]);
 
   // --- coordinate mapping ---------------------------------------------------
   const toScreen = useCallback(
@@ -240,6 +275,57 @@ export function Viewport({
     const world = toWorld(screen);
     const snapped = snapWorld(world);
 
+    // === NODE EDITING MODE ===
+    if (!readOnly && nodeEdit && e.button === 0) {
+      const part = project.parts.find((p) => p.id === nodeEdit.partId);
+      const paths = geometry.get(nodeEdit.fileId);
+      if (part && paths) {
+        const pivot = localPivot(paths);
+        const NODE_RADIUS = 8 / view.scale;
+        const SEG_RADIUS = 6 / view.scale;
+
+        // Check if clicking a node.
+        for (let pi = 0; pi < paths.length; pi++) {
+          const path = paths[pi];
+          for (let ni = 0; ni < path.points.length; ni++) {
+            const wp = nodeWorldPos(part, paths, pi, ni);
+            if (Math.hypot(world[0] - wp[0], world[1] - wp[1]) < NODE_RADIUS) {
+              setNodeEdit((ne) => ne ? { ...ne, selectedNode: { pathIdx: pi, nodeIdx: ni } } : ne);
+              dragRef.current = {
+                mode: "node", pointerId: e.pointerId,
+                startScreen: screen, startView: view,
+                nodePathIdx: pi, nodeIdx: ni,
+                nodeStartWorld: wp, nodeDragWorld: wp,
+                moved: false,
+              };
+              return;
+            }
+          }
+        }
+
+        // Check if clicking a segment midpoint (add node).
+        for (let pi = 0; pi < paths.length; pi++) {
+          const path = paths[pi];
+          const ptCount = path.points.length;
+          const segs = path.closed ? ptCount : ptCount - 1;
+          for (let si = 0; si < segs; si++) {
+            const a = path.points[si] as Vec;
+            const b = path.points[(si + 1) % ptCount] as Vec;
+            const wa = partToWorld(part, pivot, a);
+            const wb = partToWorld(part, pivot, b);
+            const mx = (wa[0] + wb[0]) / 2, my = (wa[1] + wb[1]) / 2;
+            if (Math.hypot(world[0] - mx, world[1] - my) < SEG_RADIUS) {
+              addNodeOnSegment(pi, si);
+              return;
+            }
+          }
+        }
+      }
+      // Clicked outside — exit node-edit if outside the part's bbox.
+      setNodeEdit(null);
+      return;
+    }
+
     // === DRAWING TOOLS ===
     if (!readOnly && activeTool.type !== "select") {
       // Text: click to place the text panel.
@@ -307,7 +393,24 @@ export function Viewport({
         const paths = geometry.get(part.fileId);
         if (!file?.visible || !paths) continue;
         if (hitTestPart(part, paths, world, tolerance)) {
+          if (e.shiftKey && selectedPartId && part.id !== selectedPartId) {
+            // Shift-click: set secondary selection for boolean ops.
+            onSecondarySelect?.(part.id);
+            return;
+          }
+          // Double-click on already-selected part: enter node-edit mode.
+          if (e.detail === 2 && part.id === selectedPartId) {
+            setNodeEdit({
+              partId: part.id,
+              fileId: part.fileId,
+              selectedNode: null,
+              hoveredNode: null,
+              hoveredSeg: null,
+            });
+            return;
+          }
           onSelect(part.id);
+          onSecondarySelect?.(null);
           dragRef.current = {
             mode: "move", pointerId: e.pointerId,
             startScreen: screen, startView: view,
@@ -317,6 +420,7 @@ export function Viewport({
         }
       }
       onSelect(null);
+      onSecondarySelect?.(null);
     }
 
     dragRef.current = {
@@ -359,11 +463,55 @@ export function Viewport({
       return;
     }
 
+    // Node-edit hover detection (when not dragging a node).
+    if (nodeEdit && !dragRef.current) {
+      const part = project.parts.find((p) => p.id === nodeEdit.partId);
+      const paths = geometry.get(nodeEdit.fileId);
+      if (part && paths) {
+        const NODE_RADIUS = 8 / view.scale;
+        const SEG_RADIUS = 6 / view.scale;
+        const pivot = localPivot(paths);
+        let hNode: NodeEditState["hoveredNode"] = null;
+        let hSeg: NodeEditState["hoveredSeg"] = null;
+        outer: for (let pi = 0; pi < paths.length && !hNode; pi++) {
+          for (let ni = 0; ni < paths[pi].points.length; ni++) {
+            const wp = partToWorld(part, pivot, paths[pi].points[ni] as Vec);
+            if (Math.hypot(world[0] - wp[0], world[1] - wp[1]) < NODE_RADIUS) {
+              hNode = { pathIdx: pi, nodeIdx: ni };
+              break outer;
+            }
+          }
+        }
+        if (!hNode) {
+          outerSeg: for (let pi = 0; pi < paths.length; pi++) {
+            const path = paths[pi];
+            const ptCount = path.points.length;
+            const segs = path.closed ? ptCount : ptCount - 1;
+            for (let si = 0; si < segs; si++) {
+              const wa = partToWorld(part, pivot, path.points[si] as Vec);
+              const wb = partToWorld(part, pivot, path.points[(si + 1) % ptCount] as Vec);
+              const mx = (wa[0] + wb[0]) / 2, my = (wa[1] + wb[1]) / 2;
+              if (Math.hypot(world[0] - mx, world[1] - my) < SEG_RADIUS) {
+                hSeg = { pathIdx: pi, segIdx: si };
+                break outerSeg;
+              }
+            }
+          }
+        }
+        setNodeEdit((ne) => ne ? { ...ne, hoveredNode: hNode, hoveredSeg: hSeg } : ne);
+      }
+    }
+
     const drag = dragRef.current;
     if (!drag || drag.pointerId !== e.pointerId) return;
     const dxs = screen[0] - drag.startScreen[0];
     const dys = screen[1] - drag.startScreen[1];
     if (Math.abs(dxs) + Math.abs(dys) > 2) drag.moved = true;
+
+    if (drag.mode === "node") {
+      drag.nodeDragWorld = world;
+      return;
+    }
 
     if (drag.mode === "pan") {
       setView({ ...drag.startView, tx: drag.startView.tx + dxs, ty: drag.startView.ty - dys });
@@ -414,6 +562,11 @@ export function Viewport({
 
     const drag = dragRef.current;
     if (!drag || drag.pointerId !== e.pointerId) return;
+    if (drag.mode === "node") {
+      if (drag.moved) commitNodeDrag();
+      dragRef.current = null;
+      return;
+    }
     dragRef.current = null;
     if (drag.mode !== "pan" && drag.lastPart && drag.moved) onPartCommit(drag.lastPart);
   };
@@ -443,8 +596,12 @@ export function Viewport({
   };
 
   const handleKeyDown = (e: React.KeyboardEvent) => {
-    // Escape cancels any active drawing tool.
+    // Escape: exit node-edit first; then cancel drawing tool.
     if (e.key === "Escape") {
+      if (nodeEdit) {
+        setNodeEdit(null);
+        return;
+      }
       if (activeTool.type !== "select") {
         if (drawState?.phase === "pen" && (drawState as PenState).nodes.length >= 2) {
           finalizePen((drawState as PenState).nodes, false);
@@ -453,6 +610,13 @@ export function Viewport({
         onToolReset?.();
         return;
       }
+    }
+
+    // Delete selected node in node-edit mode.
+    if ((e.key === "Delete" || e.key === "Backspace") && nodeEdit?.selectedNode) {
+      e.preventDefault();
+      deleteSelectedNode();
+      return;
     }
 
     // Enter finishes open pen path.
@@ -498,6 +662,79 @@ export function Viewport({
     onPartChange(part);
     onPartCommit(part);
   };
+
+  // --- node editing helpers -------------------------------------------------
+
+  /** Get the world position of a node, taking current drag into account. */
+  const nodeWorldPos = useCallback(
+    (part: Part, paths: GeometryPath[], pathIdx: number, nodeIdx: number): Vec => {
+      const drag = dragRef.current;
+      const pivot = localPivot(paths);
+      const local = paths[pathIdx].points[nodeIdx] as Vec;
+      const world = partToWorld(part, pivot, local);
+      if (
+        drag?.mode === "node" &&
+        drag.nodePathIdx === pathIdx &&
+        drag.nodeIdx === nodeIdx &&
+        drag.nodeDragWorld
+      )
+        return drag.nodeDragWorld;
+      return world;
+    },
+    [],
+  );
+
+  const commitNodeDrag = useCallback(() => {
+    const drag = dragRef.current;
+    if (drag?.mode !== "node" || !drag.nodeDragWorld || !nodeEdit) return;
+    const { partId, fileId } = nodeEdit;
+    const part = project.parts.find((p) => p.id === partId);
+    const paths = geometry.get(fileId);
+    if (!part || !paths || drag.nodePathIdx === undefined) return;
+
+    const pivot = localPivot(paths);
+    const path = paths[drag.nodePathIdx];
+    if (!path) return;
+
+    // Rebuild the point list: replace the dragged node with the new local position.
+    const localDrag = worldToPartLocal(part, pivot, drag.nodeDragWorld);
+    const newPoints: [number, number][] = path.points.map((pt, i) =>
+      i === drag.nodeIdx ? [localDrag[0], localDrag[1]] : [pt[0], pt[1]],
+    );
+    onNodesChanged?.(fileId, path.id, newPoints);
+  }, [nodeEdit, project.parts, geometry, onNodesChanged]);
+
+  const deleteSelectedNode = useCallback(() => {
+    if (!nodeEdit?.selectedNode) return;
+    const { fileId, selectedNode: { pathIdx, nodeIdx } } = nodeEdit;
+    const paths = geometry.get(fileId);
+    if (!paths) return;
+    const path = paths[pathIdx];
+    const minNodes = path.closed ? 3 : 2;
+    if (path.points.length <= minNodes) return; // can't reduce further
+    const newPoints: [number, number][] = path.points.filter((_, i) => i !== nodeIdx);
+    onNodesChanged?.(fileId, path.id, newPoints);
+    setNodeEdit((ne) => ne ? { ...ne, selectedNode: null } : ne);
+  }, [nodeEdit, geometry, onNodesChanged]);
+
+  const addNodeOnSegment = useCallback(
+    (pathIdx: number, segIdx: number) => {
+      if (!nodeEdit) return;
+      const { fileId } = nodeEdit;
+      const paths = geometry.get(fileId);
+      if (!paths) return;
+      const path = paths[pathIdx];
+      const ptCount = path.points.length;
+      const aIdx = segIdx;
+      const bIdx = (segIdx + 1) % ptCount;
+      const a = path.points[aIdx], b = path.points[bIdx];
+      const mid: [number, number] = [(a[0] + b[0]) / 2, (a[1] + b[1]) / 2];
+      const newPoints: [number, number][] = [...path.points.map((p): [number, number] => [p[0], p[1]])];
+      newPoints.splice(bIdx, 0, mid);
+      onNodesChanged?.(fileId, path.id, newPoints);
+    },
+    [nodeEdit, geometry, onNodesChanged],
+  );
 
   const align = (edge: "left" | "centerX" | "right" | "bottom" | "centerY" | "top") => {
     if (!selectedPart) return;
@@ -771,6 +1008,73 @@ export function Viewport({
       }
     }
 
+    // --- secondary selection highlight (for boolean ops) --------------------
+    if (secondaryPartId) {
+      const secPart = project.parts.find((p) => p.id === secondaryPartId);
+      const secPaths = secPart ? geometry.get(secPart.fileId) : undefined;
+      if (secPart && secPaths) {
+        const sb = partWorldBBox(secPart, secPaths);
+        const [sx0, sy0] = toScreen([sb.minX, sb.maxY]);
+        const [sx1, sy1] = toScreen([sb.maxX, sb.minY]);
+        ctx.setLineDash([6, 3]);
+        ctx.strokeStyle = "#f59e0b"; // amber for secondary
+        ctx.lineWidth = 1.5;
+        ctx.strokeRect(sx0, sy0, sx1 - sx0, sy1 - sy0);
+        ctx.setLineDash([]);
+      }
+    }
+
+    // --- node editing overlay -----------------------------------------------
+    if (nodeEdit) {
+      const nePart = project.parts.find((p) => p.id === nodeEdit.partId);
+      const nePaths = geometry.get(nodeEdit.fileId);
+      if (nePart && nePaths) {
+        const pivot = localPivot(nePaths);
+        const drag = dragRef.current;
+
+        for (let pi = 0; pi < nePaths.length; pi++) {
+          const path = nePaths[pi];
+          const ptCount = path.points.length;
+          const segs = path.closed ? ptCount : ptCount - 1;
+
+          // Draw segment midpoint dots (add-node affordance).
+          for (let si = 0; si < segs; si++) {
+            const a = path.points[si] as Vec;
+            const b = path.points[(si + 1) % ptCount] as Vec;
+            const wa = partToWorld(nePart, pivot, a);
+            const wb = partToWorld(nePart, pivot, b);
+            const mx = (wa[0] + wb[0]) / 2, my = (wa[1] + wb[1]) / 2;
+            const [smx, smy] = toScreen([mx, my]);
+            const hovered = nodeEdit.hoveredSeg?.pathIdx === pi && nodeEdit.hoveredSeg?.segIdx === si;
+            ctx.beginPath();
+            ctx.arc(smx, smy, hovered ? 4 : 3, 0, Math.PI * 2);
+            ctx.fillStyle = hovered ? colPrimary : colMuted;
+            ctx.globalAlpha = 0.6;
+            ctx.fill();
+            ctx.globalAlpha = 1;
+          }
+
+          // Draw node dots.
+          for (let ni = 0; ni < ptCount; ni++) {
+            const isDragging = drag?.mode === "node" && drag.nodePathIdx === pi && drag.nodeIdx === ni;
+            const wp: Vec = isDragging && drag?.nodeDragWorld
+              ? drag.nodeDragWorld
+              : partToWorld(nePart, pivot, path.points[ni] as Vec);
+            const [snx, sny] = toScreen(wp);
+            const selected = nodeEdit.selectedNode?.pathIdx === pi && nodeEdit.selectedNode?.nodeIdx === ni;
+            const hovered = nodeEdit.hoveredNode?.pathIdx === pi && nodeEdit.hoveredNode?.nodeIdx === ni;
+            ctx.beginPath();
+            ctx.arc(snx, sny, selected || hovered ? 6 : 4, 0, Math.PI * 2);
+            ctx.fillStyle = selected ? colPrimary : colCard;
+            ctx.strokeStyle = hovered ? colPrimary : colFg;
+            ctx.lineWidth = 1.5;
+            ctx.fill();
+            ctx.stroke();
+          }
+        }
+      }
+    }
+
     // --- toolpath simulation overlay ----------------------------------------
     if (simulation && simulation.segments.length > 0) {
       const colCut = "#f97316";
@@ -850,8 +1154,8 @@ export function Viewport({
         }
       }
     }
-  }, [project, geometry, selectedPartId, view, size, toScreen, rotateHandleWorld, table,
-      simulation, simTime, showGrid, darkCanvas, drawState, activeTool]); // eslint-disable-line react-hooks/exhaustive-deps
+  }, [project, geometry, selectedPartId, secondaryPartId, view, size, toScreen, rotateHandleWorld, table,
+      simulation, simTime, showGrid, darkCanvas, drawState, activeTool, nodeEdit]); // eslint-disable-line react-hooks/exhaustive-deps
 
   // --- render ---------------------------------------------------------------
 
@@ -891,8 +1195,8 @@ export function Viewport({
         onPointerLeave={() => setCursorMm(null)}
       />
 
-      {/* Floating edit toolbar — selection only. */}
-      {!readOnly && activeTool.type === "select" && selectedPart && selectedBBox && (() => {
+      {/* Floating edit toolbar — selection only (hidden in node-edit mode). */}
+      {!readOnly && activeTool.type === "select" && selectedPart && selectedBBox && !nodeEdit && (() => {
         const selFile = project.files.find((f) => f.id === selectedPart.fileId);
         const naturalSize = { w: selFile?.widthMm ?? 1, h: selFile?.heightMm ?? 1 };
         return (
@@ -907,9 +1211,34 @@ export function Viewport({
             onDelete={() => onDelete(selectedPart.id)}
             onReorder={(dir) => onReorder?.(selectedPart.id, dir)}
             onOffset={(mm) => onOffset?.(selectedPart.id, mm)}
+            onSimplify={() => onSimplify?.(selectedPart.fileId)}
           />
         );
       })()}
+
+      {/* Boolean toolbar — shown when a secondary part is shift-selected. */}
+      {!readOnly && selectedPartId && secondaryPartId && (
+        <BooleanToolbar
+          primaryId={selectedPartId}
+          secondaryId={secondaryPartId}
+          onBoolean={(op) => onBoolean?.(op)}
+          onClear={() => onSecondarySelect?.(null)}
+        />
+      )}
+
+      {/* Node-edit mode hint + exit button. */}
+      {!readOnly && nodeEdit && (
+        <div className="absolute left-1/2 top-2 -translate-x-1/2 flex items-center gap-2 rounded-md bg-background/90 border px-3 py-1 text-xs text-muted-foreground shadow-sm backdrop-blur select-none">
+          <span>Node edit — drag nodes · click segment to add · Del to delete</span>
+          <button
+            className="ml-1 text-muted-foreground hover:text-foreground"
+            onClick={() => setNodeEdit(null)}
+            title="Exit node edit (Esc)"
+          >
+            ✕
+          </button>
+        </div>
+      )}
 
       {/* Text panel — appears at click position. */}
       {!readOnly && drawState?.phase === "text" && textScreenPos && (

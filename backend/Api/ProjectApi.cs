@@ -149,6 +149,7 @@ public static class ProjectApi
 
         // Raw local geometry for every file — the viewport renders from this.
         // Points are [x, y] pairs rounded to 0.01mm to keep payloads lean.
+        // Path IDs are included so the node-edit UI can target specific paths.
         group.MapGet("/geometry", (ProjectService projects) =>
             Results.Ok(projects.With(p => new
             {
@@ -157,6 +158,7 @@ public static class ProjectApi
                     fileId = f.Id,
                     paths = f.Paths.Select(path => new
                     {
+                        id = path.Id,
                         layer = path.Layer,
                         closed = path.Polyline.IsClosed,
                         points = path.Polyline.Points
@@ -165,6 +167,158 @@ public static class ProjectApi
                     }).ToList(),
                 }).ToList(),
             })));
+
+        // Replace the node list of a specific path (node editing).
+        group.MapPatch("/files/{fileId:guid}/paths/{pathId:guid}", (Guid fileId, Guid pathId, UpdatePathNodesRequest request, ProjectService projects) =>
+        {
+            if (request.Points is not { Count: >= 2 })
+                return Results.BadRequest(new { error = "Path must have at least 2 points." });
+
+            bool found = projects.With(p =>
+            {
+                var file = p.Files.FirstOrDefault(f => f.Id == fileId);
+                var path = file?.Paths.FirstOrDefault(pt => pt.Id == pathId);
+                if (path is null) return false;
+                if (path.Polyline.IsClosed && request.Points.Count < 3)
+                    return false; // closed path needs ≥3 points
+                path.Polyline.Points.Clear();
+                path.Polyline.Points.AddRange(request.Points.Select(pt => new Backend.Geometry.Point2(pt[0], pt[1])));
+                return true;
+            });
+            return found ? Results.Ok(projects.With(ToDto)) : Results.NotFound();
+        });
+
+        // Simplify all paths in a file using Ramer-Douglas-Peucker.
+        group.MapPost("/files/{fileId:guid}/simplify", (Guid fileId, SimplifyRequest request, ProjectService projects) =>
+        {
+            double tol = Math.Max(0.01, request.ToleranceMm);
+            bool found = projects.With(p =>
+            {
+                var file = p.Files.FirstOrDefault(f => f.Id == fileId);
+                if (file is null) return false;
+                foreach (var path in file.Paths)
+                {
+                    var simplified = PathSimplifier.Simplify(path.Polyline.Points, path.Polyline.IsClosed, tol);
+                    path.Polyline.Points.Clear();
+                    path.Polyline.Points.AddRange(simplified);
+                }
+                return true;
+            });
+            return found ? Results.Ok(projects.With(ToDto)) : Results.NotFound();
+        });
+
+        // Pathfinder boolean operation on two or more placed parts.
+        // All part geometries are transformed to world space, the boolean is applied,
+        // and the result is stored as a new synthetic file at world position.
+        group.MapPost("/parts/boolean", (BooleanRequest request, ProjectService projects) =>
+        {
+            if (request.PartIds is not { Count: >= 2 })
+                return Results.BadRequest(new { error = "Boolean needs at least 2 parts." });
+            var op = request.Operation?.ToLowerInvariant();
+            if (op is not ("unite" or "subtract" or "intersect"))
+                return Results.BadRequest(new { error = "operation must be 'unite', 'subtract', or 'intersect'." });
+
+            return projects.With<IResult>(p =>
+            {
+                // Collect parts in request order.
+                var parts = request.PartIds
+                    .Select(id => p.Parts.FirstOrDefault(x => x.Id == id))
+                    .ToList();
+                if (parts.Any(x => x is null)) return Results.NotFound();
+
+                // Build world-space closed paths for each part.
+                // Only closed contours participate in boolean ops.
+                var subjectPaths = new PathsD();
+                var clipPaths = new PathsD();
+
+                void AddWorldPaths(PathsD dest, Part part)
+                {
+                    var file = p.Files.FirstOrDefault(f => f.Id == part!.FileId);
+                    if (file is null) return;
+                    var localPts = file.Paths.Where(ph => ph.Polyline.IsClosed);
+                    double rad = part!.RotationDeg * Math.PI / 180;
+                    double cos = Math.Cos(rad), sin = Math.Sin(rad);
+                    double sx = part.ScaleX, sy = part.ScaleY;
+
+                    // Pivot = local bbox center (same as partToWorld in the frontend).
+                    double minX = double.MaxValue, minY = double.MaxValue,
+                           maxX = double.MinValue, maxY = double.MinValue;
+                    foreach (var ph in file.Paths)
+                        foreach (var pt in ph.Polyline.Points)
+                        {
+                            if (pt.X < minX) minX = pt.X; if (pt.Y < minY) minY = pt.Y;
+                            if (pt.X > maxX) maxX = pt.X; if (pt.Y > maxY) maxY = pt.Y;
+                        }
+                    double pivX = (minX + maxX) / 2, pivY = (minY + maxY) / 2;
+
+                    foreach (var ph in localPts)
+                    {
+                        var pd = new PathD(ph.Polyline.Points.Count);
+                        foreach (var lp in ph.Polyline.Points)
+                        {
+                            double dx = (lp.X - pivX) * sx, dy = (lp.Y - pivY) * sy;
+                            double wx = part.X + pivX + dx * cos - dy * sin;
+                            double wy = part.Y + pivY + dx * sin + dy * cos;
+                            pd.Add(new PointD(wx, wy));
+                        }
+                        dest.Add(pd);
+                    }
+                }
+
+                AddWorldPaths(subjectPaths, parts[0]!);
+                for (int i = 1; i < parts.Count; i++) AddWorldPaths(clipPaths, parts[i]!);
+
+                if (subjectPaths.Count == 0)
+                    return Results.BadRequest(new { error = "Subject part has no closed paths." });
+
+                PathsD result = op switch
+                {
+                    "unite"     => Clipper.BooleanOp(ClipType.Union,    subjectPaths, clipPaths, FillRule.NonZero),
+                    "subtract"  => Clipper.BooleanOp(ClipType.Difference,  subjectPaths, clipPaths, FillRule.NonZero),
+                    _           => Clipper.BooleanOp(ClipType.Intersection, subjectPaths, clipPaths, FillRule.NonZero),
+                };
+
+                if (result.Count == 0)
+                    return Results.BadRequest(new { error = "Boolean produced no geometry." });
+
+                // Store result as world-space geometry at origin (Part.X=Y=0).
+                var newFile = new ImportedFile
+                {
+                    FileName = $"{op}.shape",
+                    DisplayName = $"{op} result",
+                    Kind = ImportedFileKind.Shape,
+                };
+                foreach (var r in result)
+                {
+                    if (r.Count < 3) continue;
+                    newFile.Paths.Add(new PathGeometry
+                    {
+                        Polyline = new Backend.Geometry.Polyline2
+                        {
+                            IsClosed = true,
+                            Points = r.Select(pt => new Backend.Geometry.Point2(pt.x, pt.y)).ToList(),
+                        },
+                    });
+                }
+                if (newFile.Paths.Count == 0)
+                    return Results.BadRequest(new { error = "Boolean produced no geometry." });
+
+                projects.Mutate(mp =>
+                {
+                    mp.Files.Add(newFile);
+                    mp.Parts.Add(new Part { FileId = newFile.Id, X = 0, Y = 0 });
+                    // Optionally remove source parts (user asked for pathfinder, so remove them).
+                    if (request.DeleteSources)
+                    {
+                        foreach (var partId in request.PartIds)
+                        {
+                            mp.Parts.RemoveAll(x => x.Id == partId);
+                        }
+                    }
+                });
+                return Results.Ok(projects.With(ToDto));
+            });
+        });
 
         // --- parts (placement instances) ---------------------------------
 
@@ -497,6 +651,10 @@ public static class ProjectApi
     public sealed record UpdatePartRequest(double? X, double? Y, double? RotationDeg, double? ScaleX, double? ScaleY);
     public sealed record ReorderPartRequest(string Direction); // "up" | "down" | "front" | "back"
     public sealed record OffsetPartRequest(double OffsetMm);
+
+    public sealed record UpdatePathNodesRequest(IReadOnlyList<double[]> Points);
+    public sealed record SimplifyRequest(double ToleranceMm);
+    public sealed record BooleanRequest(string Operation, IReadOnlyList<Guid> PartIds, bool DeleteSources = true);
 
     public sealed record NestRequest(double? MarginMm, double? SpacingMm, int? RotationStepDeg);
 

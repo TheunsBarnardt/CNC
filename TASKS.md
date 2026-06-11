@@ -389,7 +389,22 @@ Each is one session; split further if a task grows.*
 > (Clipper2 — reuse the kerf offsetter, don't hand-roll).
 > Summarize, compact and commit. 
 
-### [ ] Task 16 — Vector node editing + path operations
+### [x] Task 16 — Vector node editing + path operations
+<!-- Done: Node editing — double-click a selected part to enter node-edit mode; renders
+     all path vertices as hollow circles and segment midpoints as smaller dots. Drag any
+     node to reposition it (PATCH /files/{fileId}/paths/{pathId} on release); click a
+     segment midpoint to insert a new node at that point; press Delete to remove the
+     selected node (respects min-node constraint: 2 for open, 3 for closed). Hint bar
+     with ✕ exit; Escape also exits. All edits call refreshGeometry.
+     Path simplification — Ramer-Douglas-Peucker (PathSimplifier.cs) exposed via
+     POST /files/{fileId}/simplify (default 0.1mm tolerance); Spline button in EditToolbar.
+     Pathfinder booleans — shift-click a second part to show BooleanToolbar (secondary
+     highlighted in amber); Unite/Subtract/Intersect buttons call POST /parts/boolean which
+     transforms both parts to world space via Clipper2 BooleanOp and creates a new part
+     (sources deleted by default). GeometryPath now includes id field for path targeting.
+     Deferred: node types corner/smooth — data model is flat polylines (curves already
+     flattened at import), Bézier handle storage would need a model change; split path
+     (scissors) — deferred, limited value vs complexity. -->
 > Node-level editing of imported/created paths: move/add/delete nodes, node types
 > (corner/smooth), path simplification, split path (scissors). Pathfinder booleans via
 > Clipper2: unite, subtract, intersect, weld overlapping text/shapes.

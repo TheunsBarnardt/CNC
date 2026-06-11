@@ -59,6 +59,7 @@ export interface ProjectDto {
 
 /** One file's local-space geometry, as sent by GET /api/project/geometry. */
 export interface GeometryPath {
+  id: string;
   layer: string | null;
   closed: boolean;
   points: [number, number][];
@@ -260,6 +261,31 @@ export const projectApi = {
       method: "POST",
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify({ offsetMm }),
+    }).then((r) => json<ProjectDto>(r)),
+
+  updatePathNodes: (fileId: string, pathId: string, points: [number, number][]) =>
+    fetch(`${BACKEND_URL}/api/project/files/${fileId}/paths/${pathId}`, {
+      method: "PATCH",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ points }),
+    }).then((r) => json<ProjectDto>(r)),
+
+  simplifyFile: (fileId: string, toleranceMm: number) =>
+    fetch(`${BACKEND_URL}/api/project/files/${fileId}/simplify`, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ toleranceMm }),
+    }).then((r) => json<ProjectDto>(r)),
+
+  booleanParts: (
+    operation: "unite" | "subtract" | "intersect",
+    partIds: string[],
+    deleteSources = true,
+  ) =>
+    fetch(`${BACKEND_URL}/api/project/parts/boolean`, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ operation, partIds, deleteSources }),
     }).then((r) => json<ProjectDto>(r)),
 
   duplicatePart: (id: string) =>

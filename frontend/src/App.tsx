@@ -39,6 +39,7 @@ function App() {
   const [project, setProject] = useState<ProjectDto | null>(null);
   const [geometry, setGeometry] = useState<Map<string, GeometryPath[]>>(new Map());
   const [selectedPartId, setSelectedPartId] = useState<string | null>(null);
+  const [secondaryPartId, setSecondaryPartId] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [importing, setImporting] = useState(false);
   const [importErrors, setImportErrors] = useState<string[]>([]);
@@ -76,11 +77,13 @@ function App() {
     void run(projectApi.get, true);
   }, [run]);
 
-  // Drop selection if the selected part disappeared (delete/load/new).
+  // Drop selections if parts disappeared (delete/load/new).
   useEffect(() => {
     if (selectedPartId && !project?.parts.some((p) => p.id === selectedPartId))
       setSelectedPartId(null);
-  }, [project, selectedPartId]);
+    if (secondaryPartId && !project?.parts.some((p) => p.id === secondaryPartId))
+      setSecondaryPartId(null);
+  }, [project, selectedPartId, secondaryPartId]);
 
   const handleImport = useCallback(async (files: File[]) => {
     setImporting(true);
@@ -137,6 +140,32 @@ function App() {
     (id: string, offsetMm: number) =>
       void run(() => projectApi.offsetPart(id, offsetMm), true),
     [run],
+  );
+
+  const handleNodesChanged = useCallback(
+    (fileId: string, pathId: string, points: [number, number][]) => {
+      void run(() => projectApi.updatePathNodes(fileId, pathId, points), true);
+    },
+    [run],
+  );
+
+  const handleSimplify = useCallback(
+    (fileId: string) =>
+      void run(() => projectApi.simplifyFile(fileId, 0.1), true),
+    [run],
+  );
+
+  const handleBoolean = useCallback(
+    (op: "unite" | "subtract" | "intersect") => {
+      if (!selectedPartId || !secondaryPartId) return;
+      void run(async () => {
+        const result = await projectApi.booleanParts(op, [selectedPartId, secondaryPartId]);
+        setSelectedPartId(null);
+        setSecondaryPartId(null);
+        return result;
+      }, true);
+    },
+    [run, selectedPartId, secondaryPartId],
   );
 
   /** Called by Viewport when a drawn shape or text is ready to persist. */
@@ -293,13 +322,18 @@ function App() {
                 project={project}
                 geometry={geometry}
                 selectedPartId={selectedPartId}
+                secondaryPartId={secondaryPartId}
                 onSelect={setSelectedPartId}
+                onSecondarySelect={setSecondaryPartId}
                 onPartChange={handlePartChange}
                 onPartCommit={handlePartCommit}
                 onDuplicate={(id) => void run(() => projectApi.duplicatePart(id))}
                 onDelete={(id) => void run(() => projectApi.deletePart(id))}
                 onReorder={handleReorder}
                 onOffset={handleOffset}
+                onNodesChanged={handleNodesChanged}
+                onSimplify={handleSimplify}
+                onBoolean={handleBoolean}
                 simulation={mode === "preview" ? simulation : null}
                 simTime={simTime}
                 readOnly={mode === "preview"}

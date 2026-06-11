@@ -344,7 +344,22 @@ https://support.xtool.com/learning-center?campaign=support_academy&node=c8007d78
 Task 6b covers the workspace layout; these tasks cover the functionality.
 Each is one session; split further if a task grows.*
 
-### [ ] Task 14 — Shape, pen & text creation tools
+### [x] Task 14 — Shape, pen & text creation tools
+<!-- Done: Left-sidebar shape tools: line, rectangle (corner radius), circle, ellipse,
+     polygon (n-sides), star (points + inner ratio) — click+drag rubber-band on canvas;
+     preview drawn during drag. Pen tool: full Bézier state machine — click for corner
+     nodes, drag to pull smooth handles, hover-first-node shows close indicator, Enter
+     finishes open path, Escape commits, click first node closes. Text tool: click canvas
+     → floating TextPanel (text/font/size mm/letter-spacing) → opentype.js v2
+     (fetch+parse buffer) converts glyphs to polylines via adaptive Bézier flattening,
+     Y-flipped, bbox normalized to (0,0), scaled to fontSizeMm. All shapes use the
+     "synthetic file" pattern: POST /api/project/files/synthetic creates an ImportedFile
+     with Kind=Shape + auto-placed Part; InitialX/Y optionally overrides placement.
+     ActiveTool union type in tools.ts; ShapeGen.ts: genLine/genRect/genCircle/genPolygon/
+     genStar + fromPoints convenience wrappers. Roboto-Regular.ttf + Roboto-Bold.ttf
+     bundled in /public/fonts/. opentype.js v2 via npm. shadcn Popover added.
+     Deferred: bold/italic font variants in TextPanel (bold field exists, only regular
+     bundled); editable W/H/rotation on shapes requires Task 15 node editing. -->
 > Left-sidebar creation tools on the canvas: line, rectangle (with corner radius),
 > circle/ellipse, polygon, star; **Pen tool** (Bézier path drawing — click for corner
 > nodes, drag to pull smooth handles, close path to form a shape; output is the same

@@ -10,6 +10,7 @@ import {
 } from "@/components/ui/card";
 import { Separator } from "@/components/ui/separator";
 import { CreationSidebar } from "@/components/CreationSidebar";
+import type { ActiveTool } from "@/lib/tools";
 import { CutSettingsCard } from "@/components/CutSettingsCard";
 import { FileListPanel } from "@/components/FileListPanel";
 import { NestCard } from "@/components/NestCard";
@@ -42,6 +43,7 @@ function App() {
   const [importing, setImporting] = useState(false);
   const [importErrors, setImportErrors] = useState<string[]>([]);
   const [mode, setMode] = useState<Mode>("edit");
+  const [activeTool, setActiveTool] = useState<ActiveTool>({ type: "select" });
   const [simulation, setSimulation] = useState<Simulation | null>(null);
   const [simTime, setSimTime] = useState(0);
   const openProjectRef = useRef<HTMLInputElement>(null);
@@ -123,6 +125,21 @@ function App() {
     [run],
   );
 
+  /** Called by Viewport when a drawn shape or text is ready to persist. */
+  const handleShapeCreated = useCallback(
+    async (paths: GeometryPath[], name: string, worldX: number, worldY: number) => {
+      try {
+        const updated = await projectApi.createSyntheticFile(name, paths, worldX, worldY);
+        setProject(updated);
+        await refreshGeometry();
+        setError(null);
+      } catch (err) {
+        setError((err as Error).message);
+      }
+    },
+    [refreshGeometry],
+  );
+
   /** Fetch the toolpath and build the playback timeline. */
   const handleSimulate = useCallback(async (): Promise<Simulation | null> => {
     if (!project) return null;
@@ -140,6 +157,7 @@ function App() {
   const switchMode = (next: Mode) => {
     setMode(next);
     setSelectedPartId(null);
+    setActiveTool({ type: "select" });
     setSimulation(null);
     setSimTime(0);
     if (next === "preview" && hasParts) {
@@ -219,6 +237,8 @@ function App() {
       <main className="flex min-h-0 flex-1">
         {/* Left creation rail */}
         <CreationSidebar
+          activeTool={activeTool}
+          onToolChange={setActiveTool}
           onImport={handleImport}
           busy={importing}
           disabled={mode === "preview"}
@@ -264,6 +284,9 @@ function App() {
                 simulation={mode === "preview" ? simulation : null}
                 simTime={simTime}
                 readOnly={mode === "preview"}
+                activeTool={activeTool}
+                onShapeCreated={handleShapeCreated}
+                onToolReset={() => setActiveTool({ type: "select" })}
               />
             )}
           </div>

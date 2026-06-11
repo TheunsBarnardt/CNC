@@ -44,6 +44,7 @@ public enum ImportedFileKind
 {
     Svg,
     Dxf,
+    Shape,  // drawn/created in-app (not imported from file)
 }
 
 /// <summary>

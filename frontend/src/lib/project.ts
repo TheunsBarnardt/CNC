@@ -9,7 +9,7 @@ export type TableOrigin =
   | "TopLeft"
   | "TopRight"
   | "Center";
-export type ImportedFileKind = "Svg" | "Dxf";
+export type ImportedFileKind = "Svg" | "Dxf" | "Shape";
 
 export interface TableSettings {
   widthMm: number;
@@ -310,6 +310,24 @@ export const projectApi = {
     }).then((r) => json<GcodeResult>(r)),
 
   exportUrl: `${BACKEND_URL}/api/project/export`,
+
+  /** Create a synthetic file from raw geometry paths (shapes drawn/created in-app). */
+  createSyntheticFile: (
+    displayName: string,
+    paths: GeometryPath[],
+    initialX: number,
+    initialY: number,
+  ) =>
+    fetch(`${BACKEND_URL}/api/project/files/synthetic`, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({
+        displayName,
+        paths: paths.map((p) => ({ closed: p.closed, layer: p.layer, points: p.points })),
+        initialX,
+        initialY,
+      }),
+    }).then((r) => json<ProjectDto>(r)),
 
   loadProject: (file: File) => {
     const form = new FormData();

@@ -79,6 +79,48 @@ public static class ProjectApi
         })
         .DisableAntiforgery();
 
+        // Create a synthetic file from raw paths (shapes drawn in-app, text converted to paths).
+        group.MapPost("/files/synthetic", (SyntheticFileRequest request, ProjectService projects) =>
+        {
+            if (string.IsNullOrWhiteSpace(request.DisplayName))
+                return Results.BadRequest(new { error = "displayName is required." });
+            if (request.Paths is not { Count: > 0 })
+                return Results.BadRequest(new { error = "At least one path is required." });
+
+            var file = new ImportedFile
+            {
+                FileName = $"{request.DisplayName}.shape",
+                DisplayName = request.DisplayName.Trim(),
+                Kind = ImportedFileKind.Shape,
+            };
+
+            foreach (var p in request.Paths)
+            {
+                if (p.Points is not { Count: >= 2 }) continue;
+                var polyline = new Backend.Geometry.Polyline2
+                {
+                    Points = p.Points.Select(pt => new Backend.Geometry.Point2(pt[0], pt[1])).ToList(),
+                    IsClosed = p.Closed,
+                };
+                file.Paths.Add(new PathGeometry { Layer = p.Layer, Polyline = polyline });
+            }
+
+            if (file.Paths.Count == 0)
+                return Results.BadRequest(new { error = "No valid paths (each needs ≥2 points)." });
+
+            projects.Mutate(p =>
+            {
+                p.Files.Add(file);
+                var part = PartPlacer.PlaceNew(p, file);
+                // Honor caller's requested placement (user drew the shape at a specific position).
+                if (request.InitialX.HasValue) part.X = request.InitialX.Value;
+                if (request.InitialY.HasValue) part.Y = request.InitialY.Value;
+                p.Parts.Add(part);
+            });
+
+            return Results.Ok(projects.With(ToDto));
+        });
+
         group.MapPatch("/files/{id:guid}", (Guid id, UpdateFileRequest request, ProjectService projects) =>
         {
             bool found = projects.With(p =>
@@ -362,6 +404,13 @@ public static class ProjectApi
         string Id, string DisplayName, string Description, string FileExtension, bool IsDefault);
 
     public sealed record GcodeRequest(string? PostId);
+
+    public sealed record SyntheticPathDto(bool Closed, string? Layer, IReadOnlyList<double[]> Points);
+    public sealed record SyntheticFileRequest(
+        string DisplayName,
+        IReadOnlyList<SyntheticPathDto> Paths,
+        double? InitialX,
+        double? InitialY);
 
     public sealed record GcodeResultDto(
         string PostId,

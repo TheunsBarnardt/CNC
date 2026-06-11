@@ -34,6 +34,15 @@ export interface FileSummary {
   warnings: string[];
 }
 
+/** A named layer for grouping parts (visibility / lock). */
+export interface Layer {
+  id: string;
+  name: string;
+  color: string;
+  visible: boolean;
+  locked: boolean;
+}
+
 /**
  * A placed instance of a file on the table. Mirrors backend Part: translation
  * in mm + rotation CCW (degrees) about the file's local bbox center, with
@@ -47,6 +56,7 @@ export interface Part {
   rotationDeg: number;
   scaleX: number;
   scaleY: number;
+  layerId: string | null;
 }
 
 export interface ProjectDto {
@@ -55,6 +65,7 @@ export interface ProjectDto {
   table: TableSettings;
   files: FileSummary[];
   parts: Part[];
+  layers: Layer[];
 }
 
 /** One file's local-space geometry, as sent by GET /api/project/geometry. */
@@ -277,6 +288,39 @@ export const projectApi = {
       body: JSON.stringify({ toleranceMm }),
     }).then((r) => json<ProjectDto>(r)),
 
+  arrayPart: (
+    id: string,
+    request: {
+      type: "grid" | "circular";
+      rows?: number; cols?: number;
+      spacingXMm?: number; spacingYMm?: number;
+      count?: number; radiusMm?: number;
+      startAngleDeg?: number; rotateWithArray?: boolean;
+    },
+  ) =>
+    fetch(`${BACKEND_URL}/api/project/parts/${id}/array`, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify(request),
+    }).then((r) => json<ProjectDto>(r)),
+
+  testArray: (
+    id: string,
+    request: {
+      rows: number; cols: number; spacingMm: number;
+      param1: { type: string; min: number; max: number };
+      param2: { type: string; min: number; max: number };
+    },
+  ): Promise<Blob> =>
+    fetch(`${BACKEND_URL}/api/project/parts/${id}/test-array`, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify(request),
+    }).then((r) => {
+      if (!r.ok) throw new Error(`${r.status} ${r.statusText}`);
+      return r.blob();
+    }),
+
   booleanParts: (
     operation: "unite" | "subtract" | "intersect",
     partIds: string[],
@@ -287,6 +331,28 @@ export const projectApi = {
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify({ operation, partIds, deleteSources }),
     }).then((r) => json<ProjectDto>(r)),
+
+  createLayer: (name?: string, color?: string) =>
+    fetch(`${BACKEND_URL}/api/project/layers`, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ name: name ?? null, color: color ?? null }),
+    }).then((r) => json<ProjectDto>(r)),
+
+  updateLayer: (
+    id: string,
+    patch: { name?: string; color?: string; visible?: boolean; locked?: boolean },
+  ) =>
+    fetch(`${BACKEND_URL}/api/project/layers/${id}`, {
+      method: "PATCH",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify(patch),
+    }).then((r) => json<ProjectDto>(r)),
+
+  deleteLayer: (id: string) =>
+    fetch(`${BACKEND_URL}/api/project/layers/${id}`, { method: "DELETE" }).then(
+      (r) => json<ProjectDto>(r),
+    ),
 
   duplicatePart: (id: string) =>
     fetch(`${BACKEND_URL}/api/project/parts/${id}/duplicate`, {

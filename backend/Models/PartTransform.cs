@@ -36,7 +36,9 @@ public static class PartTransform
     {
         double r = part.RotationDeg * Math.PI / 180.0;
         double cos = Math.Cos(r), sin = Math.Sin(r);
-        double dx = local.X - pivot.X, dy = local.Y - pivot.Y;
+        // Scale applied around pivot before rotation (mirrors frontend geometry.ts).
+        double dx = (local.X - pivot.X) * part.ScaleX;
+        double dy = (local.Y - pivot.Y) * part.ScaleY;
         return new Point2(
             part.X + pivot.X + dx * cos - dy * sin,
             part.Y + pivot.Y + dx * sin + dy * cos);

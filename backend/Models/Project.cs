@@ -88,6 +88,19 @@ public sealed class Part
     public double ScaleX { get; set; } = 1.0;
     /// <summary>Vertical scale factor (1 = natural, -1 = mirrored).</summary>
     public double ScaleY { get; set; } = 1.0;
+    /// <summary>Layer this part belongs to. Null = default (first) layer.</summary>
+    public Guid? LayerId { get; set; }
+}
+
+/// <summary>A named layer that groups parts for visibility / lock control.</summary>
+public sealed class Layer
+{
+    public Guid Id { get; set; } = Guid.NewGuid();
+    public string Name { get; set; } = "Layer 1";
+    /// <summary>CSS colour string used as the layer accent in the UI.</summary>
+    public string Color { get; set; } = "#3b82f6";
+    public bool Visible { get; set; } = true;
+    public bool Locked { get; set; } = false;
 }
 
 /// <summary>A whole project: table setup + imported files. Saved as one JSON file.</summary>
@@ -101,4 +114,5 @@ public sealed class Project
     public CamSettings Cam { get; set; } = new();
     public List<ImportedFile> Files { get; init; } = [];
     public List<Part> Parts { get; init; } = [];
+    public List<Layer> Layers { get; init; } = [new Layer()];
 }

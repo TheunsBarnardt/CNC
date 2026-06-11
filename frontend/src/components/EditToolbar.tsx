@@ -23,6 +23,7 @@ import {
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Separator } from "@/components/ui/separator";
+import { ArrayPanel } from "@/components/ArrayPanel";
 import type { BBox } from "@/lib/geometry";
 import type { Part } from "@/lib/project";
 
@@ -43,6 +44,8 @@ interface Props {
   onOffset: (offsetMm: number) => void;
   /** Simplify path nodes (RDP). Double-click part to enter node-edit mode. */
   onSimplify?: () => void;
+  onArray?: (type: "grid" | "circular", params: object) => void;
+  onTestArray?: (params: object) => void;
 }
 
 export function EditToolbar({
@@ -57,6 +60,8 @@ export function EditToolbar({
   onReorder,
   onOffset,
   onSimplify,
+  onArray,
+  onTestArray,
 }: Props) {
   const [draft, setDraft] = useState<Record<string, string>>({});
   const [aspectLocked, setAspectLocked] = useState(true);
@@ -255,6 +260,10 @@ export function EditToolbar({
           onClick={onSimplify}>
           <Spline className="size-4" />
         </Button>
+      )}
+
+      {onArray && onTestArray && (
+        <ArrayPanel onArray={onArray} onTestArray={onTestArray} />
       )}
 
       <Button variant="ghost" size="icon" className={iconBtn} title="Duplicate (Ctrl+D)"

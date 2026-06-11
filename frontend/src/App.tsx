@@ -18,17 +18,22 @@ import { GcodePanel } from "@/components/GcodePanel";
 import { ProjectSettingsCard } from "@/components/ProjectSettingsCard";
 import { SimulationBar } from "@/components/SimulationBar";
 import { DevicePanel } from "@/components/DevicePanel";
+import { LayersPanel } from "@/components/LayersPanel";
+import { SettingsDialog } from "@/components/SettingsDialog";
 import { Viewport } from "@/components/Viewport";
 import { buildSimulation, formatTime, type Simulation } from "@/lib/simulation";
 import {
   projectApi,
   type FileGeometry,
   type GeometryPath,
+  type Layer,
   type Part,
   type ProjectDto,
   type TableSettings,
   type Units,
 } from "@/lib/project";
+import { loadGuides, saveGuides, type Guide } from "@/lib/guides";
+import { useSettings } from "@/lib/settings";
 
 /** Workspace modes (xTool anatomy): edit the layout, or preview the processing. */
 type Mode = "edit" | "preview";
@@ -48,6 +53,9 @@ function App() {
   const [simulation, setSimulation] = useState<Simulation | null>(null);
   const [simTime, setSimTime] = useState(0);
   const openProjectRef = useRef<HTMLInputElement>(null);
+  const [guides, setGuides] = useState<Guide[]>(loadGuides);
+  const [activeLayerId, setActiveLayerId] = useState<string | null>(null);
+  const { settings, update: updateSettings_ } = useSettings();
 
   const applyGeometry = (files: FileGeometry[]) =>
     setGeometry(new Map(files.map((f) => [f.fileId, f.paths])));
@@ -84,6 +92,18 @@ function App() {
     if (secondaryPartId && !project?.parts.some((p) => p.id === secondaryPartId))
       setSecondaryPartId(null);
   }, [project, selectedPartId, secondaryPartId]);
+
+  // Keep active layer in sync with project (default to first layer).
+  useEffect(() => {
+    if (!project) return;
+    if (!activeLayerId || !project.layers.some((l) => l.id === activeLayerId))
+      setActiveLayerId(project.layers[0]?.id ?? null);
+  }, [project, activeLayerId]);
+
+  const handleGuidesChange = useCallback((next: Guide[]) => {
+    setGuides(next);
+    saveGuides(next);
+  }, []);
 
   const handleImport = useCallback(async (files: File[]) => {
     setImporting(true);
@@ -155,6 +175,31 @@ function App() {
     [run],
   );
 
+  const handleArray = useCallback(
+    (id: string, type: "grid" | "circular", params: object) =>
+      void run(() =>
+        projectApi.arrayPart(id, { type, ...params } as Parameters<typeof projectApi.arrayPart>[1]),
+      ),
+    [run],
+  );
+
+  const handleTestArray = useCallback(
+    (id: string, params: object) => {
+      const p = params as Parameters<typeof projectApi.testArray>[1];
+      projectApi.testArray(id, p)
+        .then((blob) => {
+          const url = URL.createObjectURL(blob);
+          const a = document.createElement("a");
+          a.href = url;
+          a.download = "test-array.nc";
+          a.click();
+          URL.revokeObjectURL(url);
+        })
+        .catch((err: Error) => setError(err.message));
+    },
+    [],
+  );
+
   const handleBoolean = useCallback(
     (op: "unite" | "subtract" | "intersect") => {
       if (!selectedPartId || !secondaryPartId) return;
@@ -166,6 +211,22 @@ function App() {
       }, true);
     },
     [run, selectedPartId, secondaryPartId],
+  );
+
+  const handleCreateLayer = useCallback(
+    () => void run(() => projectApi.createLayer()),
+    [run],
+  );
+
+  const handleUpdateLayer = useCallback(
+    (id: string, patch: Partial<Layer>) =>
+      void run(() => projectApi.updateLayer(id, patch)),
+    [run],
+  );
+
+  const handleDeleteLayer = useCallback(
+    (id: string) => void run(() => projectApi.deleteLayer(id)),
+    [run],
   );
 
   /** Called by Viewport when a drawn shape or text is ready to persist. */
@@ -224,6 +285,8 @@ function App() {
             )}
           </div>
           <div className="flex items-center gap-4">
+            <SettingsDialog settings={settings} onUpdate={updateSettings_} />
+            <Separator orientation="vertical" className="h-5" />
             <div className="flex items-center gap-1.5">
               <Button
                 variant="ghost"
@@ -334,6 +397,12 @@ function App() {
                 onNodesChanged={handleNodesChanged}
                 onSimplify={handleSimplify}
                 onBoolean={handleBoolean}
+                onArray={handleArray}
+                onTestArray={handleTestArray}
+                guides={guides}
+                onGuidesChange={handleGuidesChange}
+                layers={project?.layers}
+                settings={settings}
                 simulation={mode === "preview" ? simulation : null}
                 simTime={simTime}
                 readOnly={mode === "preview"}
@@ -391,6 +460,25 @@ function App() {
                       }
                       onDelete={(id) => void run(() => projectApi.deleteFile(id), true)}
                       onAddToTable={(id) => void run(() => projectApi.createPart(id))}
+                    />
+                  )}
+                </CardContent>
+              </Card>
+
+              <Card>
+                <CardHeader className="pb-3">
+                  <CardTitle className="text-base">Layers</CardTitle>
+                  <CardDescription>Visibility and lock per group</CardDescription>
+                </CardHeader>
+                <CardContent>
+                  {project && (
+                    <LayersPanel
+                      layers={project.layers}
+                      activeLayerId={activeLayerId}
+                      onSetActive={setActiveLayerId}
+                      onCreate={handleCreateLayer}
+                      onUpdate={handleUpdateLayer}
+                      onDelete={handleDeleteLayer}
                     />
                   )}
                 </CardContent>

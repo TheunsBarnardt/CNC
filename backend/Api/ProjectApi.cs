@@ -347,6 +347,7 @@ public static class ProjectApi
                 if (request.RotationDeg is { } r) part.RotationDeg = NormalizeDeg(r);
                 if (request.ScaleX is { } sx) part.ScaleX = sx;
                 if (request.ScaleY is { } sy) part.ScaleY = sy;
+                if (request.LayerId is { } lid) part.LayerId = lid;
                 return true;
             });
             return found ? Results.Ok(projects.With(ToDto)) : Results.NotFound();
@@ -448,13 +449,215 @@ public static class ProjectApi
             });
         });
 
+        // Grid or circular array: create copies of an existing part at computed positions.
+        group.MapPost("/parts/{id:guid}/array", (Guid id, ArrayRequest request, ProjectService projects) =>
+        {
+            return projects.With<IResult>(p =>
+            {
+                var source = p.Parts.FirstOrDefault(x => x.Id == id);
+                if (source is null) return Results.NotFound();
+                var file = p.Files.FirstOrDefault(f => f.Id == source.FileId);
+                if (file is null) return Results.NotFound();
+
+                var newParts = new List<Part>();
+                if (request.Type == "grid")
+                {
+                    if (request.Rows < 1 || request.Cols < 1)
+                        return Results.BadRequest(new { error = "Rows and cols must be ≥1." });
+
+                    var (_, bMax) = PartTransform.WorldBounds(source, file);
+                    var (bMin, _) = PartTransform.WorldBounds(source, file);
+                    double partW = bMax.X - bMin.X;
+                    double partH = bMax.Y - bMin.Y;
+                    double stepX = partW + request.SpacingXMm;
+                    double stepY = partH + request.SpacingYMm;
+
+                    for (int row = 0; row < request.Rows; row++)
+                    for (int col = 0; col < request.Cols; col++)
+                    {
+                        if (row == 0 && col == 0) continue; // keep original in place
+                        newParts.Add(new Part
+                        {
+                            FileId = source.FileId,
+                            X = source.X + col * stepX,
+                            Y = source.Y + row * stepY,
+                            RotationDeg = source.RotationDeg,
+                            ScaleX = source.ScaleX,
+                            ScaleY = source.ScaleY,
+                        });
+                    }
+                }
+                else if (request.Type == "circular")
+                {
+                    if (request.Count < 2)
+                        return Results.BadRequest(new { error = "Circular array needs count ≥2." });
+
+                    // The circle is centered on the original part's world bbox center.
+                    var (bMin2, bMax2) = PartTransform.WorldBounds(source, file);
+                    double cx = (bMin2.X + bMax2.X) / 2;
+                    double cy = (bMin2.Y + bMax2.Y) / 2;
+
+                    for (int k = 1; k < request.Count; k++)
+                    {
+                        double angleDeg = request.StartAngleDeg + k * (360.0 / request.Count);
+                        double angleRad = angleDeg * Math.PI / 180.0;
+                        double rot = request.RotateWithArray
+                            ? NormalizeDeg(source.RotationDeg + angleDeg)
+                            : source.RotationDeg;
+
+                        // New center position = circle center + radius * direction.
+                        // Convert back: part.X = worldCenter.X - partLocalCenter.X (before part transform).
+                        var (bMin3, bMax3) = PartTransform.WorldBounds(source, file);
+                        double srcCx = (bMin3.X + bMax3.X) / 2 - source.X;
+                        double srcCy = (bMin3.Y + bMax3.Y) / 2 - source.Y;
+
+                        newParts.Add(new Part
+                        {
+                            FileId = source.FileId,
+                            X = cx + request.RadiusMm * Math.Cos(angleRad) - srcCx,
+                            Y = cy + request.RadiusMm * Math.Sin(angleRad) - srcCy,
+                            RotationDeg = rot,
+                            ScaleX = source.ScaleX,
+                            ScaleY = source.ScaleY,
+                        });
+                    }
+                }
+                else
+                {
+                    return Results.BadRequest(new { error = "type must be 'grid' or 'circular'." });
+                }
+
+                projects.Mutate(mp => mp.Parts.AddRange(newParts));
+                return Results.Ok(projects.With(ToDto));
+            });
+        });
+
+        // Material test array: generate a grid of test cuts varying two CAM parameters.
+        // Returns G-code directly as a file download.
+        group.MapPost("/parts/{id:guid}/test-array", (Guid id, TestArrayRequest request, ProjectService projects, PostProcessorRegistry posts) =>
+        {
+            return projects.With<IResult>(p =>
+            {
+                var source = p.Parts.FirstOrDefault(x => x.Id == id);
+                if (source is null) return Results.NotFound();
+                var file = p.Files.FirstOrDefault(f => f.Id == source.FileId);
+                if (file is null) return Results.NotFound();
+
+                if (request.Rows < 1 || request.Cols < 1 || request.Rows > 20 || request.Cols > 20)
+                    return Results.BadRequest(new { error = "Rows/cols must be 1–20." });
+                if (request.SpacingMm < 1)
+                    return Results.BadRequest(new { error = "Spacing must be ≥1mm." });
+
+                var (bMin, bMax) = PartTransform.WorldBounds(source, file);
+                double partW = bMax.X - bMin.X;
+                double partH = bMax.Y - bMin.Y;
+                double stepX = partW + request.SpacingMm;
+                double stepY = partH + request.SpacingMm;
+
+                double LerpVal(TestParamRange r, int steps, int i) =>
+                    steps == 1 ? r.Min : r.Min + (r.Max - r.Min) * i / (steps - 1);
+
+                // Pick post-processor matching the project's operation mode.
+                var post = p.Cam.OperationMode switch
+                {
+                    MachineType.Laser      => posts.Find("grbl-laser") ?? posts.Default,
+                    MachineType.VinylKnife => posts.Find("grbl-vinyl") ?? posts.Default,
+                    _                      => posts.Default,
+                };
+
+                var sb = new System.Text.StringBuilder();
+                sb.AppendLine($"; Material test array {request.Rows}×{request.Cols} — DIY GRBL Cutting CAM");
+                sb.AppendLine($"; Rows: {request.Rows} × {request.Param1.Type} ({request.Param1.Min}–{request.Param1.Max})");
+                sb.AppendLine($"; Cols: {request.Cols} × {request.Param2.Type} ({request.Param2.Min}–{request.Param2.Max})");
+
+                bool firstCell = true;
+                for (int row = 0; row < request.Rows; row++)
+                {
+                    double v1 = LerpVal(request.Param1, request.Rows, row);
+                    for (int col = 0; col < request.Cols; col++)
+                    {
+                        double v2 = LerpVal(request.Param2, request.Cols, col);
+
+                        sb.AppendLine();
+                        sb.AppendLine($"; [{row},{col}] {request.Param1.Type}={v1:0.###} {request.Param2.Type}={v2:0.###}");
+
+                        // Build a mini-project with this one part positioned at the grid cell.
+                        double offX = source.X + col * stepX - bMin.X;
+                        double offY = source.Y + row * stepY - bMin.Y;
+
+                        var cellPart = new Part
+                        {
+                            FileId = source.FileId,
+                            X = offX,
+                            Y = offY,
+                            RotationDeg = source.RotationDeg,
+                            ScaleX = source.ScaleX,
+                            ScaleY = source.ScaleY,
+                        };
+                        var mini = new Project { Table = p.Table };
+                        mini.Files.Add(file);
+                        mini.Parts.Add(cellPart);
+
+                        // Build settings with test parameters applied.
+                        var cam = new CamSettings
+                        {
+                            OperationMode   = p.Cam.OperationMode,
+                            FeedRateMmMin   = ApplyParam(p.Cam.FeedRateMmMin, "feed",   request.Param1, v1, request.Param2, v2),
+                            KerfWidthMm     = p.Cam.KerfWidthMm,
+                            PierceDelayS    = ApplyParam(p.Cam.PierceDelayS,   "pierce", request.Param1, v1, request.Param2, v2),
+                            CutHeightMm     = p.Cam.CutHeightMm,
+                            PierceHeightMm  = p.Cam.PierceHeightMm,
+                            LeadInType      = p.Cam.LeadInType,
+                            LeadInLengthMm  = p.Cam.LeadInLengthMm,
+                            LeadOutType     = p.Cam.LeadOutType,
+                            LeadOutLengthMm = p.Cam.LeadOutLengthMm,
+                            LaserPowerPercent = ApplyParam(p.Cam.LaserPowerPercent, "power", request.Param1, v1, request.Param2, v2),
+                            VinylBladeOffsetMm = p.Cam.VinylBladeOffsetMm,
+                            VinylOvercutMm   = p.Cam.VinylOvercutMm,
+                            VinylKnifeUpMm   = p.Cam.VinylKnifeUpMm,
+                            VinylKnifeDownMm = p.Cam.VinylKnifeDownMm,
+                        };
+
+                        mini.Cam = cam;
+                        var toolpath = CamEngine.Generate(mini, cam);
+                        var program = post.Generate(toolpath, mini);
+
+                        // Emit lines: skip G21/G90/M2 preamble/end on all but first/last cell.
+                        var lines = program.Lines;
+                        for (int li = 0; li < lines.Count; li++)
+                        {
+                            var line = lines[li];
+                            // Strip global preamble from all cells except first.
+                            if (!firstCell && (line.StartsWith("G21") || line.StartsWith("G90") ||
+                                line.StartsWith("G17") || line.StartsWith("G94")))
+                                continue;
+                            // Strip end commands — we append them once at the end.
+                            if (line.StartsWith("G0 X0 Y0") || line == "M2") continue;
+                            sb.AppendLine(line);
+                        }
+                        firstCell = false;
+                    }
+                }
+
+                // Final park + end.
+                var origin = GrblPlasmaPostProcessor.OriginPoint(p.Table);
+                sb.AppendLine($"G0 X{origin.X:0.###} Y{origin.Y:0.###}");
+                sb.AppendLine("M2");
+
+                string name = SafeFileName(p.Name);
+                return Results.File(
+                    System.Text.Encoding.UTF8.GetBytes(sb.ToString()),
+                    "text/plain",
+                    $"{name}-test-array.nc");
+            });
+        });
+
         group.MapPost("/parts/{id:guid}/duplicate", (Guid id, ProjectService projects) =>
         {
             var dto = projects.With<ProjectDto?>(p =>
             {
                 var source = p.Parts.FirstOrDefault(x => x.Id == id);
                 if (source is null) return null;
-                // Same rotation + scale, offset placement so the copy is visibly separate.
                 p.Parts.Add(new Part
                 {
                     FileId = source.FileId,
@@ -463,10 +666,56 @@ public static class ProjectApi
                     RotationDeg = source.RotationDeg,
                     ScaleX = source.ScaleX,
                     ScaleY = source.ScaleY,
+                    LayerId = source.LayerId,
                 });
                 return ToDto(p);
             });
             return dto is null ? Results.NotFound() : Results.Ok(dto);
+        });
+
+        // --- layers -----------------------------------------------------------
+
+        group.MapPost("/layers", (CreateLayerRequest request, ProjectService projects) =>
+        {
+            projects.Mutate(p => p.Layers.Add(new Layer
+            {
+                Name = string.IsNullOrWhiteSpace(request.Name) ? $"Layer {p.Layers.Count + 1}" : request.Name.Trim(),
+                Color = request.Color ?? "#3b82f6",
+            }));
+            return Results.Ok(projects.With(ToDto));
+        });
+
+        group.MapPatch("/layers/{id:guid}", (Guid id, UpdateLayerRequest request, ProjectService projects) =>
+        {
+            bool found = projects.With(p =>
+            {
+                var layer = p.Layers.FirstOrDefault(l => l.Id == id);
+                if (layer is null) return false;
+                if (request.Name is { Length: > 0 } n) layer.Name = n.Trim();
+                if (request.Color is { Length: > 0 } c) layer.Color = c;
+                if (request.Visible is { } v) layer.Visible = v;
+                if (request.Locked is { } lk) layer.Locked = lk;
+                return true;
+            });
+            return found ? Results.Ok(projects.With(ToDto)) : Results.NotFound();
+        });
+
+        group.MapDelete("/layers/{id:guid}", (Guid id, ProjectService projects) =>
+        {
+            bool found = projects.With(p =>
+            {
+                var layer = p.Layers.FirstOrDefault(l => l.Id == id);
+                if (layer is null) return false;
+                // Can't delete the last layer.
+                if (p.Layers.Count == 1) return false;
+                // Reassign parts on this layer to the first remaining layer.
+                var fallback = p.Layers.First(l => l.Id != id);
+                foreach (var part in p.Parts.Where(x => x.LayerId == id))
+                    part.LayerId = fallback.Id;
+                p.Layers.Remove(layer);
+                return true;
+            });
+            return found ? Results.Ok(projects.With(ToDto)) : Results.BadRequest(new { error = "Cannot delete the only layer." });
         });
 
         group.MapDelete("/parts/{id:guid}", (Guid id, ProjectService projects) =>
@@ -630,14 +879,16 @@ public static class ProjectApi
         IReadOnlyList<string> Layers,
         IReadOnlyList<string> Warnings);
 
-    public sealed record PartDto(Guid Id, Guid FileId, double X, double Y, double RotationDeg, double ScaleX, double ScaleY);
+    public sealed record LayerDto(Guid Id, string Name, string Color, bool Visible, bool Locked);
+    public sealed record PartDto(Guid Id, Guid FileId, double X, double Y, double RotationDeg, double ScaleX, double ScaleY, Guid? LayerId);
 
     public sealed record ProjectDto(
         string Name,
         Units Units,
         TableSettingsDto Table,
         IReadOnlyList<FileSummaryDto> Files,
-        IReadOnlyList<PartDto> Parts);
+        IReadOnlyList<PartDto> Parts,
+        IReadOnlyList<LayerDto> Layers);
 
     public sealed record ImportResultDto(
         string FileName, bool Ok, string? Error, FileSummaryDto? File);
@@ -648,7 +899,7 @@ public static class ProjectApi
 
     public sealed record CreatePartRequest(Guid FileId);
 
-    public sealed record UpdatePartRequest(double? X, double? Y, double? RotationDeg, double? ScaleX, double? ScaleY);
+    public sealed record UpdatePartRequest(double? X, double? Y, double? RotationDeg, double? ScaleX, double? ScaleY, Guid? LayerId);
     public sealed record ReorderPartRequest(string Direction); // "up" | "down" | "front" | "back"
     public sealed record OffsetPartRequest(double OffsetMm);
 
@@ -656,6 +907,25 @@ public static class ProjectApi
     public sealed record SimplifyRequest(double ToleranceMm);
     public sealed record BooleanRequest(string Operation, IReadOnlyList<Guid> PartIds, bool DeleteSources = true);
 
+    public sealed record ArrayRequest(
+        string Type,           // "grid" | "circular"
+        // grid:
+        int Rows = 2, int Cols = 2,
+        double SpacingXMm = 10, double SpacingYMm = 10,
+        // circular:
+        int Count = 6, double RadiusMm = 50,
+        double StartAngleDeg = 0, bool RotateWithArray = false);
+
+    public sealed record TestParamRange(
+        string Type,    // "feed" | "pierce" | "power"
+        double Min, double Max);
+
+    public sealed record TestArrayRequest(
+        int Rows, int Cols, double SpacingMm,
+        TestParamRange Param1, TestParamRange Param2);
+
+    public sealed record CreateLayerRequest(string? Name, string? Color);
+    public sealed record UpdateLayerRequest(string? Name, string? Color, bool? Visible, bool? Locked);
     public sealed record NestRequest(double? MarginMm, double? SpacingMm, int? RotationStepDeg);
 
     public sealed record NestResultDto(
@@ -687,6 +957,17 @@ public static class ProjectApi
     {
         deg %= 360;
         return deg < 0 ? deg + 360 : deg;
+    }
+
+    // Applies a test-array parameter override: if param1 or param2 matches the
+    // named type, return the swept value; otherwise return the project default.
+    private static double ApplyParam(
+        double defaultVal, string paramName,
+        TestParamRange p1, double v1, TestParamRange p2, double v2)
+    {
+        if (p1.Type.Equals(paramName, StringComparison.OrdinalIgnoreCase)) return v1;
+        if (p2.Type.Equals(paramName, StringComparison.OrdinalIgnoreCase)) return v2;
+        return defaultVal;
     }
 
     public sealed record CutDto(
@@ -732,7 +1013,8 @@ public static class ProjectApi
         new TableSettingsDto(
             p.Table.WidthMm, p.Table.HeightMm, p.Table.Origin, p.Table.MaterialThicknessMm),
         p.Files.Select(ToFileDto).ToList(),
-        p.Parts.Select(x => new PartDto(x.Id, x.FileId, x.X, x.Y, x.RotationDeg, x.ScaleX, x.ScaleY)).ToList());
+        p.Parts.Select(x => new PartDto(x.Id, x.FileId, x.X, x.Y, x.RotationDeg, x.ScaleX, x.ScaleY, x.LayerId)).ToList(),
+        p.Layers.Select(l => new LayerDto(l.Id, l.Name, l.Color, l.Visible, l.Locked)).ToList());
 
     private static FileSummaryDto ToFileDto(ImportedFile f)
     {

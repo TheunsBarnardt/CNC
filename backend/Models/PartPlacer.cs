@@ -11,7 +11,7 @@ public static class PartPlacer
 
     public static Part PlaceNew(Project project, ImportedFile file)
     {
-        var part = new Part { FileId = file.Id };
+        var part = new Part { FileId = file.Id, LayerId = project.Layers.FirstOrDefault()?.Id };
 
         // Cursor = just right of the rightmost existing part, staying on that
         // part's row; wrap to a fresh row above everything when the table

@@ -410,7 +410,14 @@ Each is one session; split further if a task grows.*
 > Clipper2: unite, subtract, intersect, weld overlapping text/shapes.
 > Summarize, compact and commit. 
 
-### [ ] Task 17 — Arrays & material test grid
+### [x] Task 17 — Arrays & material test grid
+<!-- Done: Backend POST /parts/{id}/array (grid rows×cols with auto-step + circular
+     count/radius/start-angle/rotate-with), POST /parts/{id}/test-array (G-code download
+     varying two CAM params across a grid, correct post-processor picked by OperationMode).
+     Fixed PartTransform.Apply to include ScaleX/ScaleY (was missing — would have broken
+     mirrored/scaled parts in CAM). Frontend: ArrayPanel.tsx (Grid/Circular/Test tabs in
+     a Popover), Array button added to EditToolbar, onArray/onTestArray handlers in
+     App.tsx + Viewport, test-array download triggers via URL.createObjectURL. -->
 > Grid array and circular array of parts (drives the same part-transform model as
 > nesting). Material test array generator: a grid of test cuts varying two parameters
 > (e.g. feed × pierce delay for plasma; power × speed once laser mode exists) to dial

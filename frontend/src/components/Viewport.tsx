@@ -28,9 +28,11 @@ import {
   type Vec,
 } from "@/lib/geometry";
 import { partToWorld } from "@/lib/geometry";
-import type { GeometryPath, Part, ProjectDto, TableOrigin } from "@/lib/project";
+import type { GeometryPath, Layer, Part, ProjectDto, TableOrigin } from "@/lib/project";
 import { stateAt, type Simulation } from "@/lib/simulation";
 import type { ActiveTool } from "@/lib/tools";
+import type { Guide } from "@/lib/guides";
+import type { AppSettings } from "@/lib/settings";
 import {
   circleFromCenter,
   ellipseFromPoints,
@@ -56,6 +58,12 @@ interface ViewportProps {
   onNodesChanged?: (fileId: string, pathId: string, points: [number, number][]) => void;
   onSimplify?: (fileId: string) => void;
   onBoolean?: (op: "unite" | "subtract" | "intersect") => void;
+  onArray?: (id: string, type: "grid" | "circular", params: object) => void;
+  onTestArray?: (id: string, params: object) => void;
+  guides?: Guide[];
+  onGuidesChange?: (guides: Guide[]) => void;
+  layers?: Layer[];
+  settings?: AppSettings;
   simulation?: Simulation | null;
   simTime?: number;
   readOnly?: boolean;
@@ -148,6 +156,12 @@ export function Viewport({
   onNodesChanged,
   onSimplify,
   onBoolean,
+  onArray,
+  onTestArray,
+  guides = [],
+  onGuidesChange,
+  layers,
+  settings,
   simulation = null,
   simTime = 0,
   readOnly = false,
@@ -168,6 +182,10 @@ export function Viewport({
   const [nodeEdit, setNodeEdit] = useState<NodeEditState | null>(null);
   const dragRef = useRef<DragState | null>(null);
   const fittedRef = useRef(false);
+  // Guide being created (id=null) or dragged (id=guideId).
+  const [guideDrag, setGuideDrag] = useState<{ id: string | null; axis: "h" | "v"; posMm: number } | null>(null);
+
+  const RULER_PX = 20; // thickness of ruler strips in CSS px
 
   const { table } = project;
   const selectedPart = project.parts.find((p) => p.id === selectedPartId) ?? null;
@@ -268,12 +286,54 @@ export function Viewport({
   // --- pointer handlers -----------------------------------------------------
 
   const handlePointerDown = (e: React.PointerEvent) => {
+    // Right-click on guide: toggle lock.
+    if (e.button === 2 && !readOnly && (settings?.showGuides ?? true)) {
+      const s = screenPos(e);
+      for (const guide of guides) {
+        const dist = guide.axis === "v"
+          ? Math.abs(s[0] - (toScreen([guide.posMm, 0])[0]))
+          : Math.abs(s[1] - (toScreen([0, guide.posMm])[1]));
+        if (dist < 7) {
+          onGuidesChange?.(guides.map((g) => g.id === guide.id ? { ...g, locked: !g.locked } : g));
+          return;
+        }
+      }
+    }
     if (e.button !== 0 && e.button !== 1) return;
     try { canvasRef.current?.setPointerCapture(e.pointerId); } catch { /* best-effort */ }
     canvasRef.current?.focus();
     const screen = screenPos(e);
     const world = toWorld(screen);
     const snapped = snapWorld(world);
+
+    // ── Guide creation / dragging ──────────────────────────────────────────
+    if (!readOnly && e.button === 0) {
+      const R = RULER_PX;
+      const inTopRuler = screen[1] < R && screen[0] >= R;
+      const inLeftRuler = screen[0] < R && screen[1] >= R;
+      if ((settings?.showRulers ?? true) && (inTopRuler || inLeftRuler)) {
+        setGuideDrag({ id: null, axis: inTopRuler ? "v" : "h", posMm: inTopRuler ? world[0] : world[1] });
+        return;
+      }
+      if (settings?.showGuides ?? true) {
+        for (const guide of guides) {
+          if (guide.locked) continue;
+          let dist: number;
+          if (guide.axis === "v") {
+            const [sx] = toScreen([guide.posMm, 0]);
+            dist = Math.abs(screen[0] - sx);
+          } else {
+            const [, sy] = toScreen([0, guide.posMm]);
+            dist = Math.abs(screen[1] - sy);
+          }
+          if (dist < 7) {
+            setGuideDrag({ id: guide.id, axis: guide.axis, posMm: guide.posMm });
+            return;
+          }
+        }
+      }
+    }
+    // ──────────────────────────────────────────────────────────────────────
 
     // === NODE EDITING MODE ===
     if (!readOnly && nodeEdit && e.button === 0) {
@@ -392,6 +452,8 @@ export function Viewport({
         const file = project.files.find((f) => f.id === part.fileId);
         const paths = geometry.get(part.fileId);
         if (!file?.visible || !paths) continue;
+        const partLayer = layers?.find((l) => l.id === part.layerId);
+        if (partLayer && (!partLayer.visible || partLayer.locked)) continue;
         if (hitTestPart(part, paths, world, tolerance)) {
           if (e.shiftKey && selectedPartId && part.id !== selectedPartId) {
             // Shift-click: set secondary selection for boolean ops.
@@ -434,6 +496,12 @@ export function Viewport({
     const world = toWorld(screen);
     const snapped = snapWorld(world);
     setCursorMm(world);
+
+    // Guide drag update.
+    if (guideDrag) {
+      setGuideDrag((gd) => gd ? { ...gd, posMm: gd.axis === "v" ? world[0] : world[1] } : null);
+      return;
+    }
 
     // Update drawing preview.
     if (!readOnly && activeTool.type !== "select") {
@@ -523,6 +591,24 @@ export function Viewport({
       let x = drag.startPart.x + dxs / view.scale;
       let y = drag.startPart.y - dys / view.scale;
       if (snap) { x = Math.round(x / snapStep) * snapStep; y = Math.round(y / snapStep) * snapStep; }
+      // Snap to guide lines.
+      if ((settings?.snapToGuides ?? true) && guides.length > 0) {
+        const tempPart = { ...current, x, y };
+        const pths = geometry.get(tempPart.fileId);
+        if (pths) {
+          const b = partWorldBBox(tempPart, pths);
+          for (const guide of guides) {
+            const thr = snapStep;
+            if (guide.axis === "v") {
+              if (Math.abs(b.minX - guide.posMm) < thr) x += guide.posMm - b.minX;
+              else if (Math.abs(b.maxX - guide.posMm) < thr) x += guide.posMm - b.maxX;
+            } else {
+              if (Math.abs(b.minY - guide.posMm) < thr) y += guide.posMm - b.minY;
+              else if (Math.abs(b.maxY - guide.posMm) < thr) y += guide.posMm - b.maxY;
+            }
+          }
+        }
+      }
       drag.lastPart = { ...current, x, y };
       onPartChange(drag.lastPart);
     } else if (drag.mode === "rotate") {
@@ -542,6 +628,29 @@ export function Viewport({
     const screen = screenPos(e);
     const world = toWorld(screen);
     const snapped = snapWorld(world);
+
+    // Guide commit / delete.
+    if (guideDrag) {
+      const outside =
+        screen[0] < RULER_PX || screen[1] < RULER_PX ||
+        screen[0] > size.w || screen[1] > size.h;
+      if (outside && guideDrag.id) {
+        onGuidesChange?.(guides.filter((g) => g.id !== guideDrag.id));
+      } else if (!outside) {
+        if (guideDrag.id === null) {
+          onGuidesChange?.([
+            ...guides,
+            { id: crypto.randomUUID(), axis: guideDrag.axis, posMm: guideDrag.posMm, locked: false },
+          ]);
+        } else {
+          onGuidesChange?.(
+            guides.map((g) => (g.id === guideDrag.id ? { ...g, posMm: guideDrag.posMm } : g)),
+          );
+        }
+      }
+      setGuideDrag(null);
+      return;
+    }
 
     // Finish pen drag (release handle).
     if (!readOnly && activeTool.type === "pen") {
@@ -585,7 +694,16 @@ export function Viewport({
   };
 
   const handleWheel = (e: React.WheelEvent) => {
-    zoomAt(screenPos(e), e.deltaY < 0 ? 1.15 : 1 / 1.15);
+    if (settings?.mouseWheelPans) {
+      // Pan: shift = horizontal, plain = vertical.
+      setView((v) => ({
+        ...v,
+        tx: e.shiftKey ? v.tx - e.deltaY : v.tx,
+        ty: e.shiftKey ? v.ty : v.ty + e.deltaY,
+      }));
+    } else {
+      zoomAt(screenPos(e), e.deltaY < 0 ? 1.15 : 1 / 1.15);
+    }
   };
 
   const nudge = (dx: number, dy: number) => {
@@ -853,6 +971,8 @@ export function Viewport({
       const file = project.files.find((f) => f.id === part.fileId);
       const paths = geometry.get(part.fileId);
       if (!file?.visible || !paths) continue;
+      const partLayer = layers?.find((l) => l.id === part.layerId);
+      if (partLayer && !partLayer.visible) continue;
       const pivot = localPivot(paths);
       const selected = part.id === selectedPartId;
       const b = partWorldBBox(part, paths);
@@ -1154,8 +1274,153 @@ export function Viewport({
         }
       }
     }
+
+    // ── Dimension indicators (guide ↔ dragged-part edge) ─────────────────────
+    const drag = dragRef.current;
+    if (drag?.mode === "move" && selectedPartId && (settings?.showGuides ?? true) && guides.length > 0) {
+      const part = project.parts.find((p) => p.id === selectedPartId);
+      if (part) {
+        const pths = geometry.get(part.fileId);
+        if (pths) {
+          const b = partWorldBBox(part, pths);
+          ctx.strokeStyle = "#f97316";
+          ctx.fillStyle = "#f97316";
+          ctx.font = "11px system-ui";
+          ctx.textAlign = "center";
+          ctx.lineWidth = 1;
+          for (const guide of guides) {
+            let dist: number, p1: Vec, p2: Vec;
+            if (guide.axis === "v") {
+              const dMin = Math.abs(b.minX - guide.posMm);
+              const dMax = Math.abs(b.maxX - guide.posMm);
+              const edge = dMin < dMax ? b.minX : b.maxX;
+              dist = Math.abs(edge - guide.posMm);
+              if (dist > 200) continue;
+              const cy = (b.minY + b.maxY) / 2;
+              p1 = [guide.posMm, cy]; p2 = [edge, cy];
+            } else {
+              const dMin = Math.abs(b.minY - guide.posMm);
+              const dMax = Math.abs(b.maxY - guide.posMm);
+              const edge = dMin < dMax ? b.minY : b.maxY;
+              dist = Math.abs(edge - guide.posMm);
+              if (dist > 200) continue;
+              const cx = (b.minX + b.maxX) / 2;
+              p1 = [cx, guide.posMm]; p2 = [cx, edge];
+            }
+            ctx.setLineDash([3, 3]);
+            ctx.beginPath();
+            ctx.moveTo(...toScreen(p1)); ctx.lineTo(...toScreen(p2));
+            ctx.stroke();
+            ctx.setLineDash([]);
+            const mid: Vec = [(p1[0] + p2[0]) / 2, (p1[1] + p2[1]) / 2];
+            const [mx, my] = toScreen(mid);
+            const label = `${dist.toFixed(2)} mm`;
+            ctx.fillStyle = darkCanvas ? "#0a0a0a" : "#fff";
+            const tw = ctx.measureText(label).width;
+            ctx.fillRect(mx - tw / 2 - 3, my - 11, tw + 6, 14);
+            ctx.fillStyle = "#f97316";
+            ctx.fillText(label, mx, my);
+          }
+        }
+      }
+    }
+
+    // ── Guide lines ───────────────────────────────────────────────────────────
+    if (settings?.showGuides ?? true) {
+      const allGuides: Array<{ id: string | null; axis: "h" | "v"; posMm: number; locked: boolean }> =
+        guides.map((g) => ({ ...g }));
+      // Overlay the live drag position.
+      if (guideDrag) {
+        const idx = allGuides.findIndex((g) => g.id === guideDrag.id);
+        if (idx >= 0) allGuides[idx] = { ...allGuides[idx], posMm: guideDrag.posMm };
+        else allGuides.push({ id: null, axis: guideDrag.axis, posMm: guideDrag.posMm, locked: false });
+      }
+      for (const g of allGuides) {
+        ctx.strokeStyle = g.locked ? "#a855f7" : "#e91e8c";
+        ctx.globalAlpha = 0.75;
+        ctx.lineWidth = 1;
+        ctx.setLineDash(g.locked ? [5, 3] : []);
+        if (g.axis === "h") {
+          const [, sy] = toScreen([0, g.posMm]);
+          ctx.beginPath(); ctx.moveTo(0, sy); ctx.lineTo(size.w, sy); ctx.stroke();
+        } else {
+          const [sx] = toScreen([g.posMm, 0]);
+          ctx.beginPath(); ctx.moveTo(sx, 0); ctx.lineTo(sx, size.h); ctx.stroke();
+        }
+        ctx.setLineDash([]);
+        ctx.globalAlpha = 1;
+      }
+    }
+
+    // ── Rulers (drawn last — on top of everything) ───────────────────────────
+    if (settings?.showRulers ?? true) {
+      const R = RULER_PX;
+      const rulerBg = darkCanvas ? "#18181b" : "#f4f4f5";
+      const rulerBorder = darkCanvas ? "#3f3f46" : "#d4d4d8";
+      const tickCol = darkCanvas ? "#71717a" : "#a1a1aa";
+      const labelCol = darkCanvas ? "#a1a1aa" : "#52525b";
+
+      // Backgrounds
+      ctx.fillStyle = rulerBg;
+      ctx.fillRect(0, 0, size.w, R);
+      ctx.fillRect(0, 0, R, size.h);
+      // Corner square
+      ctx.fillStyle = darkCanvas ? "#27272a" : "#e4e4e7";
+      ctx.fillRect(0, 0, R, R);
+      // Borders
+      ctx.strokeStyle = rulerBorder;
+      ctx.lineWidth = 0.5;
+      ctx.beginPath();
+      ctx.moveTo(0, R); ctx.lineTo(size.w, R);   // bottom of top ruler
+      ctx.moveTo(R, 0); ctx.lineTo(R, size.h);   // right of left ruler
+      ctx.stroke();
+
+      const minor = [1, 2, 5, 10, 25, 50, 100, 250].find((s) => s * view.scale >= 20) ?? 500;
+      ctx.strokeStyle = tickCol;
+      ctx.fillStyle = labelCol;
+      ctx.lineWidth = 0.5;
+      ctx.font = `9px system-ui`;
+      ctx.textAlign = "center";
+      ctx.textBaseline = "top";
+
+      // Top ruler — X axis
+      const xStart = Math.floor((0 - view.tx) / view.scale / minor) * minor;
+      const xEnd = Math.ceil((size.w - view.tx) / view.scale / minor) * minor;
+      for (let wx = xStart; wx <= xEnd; wx += minor) {
+        const sx = wx * view.scale + view.tx;
+        const major = wx % (minor * 5) === 0;
+        ctx.beginPath();
+        ctx.moveTo(sx, major ? R - 9 : R - 5);
+        ctx.lineTo(sx, R);
+        ctx.stroke();
+        if (major) ctx.fillText(String(wx), sx, 2);
+      }
+
+      // Left ruler — Y axis (world Y-up, screen Y-down)
+      ctx.textAlign = "right";
+      ctx.textBaseline = "middle";
+      const yStart = Math.floor((-view.ty) / view.scale / minor) * minor;
+      const yEnd = Math.ceil((size.h - view.ty) / view.scale / minor) * minor;
+      for (let wy = yStart; wy <= yEnd; wy += minor) {
+        const sy = size.h - (wy * view.scale + view.ty);
+        const major = wy % (minor * 5) === 0;
+        ctx.beginPath();
+        ctx.moveTo(major ? R - 9 : R - 5, sy);
+        ctx.lineTo(R, sy);
+        ctx.stroke();
+        if (major) {
+          ctx.save();
+          ctx.translate(2, sy);
+          ctx.rotate(-Math.PI / 2);
+          ctx.textAlign = "center";
+          ctx.fillText(String(wy), 0, 0);
+          ctx.restore();
+        }
+      }
+    }
   }, [project, geometry, selectedPartId, secondaryPartId, view, size, toScreen, rotateHandleWorld, table,
-      simulation, simTime, showGrid, darkCanvas, drawState, activeTool, nodeEdit]); // eslint-disable-line react-hooks/exhaustive-deps
+      simulation, simTime, showGrid, darkCanvas, drawState, activeTool, nodeEdit,
+      guides, guideDrag, settings]); // eslint-disable-line react-hooks/exhaustive-deps
 
   // --- render ---------------------------------------------------------------
 
@@ -1193,6 +1458,7 @@ export function Viewport({
         onWheel={handleWheel}
         onKeyDown={handleKeyDown}
         onPointerLeave={() => setCursorMm(null)}
+        onContextMenu={(e) => e.preventDefault()}
       />
 
       {/* Floating edit toolbar — selection only (hidden in node-edit mode). */}
@@ -1212,6 +1478,8 @@ export function Viewport({
             onReorder={(dir) => onReorder?.(selectedPart.id, dir)}
             onOffset={(mm) => onOffset?.(selectedPart.id, mm)}
             onSimplify={() => onSimplify?.(selectedPart.fileId)}
+            onArray={(type, params) => onArray?.(selectedPart.id, type, params)}
+            onTestArray={(params) => onTestArray?.(selectedPart.id, params)}
           />
         );
       })()}

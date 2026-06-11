@@ -337,4 +337,48 @@ public class CamEngineEndToEndTests
         Assert.Equal(0, cut.LeadInPointCount);
         Assert.Equal(100, cut.CutLengthMm(), 2);
     }
+
+    // ── Laser mode ────────────────────────────────────────────────────────
+
+    [Fact]
+    public void LaserMode_ClosedPath_NoKerfAndNoLeads()
+    {
+        // 100mm square with kerf=2 in laser mode → path must NOT be expanded/shrunk.
+        var project = CamTestData.ProjectWith(0, 0, CamTestData.Square(0, 0, 100));
+        var settings = new CamSettings
+        {
+            OperationMode = MachineType.Laser,
+            KerfWidthMm = 2,          // should be ignored
+            LeadInType = LeadType.Arc, // should be ignored
+            LeadOutType = LeadType.Line,
+            FeedRateMmMin = 3000,
+        };
+        var toolpath = CamEngine.Generate(project, settings);
+
+        var cut = Assert.Single(toolpath.Cuts);
+        // Path length should equal perimeter of original square (400mm), not expanded.
+        Assert.Equal(400, cut.CutLengthMm(), 1);
+        // No leads.
+        Assert.Equal(0, cut.LeadInPointCount);
+        Assert.Equal(0, cut.LeadOutPointCount);
+        // No pierce delay.
+        Assert.Equal(0, cut.PierceDelayS);
+    }
+
+    [Fact]
+    public void LaserMode_ClosedPath_TinyPathNotSkipped()
+    {
+        // A 1mm square that would be skipped by kerf offsetting in plasma mode
+        // must survive in laser mode (no kerf offset applied).
+        var project = CamTestData.ProjectWith(0, 0, CamTestData.Square(0, 0, 1));
+        var settings = new CamSettings
+        {
+            OperationMode = MachineType.Laser,
+            KerfWidthMm = 2,   // would destroy the path in plasma mode
+        };
+        var toolpath = CamEngine.Generate(project, settings);
+
+        Assert.Single(toolpath.Cuts);
+        Assert.Empty(toolpath.Warnings);
+    }
 }

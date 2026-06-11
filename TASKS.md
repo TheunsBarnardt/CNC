@@ -299,7 +299,19 @@ feel familiar to xTool/XCS users — same workspace anatomy, our CAM underneath.
 > re-establish position, re-pierce, resume from a safe point. Treat with extreme care.
 > Summarize, compact and commit. 
 
-### [ ] Task 12 — Laser mode
+### [x] Task 12 — Laser mode
+<!-- Done: MachineType enum (Plasma/Laser) + LaserPowerPercent field added to CamSettings.
+     CamEngine: when OperationMode==Laser, skips kerf offsetting (paths used as-is) and
+     skips lead-in/out; PierceDelayS forced to 0. Cut ordering still applied.
+     GrblLaserPostProcessor: Id="grbl-laser", M3 S{power} (0–1000 scale from
+     LaserPowerPercent), M5 off, no G4 pierce, header comment reminds user to set $32=1.
+     Registered alongside plasma post in DI; GcodePanel post-picker shows both when
+     backend returns 2+ processors. Frontend CutSettingsCard: Machine type selector at
+     top (Plasma/Laser); Laser mode shows Feed + Power %, hides all plasma-only fields
+     (kerf, pierce, height, leads, profile picker). project.ts CamSettings type updated.
+     9 unit tests in GrblLaserPostProcessorTests.cs + 2 laser CAM tests in CamEngineTests.
+     Deferred: per-layer engrave/score vs cut assignment (Task 19); M4 dynamic-power mode
+     option (user can edit post-output manually; $32=1 note in header covers the basics). -->
 > Add a laser operation mode + laser post-processor (beam on/off + power %, no kerf/pierce).
 > Summarize, compact and commit. 
 

@@ -14,10 +14,15 @@ import {
   projectApi,
   type CamSettings,
   type LeadType,
+  type MachineType,
   type MaterialProfile,
 } from "@/lib/project";
 
 const LEAD_TYPES: LeadType[] = ["None", "Line", "Arc"];
+const MACHINE_TYPES: { value: MachineType; label: string }[] = [
+  { value: "Plasma", label: "Plasma" },
+  { value: "Laser", label: "Laser" },
+];
 
 interface Props {
   /** Sheet thickness from table settings — used when saving a new profile. */
@@ -160,6 +165,8 @@ export function CutSettingsCard({ materialThicknessMm }: Props) {
     return <p className="text-xs text-muted-foreground">{error ?? "Loading…"}</p>;
   }
 
+  const isLaser = (cam.operationMode ?? "Plasma") === "Laser";
+
   const leadSelect = (
     typeKey: "leadInType" | "leadOutType",
     label: string,
@@ -186,78 +193,115 @@ export function CutSettingsCard({ materialThicknessMm }: Props) {
 
   return (
     <div className="grid gap-3">
-      {/* Material profile picker */}
+      {/* Machine type selector */}
       <div className="grid gap-1">
-        <Label className="text-xs">Material profile</Label>
-        <div className="flex items-center gap-1.5">
-          <Select value={profileId} onValueChange={applyProfile}>
-            <SelectTrigger className="h-8 min-w-0 flex-1 text-xs">
-              <SelectValue placeholder="Pick a profile…" />
-            </SelectTrigger>
-            <SelectContent>
-              {profiles.map((p) => (
-                <SelectItem key={p.id} value={p.id}>
-                  {p.name}
-                </SelectItem>
-              ))}
-            </SelectContent>
-          </Select>
-          <Button
-            variant="ghost"
-            size="icon"
-            className="size-8 shrink-0"
-            title="Update profile with current settings"
-            disabled={!profileId}
-            onClick={() => void updateSelectedProfile()}
-          >
-            <Save className="size-4" />
-          </Button>
-          <Button
-            variant="ghost"
-            size="icon"
-            className="size-8 shrink-0 text-destructive"
-            title="Delete profile"
-            disabled={!profileId}
-            onClick={() => void deleteSelectedProfile()}
-          >
-            <Trash2 className="size-4" />
-          </Button>
-        </div>
-        <div className="flex items-center gap-1.5">
-          <Input
-            className="h-8 min-w-0 flex-1 text-xs"
-            placeholder="Save current as… (name)"
-            value={newName}
-            onChange={(e) => setNewName(e.target.value)}
-            onKeyDown={(e) => e.key === "Enter" && void saveNewProfile()}
-          />
-          <Button
-            variant="outline"
-            size="icon"
-            className="size-8 shrink-0"
-            title="Save current settings as a new profile"
-            disabled={!newName.trim()}
-            onClick={() => void saveNewProfile()}
-          >
-            <Plus className="size-4" />
-          </Button>
-        </div>
+        <Label className="text-xs">Machine type</Label>
+        <Select
+          value={cam.operationMode ?? "Plasma"}
+          onValueChange={(v) => commitCam({ ...cam, operationMode: v as MachineType })}
+        >
+          <SelectTrigger className="h-8 text-xs">
+            <SelectValue />
+          </SelectTrigger>
+          <SelectContent>
+            {MACHINE_TYPES.map((m) => (
+              <SelectItem key={m.value} value={m.value}>
+                {m.label}
+              </SelectItem>
+            ))}
+          </SelectContent>
+        </Select>
       </div>
 
+      {/* Shared: feed rate */}
       <div className="grid grid-cols-2 gap-2">
-        {numField("kerfWidthMm", "Kerf (mm)")}
         {numField("feedRateMmMin", "Feed (mm/min)", { min: 1 })}
-        {numField("pierceDelayS", "Pierce delay (s)")}
-        {numField("cutHeightMm", "Cut height (mm)")}
-        {numField("pierceHeightMm", "Pierce height (mm)")}
+        {/* Laser: power % */}
+        {isLaser && numField("laserPowerPercent", "Power (%)", { min: 0 })}
       </div>
 
-      <div className="grid grid-cols-2 gap-2">
-        {leadSelect("leadInType", "Lead-in")}
-        {numField("leadInLengthMm", "Lead-in (mm)")}
-        {leadSelect("leadOutType", "Lead-out")}
-        {numField("leadOutLengthMm", "Lead-out (mm)")}
-      </div>
+      {isLaser && (
+        <p className="text-xs text-muted-foreground">
+          Set <code className="font-mono">$32=1</code> on the controller to enable GRBL laser mode.
+        </p>
+      )}
+
+      {/* Plasma-only settings */}
+      {!isLaser && (
+        <>
+          {/* Material profile picker */}
+          <div className="grid gap-1">
+            <Label className="text-xs">Material profile</Label>
+            <div className="flex items-center gap-1.5">
+              <Select value={profileId} onValueChange={applyProfile}>
+                <SelectTrigger className="h-8 min-w-0 flex-1 text-xs">
+                  <SelectValue placeholder="Pick a profile…" />
+                </SelectTrigger>
+                <SelectContent>
+                  {profiles.map((p) => (
+                    <SelectItem key={p.id} value={p.id}>
+                      {p.name}
+                    </SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+              <Button
+                variant="ghost"
+                size="icon"
+                className="size-8 shrink-0"
+                title="Update profile with current settings"
+                disabled={!profileId}
+                onClick={() => void updateSelectedProfile()}
+              >
+                <Save className="size-4" />
+              </Button>
+              <Button
+                variant="ghost"
+                size="icon"
+                className="size-8 shrink-0 text-destructive"
+                title="Delete profile"
+                disabled={!profileId}
+                onClick={() => void deleteSelectedProfile()}
+              >
+                <Trash2 className="size-4" />
+              </Button>
+            </div>
+            <div className="flex items-center gap-1.5">
+              <Input
+                className="h-8 min-w-0 flex-1 text-xs"
+                placeholder="Save current as… (name)"
+                value={newName}
+                onChange={(e) => setNewName(e.target.value)}
+                onKeyDown={(e) => e.key === "Enter" && void saveNewProfile()}
+              />
+              <Button
+                variant="outline"
+                size="icon"
+                className="size-8 shrink-0"
+                title="Save current settings as a new profile"
+                disabled={!newName.trim()}
+                onClick={() => void saveNewProfile()}
+              >
+                <Plus className="size-4" />
+              </Button>
+            </div>
+          </div>
+
+          <div className="grid grid-cols-2 gap-2">
+            {numField("kerfWidthMm", "Kerf (mm)")}
+            {numField("pierceDelayS", "Pierce delay (s)")}
+            {numField("cutHeightMm", "Cut height (mm)")}
+            {numField("pierceHeightMm", "Pierce height (mm)")}
+          </div>
+
+          <div className="grid grid-cols-2 gap-2">
+            {leadSelect("leadInType", "Lead-in")}
+            {numField("leadInLengthMm", "Lead-in (mm)")}
+            {leadSelect("leadOutType", "Lead-out")}
+            {numField("leadOutLengthMm", "Lead-out (mm)")}
+          </div>
+        </>
+      )}
 
       {error && (
         <div className="rounded-md border border-destructive/50 bg-destructive/10 px-3 py-1.5 text-xs text-destructive">

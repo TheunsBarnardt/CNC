@@ -47,8 +47,9 @@ builder.Services.AddSingleton<IFileImporter, DxfImporter>();
 builder.Services.AddSingleton<FileImportService>();
 
 // Post-processors: neutral toolpath → controller dialect. Pluggable — a new
-// dialect (laser, vinyl, ...) is one IPostProcessor registration here.
+// dialect is one IPostProcessor registration here.
 builder.Services.AddSingleton<IPostProcessor, GrblPlasmaPostProcessor>();
+builder.Services.AddSingleton<IPostProcessor, GrblLaserPostProcessor>();
 builder.Services.AddSingleton<PostProcessorRegistry>();
 
 // Material profiles: app-level presets persisted under LocalAppData.

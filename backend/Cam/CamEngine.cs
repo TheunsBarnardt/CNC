@@ -48,34 +48,45 @@ public static class CamEngine
         // 2. Cut sides from containment (outer ↔ hole alternation).
         ContourClassifier.Classify(worldPaths);
 
-        // 3. Kerf offset per contour; keep mapping source → offset result(s).
-        double half = settings.KerfWidthMm / 2;
-        var cutGeometry = new List<(WorldPath Source, Polyline2 Contour)>();
-        foreach (var wp in worldPaths)
-        {
-            if (wp.Side == CutSide.OnLine)
-            {
-                cutGeometry.Add((wp, wp.Polyline));
-                continue;
-            }
+        bool isLaser = settings.OperationMode == MachineType.Laser;
 
-            double delta = wp.Side == CutSide.Outside ? half : -half;
-            var offset = KerfOffsetter.OffsetClosed(wp.Polyline, delta);
-            if (offset.Count == 0)
+        // 3. Kerf offset per contour (plasma only).
+        //    Laser traces the path as-is — no kerf compensation needed.
+        var cutGeometry = new List<(WorldPath Source, Polyline2 Contour)>();
+        if (isLaser)
+        {
+            // Use paths directly — no offset.
+            foreach (var wp in worldPaths)
+                cutGeometry.Add((wp, wp.Polyline));
+        }
+        else
+        {
+            double half = settings.KerfWidthMm / 2;
+            foreach (var wp in worldPaths)
             {
-                toolpath.Warnings.Add(
-                    $"A contour (layer '{wp.Layer ?? "-"}') is too small for the {settings.KerfWidthMm}mm kerf and was skipped.");
-                continue;
-            }
-            foreach (var contour in offset)
-            {
-                KerfOffsetter.NormalizeDirection(contour, wp.Side);
-                cutGeometry.Add((wp, contour));
+                if (wp.Side == CutSide.OnLine)
+                {
+                    cutGeometry.Add((wp, wp.Polyline));
+                    continue;
+                }
+
+                double delta = wp.Side == CutSide.Outside ? half : -half;
+                var offset = KerfOffsetter.OffsetClosed(wp.Polyline, delta);
+                if (offset.Count == 0)
+                {
+                    toolpath.Warnings.Add(
+                        $"A contour (layer '{wp.Layer ?? "-"}') is too small for the {settings.KerfWidthMm}mm kerf and was skipped.");
+                    continue;
+                }
+                foreach (var contour in offset)
+                {
+                    KerfOffsetter.NormalizeDirection(contour, wp.Side);
+                    cutGeometry.Add((wp, contour));
+                }
             }
         }
 
-        // 4. Order: inner before outer, then nearest pierce. Ordering operates
-        // on the offset geometry but reuses the source containment tree.
+        // 4. Order: inner before outer, then nearest start. Applies to both modes.
         var orderPaths = cutGeometry
             .Select(cg => new WorldPath
             {
@@ -89,13 +100,14 @@ public static class CamEngine
         var order = CutOrderer.Order(orderPaths, new Point2(0, 0));
 
         // 5. Leads + assembly.
+        //    Laser skips lead-in/out and pierce delay — beam on/off is instant.
         foreach (int idx in order)
         {
             var (source, contour) = cutGeometry[idx];
             List<Point2> points;
             int leadIn = 0, leadOut = 0;
 
-            if (contour.IsClosed)
+            if (!isLaser && contour.IsClosed)
             {
                 (points, leadIn, leadOut) = LeadBuilder.Build(contour, settings);
             }
@@ -114,7 +126,7 @@ public static class CamEngine
                 LeadInPointCount = leadIn,
                 LeadOutPointCount = leadOut,
                 IsClosedContour = contour.IsClosed,
-                PierceDelayS = settings.PierceDelayS,
+                PierceDelayS = isLaser ? 0 : settings.PierceDelayS,
                 FeedRateMmMin = settings.FeedRateMmMin,
             });
         }

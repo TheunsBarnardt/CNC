@@ -75,11 +75,14 @@ export interface ImportResult {
 
 export type CutSide = "Outside" | "Inside" | "OnLine";
 export type LeadType = "None" | "Line" | "Arc";
+export type MachineType = "Plasma" | "Laser";
 
-/** Plasma CAM parameters, persisted on the project (mirrors CamSettings). */
+/** CAM parameters persisted on the project (mirrors CamSettings). */
 export interface CamSettings {
-  kerfWidthMm: number;
+  operationMode: MachineType;
   feedRateMmMin: number;
+  // Plasma-only
+  kerfWidthMm: number;
   pierceDelayS: number;
   cutHeightMm: number;
   pierceHeightMm: number;
@@ -87,6 +90,8 @@ export interface CamSettings {
   leadInLengthMm: number;
   leadOutType: LeadType;
   leadOutLengthMm: number;
+  // Laser-only
+  laserPowerPercent: number;
 }
 
 /** App-level material preset (mirrors MaterialProfile). */

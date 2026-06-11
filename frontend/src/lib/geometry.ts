@@ -39,8 +39,10 @@ export function partToWorld(part: Part, pivot: Vec, local: Vec): Vec {
   const r = (part.rotationDeg * Math.PI) / 180;
   const cos = Math.cos(r),
     sin = Math.sin(r);
-  const dx = local[0] - pivot[0],
-    dy = local[1] - pivot[1];
+  // Apply scale around pivot before rotation (enables mirror via negative scale).
+  const sx = part.scaleX ?? 1, sy = part.scaleY ?? 1;
+  const dx = (local[0] - pivot[0]) * sx;
+  const dy = (local[1] - pivot[1]) * sy;
   return [
     part.x + pivot[0] + dx * cos - dy * sin,
     part.y + pivot[1] + dx * sin + dy * cos,
@@ -51,10 +53,16 @@ export function worldToPartLocal(part: Part, pivot: Vec, world: Vec): Vec {
   const r = (part.rotationDeg * Math.PI) / 180;
   const cos = Math.cos(r),
     sin = Math.sin(r);
-  const dx = world[0] - part.x - pivot[0],
-    dy = world[1] - part.y - pivot[1];
-  // Inverse rotation = transpose.
-  return [pivot[0] + dx * cos + dy * sin, pivot[1] - dx * sin + dy * cos];
+  const ux = world[0] - part.x - pivot[0],
+    uy = world[1] - part.y - pivot[1];
+  // Inverse rotation then inverse scale.
+  const sx = part.scaleX ?? 1, sy = part.scaleY ?? 1;
+  const rdx = ux * cos + uy * sin;
+  const rdy = -ux * sin + uy * cos;
+  return [
+    pivot[0] + (sx !== 0 ? rdx / sx : 0),
+    pivot[1] + (sy !== 0 ? rdy / sy : 0),
+  ];
 }
 
 /** Axis-aligned world bbox of a placed part. */

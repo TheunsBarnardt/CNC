@@ -84,6 +84,10 @@ public sealed class Part
     public double X { get; set; }
     public double Y { get; set; }
     public double RotationDeg { get; set; }
+    /// <summary>Horizontal scale factor (1 = natural, -1 = mirrored).</summary>
+    public double ScaleX { get; set; } = 1.0;
+    /// <summary>Vertical scale factor (1 = natural, -1 = mirrored).</summary>
+    public double ScaleY { get; set; } = 1.0;
 }
 
 /// <summary>A whole project: table setup + imported files. Saved as one JSON file.</summary>

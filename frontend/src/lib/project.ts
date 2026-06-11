@@ -36,7 +36,8 @@ export interface FileSummary {
 
 /**
  * A placed instance of a file on the table. Mirrors backend Part: translation
- * in mm + rotation CCW (degrees) about the file's local bbox center.
+ * in mm + rotation CCW (degrees) about the file's local bbox center, with
+ * optional scale (defaults to 1; -1 = mirrored).
  */
 export interface Part {
   id: string;
@@ -44,6 +45,8 @@ export interface Part {
   x: number;
   y: number;
   rotationDeg: number;
+  scaleX: number;
+  scaleY: number;
 }
 
 export interface ProjectDto {
@@ -237,12 +240,26 @@ export const projectApi = {
 
   updatePart: (
     id: string,
-    patch: { x?: number; y?: number; rotationDeg?: number },
+    patch: { x?: number; y?: number; rotationDeg?: number; scaleX?: number; scaleY?: number },
   ) =>
     fetch(`${BACKEND_URL}/api/project/parts/${id}`, {
       method: "PATCH",
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify(patch),
+    }).then((r) => json<ProjectDto>(r)),
+
+  reorderPart: (id: string, direction: "up" | "down" | "front" | "back") =>
+    fetch(`${BACKEND_URL}/api/project/parts/${id}/reorder`, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ direction }),
+    }).then((r) => json<ProjectDto>(r)),
+
+  offsetPart: (id: string, offsetMm: number) =>
+    fetch(`${BACKEND_URL}/api/project/parts/${id}/offset`, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ offsetMm }),
     }).then((r) => json<ProjectDto>(r)),
 
   duplicatePart: (id: string) =>

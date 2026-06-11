@@ -4,6 +4,7 @@ using Backend.Models;
 using Backend.Nest;
 using Backend.Post;
 using Backend.Services;
+using Clipper2Lib;
 
 namespace Backend.Api;
 
@@ -190,9 +191,107 @@ public static class ProjectApi
                 if (request.X is { } x) part.X = x;
                 if (request.Y is { } y) part.Y = y;
                 if (request.RotationDeg is { } r) part.RotationDeg = NormalizeDeg(r);
+                if (request.ScaleX is { } sx) part.ScaleX = sx;
+                if (request.ScaleY is { } sy) part.ScaleY = sy;
                 return true;
             });
             return found ? Results.Ok(projects.With(ToDto)) : Results.NotFound();
+        });
+
+        // Reorder part in the stacking order (affects render and CAM cut order).
+        group.MapPost("/parts/{id:guid}/reorder", (Guid id, ReorderPartRequest request, ProjectService projects) =>
+        {
+            bool found = projects.With(p =>
+            {
+                int idx = p.Parts.FindIndex(x => x.Id == id);
+                if (idx < 0) return false;
+                int target = request.Direction switch
+                {
+                    "up"    => Math.Min(p.Parts.Count - 1, idx + 1),
+                    "down"  => Math.Max(0, idx - 1),
+                    "front" => p.Parts.Count - 1,
+                    "back"  => 0,
+                    _ => idx,
+                };
+                if (target == idx) return true;
+                var part = p.Parts[idx];
+                p.Parts.RemoveAt(idx);
+                p.Parts.Insert(target, part);
+                return true;
+            });
+            return found ? Results.Ok(projects.With(ToDto)) : Results.NotFound();
+        });
+
+        // Contour offset: inflate/deflate the selected part's geometry by offsetMm
+        // (positive = outward, negative = inward) and create a new part from the result.
+        group.MapPost("/parts/{id:guid}/offset", (Guid id, OffsetPartRequest request, ProjectService projects) =>
+        {
+            if (request.OffsetMm == 0)
+                return Results.BadRequest(new { error = "offsetMm must be non-zero." });
+
+            return projects.With<IResult>(p =>
+            {
+                var source = p.Parts.FirstOrDefault(x => x.Id == id);
+                if (source is null) return Results.NotFound();
+                var file = p.Files.FirstOrDefault(f => f.Id == source.FileId);
+                if (file is null) return Results.NotFound();
+
+                var newFile = new ImportedFile
+                {
+                    FileName = $"{file.DisplayName} offset.shape",
+                    DisplayName = $"{file.DisplayName} +{request.OffsetMm:0.##}mm",
+                    Kind = ImportedFileKind.Shape,
+                };
+
+                foreach (var path in file.Paths)
+                {
+                    if (path.Polyline.IsClosed)
+                    {
+                        var results = KerfOffsetter.OffsetClosed(path.Polyline, request.OffsetMm);
+                        foreach (var r in results)
+                            newFile.Paths.Add(new PathGeometry { Layer = path.Layer, Polyline = r });
+                    }
+                    else
+                    {
+                        // Open path: use open-end offsetting (creates a closed buffer around the line).
+                        var pts = new PathD(path.Polyline.Points.Select(pt => new PointD(pt.X, pt.Y)));
+                        var sol = Clipper.InflatePaths([pts], request.OffsetMm,
+                            JoinType.Round, EndType.Round, precision: 4);
+                        foreach (var s in sol)
+                        {
+                            if (s.Count < 3) continue;
+                            newFile.Paths.Add(new PathGeometry
+                            {
+                                Layer = path.Layer,
+                                Polyline = new Backend.Geometry.Polyline2
+                                {
+                                    IsClosed = true,
+                                    Points = s.Select(pt => new Backend.Geometry.Point2(pt.x, pt.y)).ToList(),
+                                },
+                            });
+                        }
+                    }
+                }
+
+                if (newFile.Paths.Count == 0)
+                    return Results.BadRequest(new { error = "Offset produced no geometry (shape may be too small for this offset)." });
+
+                projects.Mutate(p =>
+                {
+                    p.Files.Add(newFile);
+                    var newPart = new Part
+                    {
+                        FileId = newFile.Id,
+                        X = source.X,
+                        Y = source.Y,
+                        RotationDeg = source.RotationDeg,
+                        ScaleX = source.ScaleX,
+                        ScaleY = source.ScaleY,
+                    };
+                    p.Parts.Add(newPart);
+                });
+                return Results.Ok(projects.With(ToDto));
+            });
         });
 
         group.MapPost("/parts/{id:guid}/duplicate", (Guid id, ProjectService projects) =>
@@ -201,13 +300,15 @@ public static class ProjectApi
             {
                 var source = p.Parts.FirstOrDefault(x => x.Id == id);
                 if (source is null) return null;
-                // Same rotation, offset placement so the copy is visibly separate.
+                // Same rotation + scale, offset placement so the copy is visibly separate.
                 p.Parts.Add(new Part
                 {
                     FileId = source.FileId,
                     X = source.X + 15,
                     Y = source.Y + 15,
                     RotationDeg = source.RotationDeg,
+                    ScaleX = source.ScaleX,
+                    ScaleY = source.ScaleY,
                 });
                 return ToDto(p);
             });
@@ -375,7 +476,7 @@ public static class ProjectApi
         IReadOnlyList<string> Layers,
         IReadOnlyList<string> Warnings);
 
-    public sealed record PartDto(Guid Id, Guid FileId, double X, double Y, double RotationDeg);
+    public sealed record PartDto(Guid Id, Guid FileId, double X, double Y, double RotationDeg, double ScaleX, double ScaleY);
 
     public sealed record ProjectDto(
         string Name,
@@ -393,7 +494,9 @@ public static class ProjectApi
 
     public sealed record CreatePartRequest(Guid FileId);
 
-    public sealed record UpdatePartRequest(double? X, double? Y, double? RotationDeg);
+    public sealed record UpdatePartRequest(double? X, double? Y, double? RotationDeg, double? ScaleX, double? ScaleY);
+    public sealed record ReorderPartRequest(string Direction); // "up" | "down" | "front" | "back"
+    public sealed record OffsetPartRequest(double OffsetMm);
 
     public sealed record NestRequest(double? MarginMm, double? SpacingMm, int? RotationStepDeg);
 
@@ -471,7 +574,7 @@ public static class ProjectApi
         new TableSettingsDto(
             p.Table.WidthMm, p.Table.HeightMm, p.Table.Origin, p.Table.MaterialThicknessMm),
         p.Files.Select(ToFileDto).ToList(),
-        p.Parts.Select(x => new PartDto(x.Id, x.FileId, x.X, x.Y, x.RotationDeg)).ToList());
+        p.Parts.Select(x => new PartDto(x.Id, x.FileId, x.X, x.Y, x.RotationDeg, x.ScaleX, x.ScaleY)).ToList());
 
     private static FileSummaryDto ToFileDto(ImportedFile f)
     {

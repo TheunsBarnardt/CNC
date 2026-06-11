@@ -369,7 +369,21 @@ Each is one session; split further if a task grows.*
 > Objects use the existing part-transform model.
 > Summarize, compact and commit. 
 
-### [ ] Task 15 — Object editing: precise transforms, mirror, group, offset
+### [x] Task 15 — Object editing: precise transforms, mirror, group, offset
+<!-- Done: Part model extended with ScaleX/ScaleY (both default 1.0) on backend.
+     partToWorld/worldToPartLocal in geometry.ts updated: scale applied around pivot
+     before rotation (negative scale = mirror, consistent with rotate model).
+     Backend: PATCH /parts/{id} now accepts scaleX/scaleY; POST /parts/{id}/reorder
+     moves part in stacking order (up/down/front/back); POST /parts/{id}/offset creates
+     a new part+file by inflating the source geometry via KerfOffsetter.OffsetClosed
+     (closed paths) or Clipper.InflatePaths with EndType.Round (open paths). Duplicate
+     copies ScaleX/ScaleY. Frontend: Part type gains scaleX/scaleY; projectApi gets
+     reorderPart + offsetPart; EditToolbar fully implemented: numeric X/Y (world bbox
+     min), W/H with aspect-lock toggle (computes scaleX/Y from naturalSize), rotation,
+     rotate±90, mirror H/V (toggles sign of scaleX/Y), stacking order ×4, align ×6,
+     contour-offset input (±mm, Enter to apply), duplicate, delete.
+     Deferred: group/ungroup — requires multi-select which was deferred in Task 2;
+     flagged, not silently added. -->
 > Floating-toolbar functionality: numeric X/Y/W/H/rotation entry with aspect lock,
 > mirror horizontal/vertical, group/ungroup, stacking order, and contour offset
 > (Clipper2 — reuse the kerf offsetter, don't hand-roll).

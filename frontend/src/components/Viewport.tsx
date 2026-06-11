@@ -48,6 +48,8 @@ interface ViewportProps {
   onPartCommit: (part: Part) => void;
   onDuplicate: (id: string) => void;
   onDelete: (id: string) => void;
+  onReorder?: (id: string, direction: "up" | "down" | "front" | "back") => void;
+  onOffset?: (id: string, offsetMm: number) => void;
   simulation?: Simulation | null;
   simTime?: number;
   readOnly?: boolean;
@@ -116,6 +118,8 @@ export function Viewport({
   onPartCommit,
   onDuplicate,
   onDelete,
+  onReorder,
+  onOffset,
   simulation = null,
   simTime = 0,
   readOnly = false,
@@ -888,17 +892,24 @@ export function Viewport({
       />
 
       {/* Floating edit toolbar — selection only. */}
-      {!readOnly && activeTool.type === "select" && selectedPart && selectedBBox && (
-        <EditToolbar
-          part={selectedPart}
-          bbox={selectedBBox}
-          onTransform={applyTransform}
-          onRotateBy={rotateBy}
-          onAlign={(edge: AlignEdge) => align(edge)}
-          onDuplicate={() => onDuplicate(selectedPart.id)}
-          onDelete={() => onDelete(selectedPart.id)}
-        />
-      )}
+      {!readOnly && activeTool.type === "select" && selectedPart && selectedBBox && (() => {
+        const selFile = project.files.find((f) => f.id === selectedPart.fileId);
+        const naturalSize = { w: selFile?.widthMm ?? 1, h: selFile?.heightMm ?? 1 };
+        return (
+          <EditToolbar
+            part={selectedPart}
+            bbox={selectedBBox}
+            naturalSize={naturalSize}
+            onTransform={applyTransform}
+            onRotateBy={rotateBy}
+            onAlign={(edge: AlignEdge) => align(edge)}
+            onDuplicate={() => onDuplicate(selectedPart.id)}
+            onDelete={() => onDelete(selectedPart.id)}
+            onReorder={(dir) => onReorder?.(selectedPart.id, dir)}
+            onOffset={(mm) => onOffset?.(selectedPart.id, mm)}
+          />
+        );
+      })()}
 
       {/* Text panel — appears at click position. */}
       {!readOnly && drawState?.phase === "text" && textScreenPos && (

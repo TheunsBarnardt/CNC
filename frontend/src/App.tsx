@@ -120,8 +120,22 @@ function App() {
           x: part.x,
           y: part.y,
           rotationDeg: part.rotationDeg,
+          scaleX: part.scaleX,
+          scaleY: part.scaleY,
         }),
       ),
+    [run],
+  );
+
+  const handleReorder = useCallback(
+    (id: string, direction: "up" | "down" | "front" | "back") =>
+      void run(() => projectApi.reorderPart(id, direction)),
+    [run],
+  );
+
+  const handleOffset = useCallback(
+    (id: string, offsetMm: number) =>
+      void run(() => projectApi.offsetPart(id, offsetMm), true),
     [run],
   );
 
@@ -284,6 +298,8 @@ function App() {
                 onPartCommit={handlePartCommit}
                 onDuplicate={(id) => void run(() => projectApi.duplicatePart(id))}
                 onDelete={(id) => void run(() => projectApi.deletePart(id))}
+                onReorder={handleReorder}
+                onOffset={handleOffset}
                 simulation={mode === "preview" ? simulation : null}
                 simTime={simTime}
                 readOnly={mode === "preview"}

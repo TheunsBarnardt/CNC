@@ -48,12 +48,14 @@ public static class CamEngine
         // 2. Cut sides from containment (outer ↔ hole alternation).
         ContourClassifier.Classify(worldPaths);
 
-        bool isLaser = settings.OperationMode == MachineType.Laser;
+        bool isLaser  = settings.OperationMode == MachineType.Laser;
+        bool isVinyl  = settings.OperationMode == MachineType.VinylKnife;
+        bool skipKerf = isLaser || isVinyl;
 
         // 3. Kerf offset per contour (plasma only).
-        //    Laser traces the path as-is — no kerf compensation needed.
+        //    Laser and vinyl trace paths as-is — no kerf compensation.
         var cutGeometry = new List<(WorldPath Source, Polyline2 Contour)>();
-        if (isLaser)
+        if (skipKerf)
         {
             // Use paths directly — no offset.
             foreach (var wp in worldPaths)
@@ -99,15 +101,25 @@ public static class CamEngine
         ContourClassifier.Classify(orderPaths); // re-derive tree on final geometry
         var order = CutOrderer.Order(orderPaths, new Point2(0, 0));
 
-        // 5. Leads + assembly.
+        // 5. Blade compensation + leads + assembly.
         //    Laser skips lead-in/out and pierce delay — beam on/off is instant.
+        //    Vinyl applies drag-knife blade-offset arcs and overcut; no leads.
         foreach (int idx in order)
         {
             var (source, contour) = cutGeometry[idx];
             List<Point2> points;
             int leadIn = 0, leadOut = 0;
+            bool isClosedContour = contour.IsClosed;
 
-            if (!isLaser && contour.IsClosed)
+            if (isVinyl)
+            {
+                double overcut = contour.IsClosed ? settings.VinylOvercutMm : 0;
+                var comp = DragKnifeCompensator.Compensate(
+                    contour, settings.VinylBladeOffsetMm, overcut);
+                points = comp.Points;
+                isClosedContour = false; // compensated path is always open
+            }
+            else if (!isLaser && contour.IsClosed)
             {
                 (points, leadIn, leadOut) = LeadBuilder.Build(contour, settings);
             }
@@ -125,8 +137,8 @@ public static class CamEngine
                 Points = points,
                 LeadInPointCount = leadIn,
                 LeadOutPointCount = leadOut,
-                IsClosedContour = contour.IsClosed,
-                PierceDelayS = isLaser ? 0 : settings.PierceDelayS,
+                IsClosedContour = isClosedContour,
+                PierceDelayS = (isLaser || isVinyl) ? 0 : settings.PierceDelayS,
                 FeedRateMmMin = settings.FeedRateMmMin,
             });
         }

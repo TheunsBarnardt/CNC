@@ -22,6 +22,7 @@ const LEAD_TYPES: LeadType[] = ["None", "Line", "Arc"];
 const MACHINE_TYPES: { value: MachineType; label: string }[] = [
   { value: "Plasma", label: "Plasma" },
   { value: "Laser", label: "Laser" },
+  { value: "VinylKnife", label: "Vinyl / Drag-Knife" },
 ];
 
 interface Props {
@@ -165,7 +166,8 @@ export function CutSettingsCard({ materialThicknessMm }: Props) {
     return <p className="text-xs text-muted-foreground">{error ?? "Loading…"}</p>;
   }
 
-  const isLaser = (cam.operationMode ?? "Plasma") === "Laser";
+  const isLaser  = (cam.operationMode ?? "Plasma") === "Laser";
+  const isVinyl  = (cam.operationMode ?? "Plasma") === "VinylKnife";
 
   const leadSelect = (
     typeKey: "leadInType" | "leadOutType",
@@ -216,7 +218,6 @@ export function CutSettingsCard({ materialThicknessMm }: Props) {
       {/* Shared: feed rate */}
       <div className="grid grid-cols-2 gap-2">
         {numField("feedRateMmMin", "Feed (mm/min)", { min: 1 })}
-        {/* Laser: power % */}
         {isLaser && numField("laserPowerPercent", "Power (%)", { min: 0 })}
       </div>
 
@@ -226,8 +227,25 @@ export function CutSettingsCard({ materialThicknessMm }: Props) {
         </p>
       )}
 
+      {/* Vinyl / drag-knife settings */}
+      {isVinyl && (
+        <>
+          <div className="grid grid-cols-2 gap-2">
+            {numField("vinylBladeOffsetMm", "Blade offset (mm)")}
+            {numField("vinylOvercutMm", "Overcut (mm)")}
+            {numField("vinylKnifeUpMm", "Knife up Z (mm)")}
+            {numField("vinylKnifeDownMm", "Knife down Z (mm)")}
+          </div>
+          <p className="text-xs text-muted-foreground">
+            Blade offset: distance from pivot to blade tip. Corner arcs are inserted
+            automatically to re-align the blade. Overcut extends closed cuts past the
+            start point to ensure clean closure.
+          </p>
+        </>
+      )}
+
       {/* Plasma-only settings */}
-      {!isLaser && (
+      {!isLaser && !isVinyl && (
         <>
           {/* Material profile picker */}
           <div className="grid gap-1">

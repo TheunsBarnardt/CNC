@@ -315,7 +315,21 @@ feel familiar to xTool/XCS users — same workspace anatomy, our CAM underneath.
 > Add a laser operation mode + laser post-processor (beam on/off + power %, no kerf/pierce).
 > Summarize, compact and commit. 
 
-### [ ] Task 13 — Vinyl / drag-knife mode
+### [x] Task 13 — Vinyl / drag-knife mode
+<!-- Done: VinylKnife added to MachineType enum. DragKnifeCompensator (backend/Cam/)
+     transforms design paths to machine pivot paths: blade trails behind pivot by
+     VinylBladeOffsetMm; at each corner the pivot sweeps a small arc around the corner
+     vertex to re-align the blade (15°/step, threshold 5°); closed contours extended by
+     VinylOvercutMm to ensure clean closure. CamEngine: vinyl mode skips kerf offsetting
+     and leads, applies compensator in step 5, marks cut as non-closed.
+     GrblVinylPostProcessor: knife up/down via G0 Z, no M3/M5 spindle, G1 cuts along
+     compensated pivot path; registered in Program.cs.
+     Frontend: VinylKnife added to MachineType type; CamSettings extended with
+     vinylBladeOffsetMm, vinylOvercutMm, vinylKnifeUpMm, vinylKnifeDownMm; CutSettingsCard
+     shows vinyl-specific field set with hint text.
+     Tests: 8 DragKnifeCompensatorTests, 3 CamEngine vinyl tests, 6 GrblVinylPostProcessorTests
+     (run after backend restart — running exe locks the dll).
+     Committed as Task 13. Milestone 4 complete. -->
 > Add a drag-knife operation mode: knife up/down (Z or servo), blade-offset + overcut
 > compensation for sharp corners. No kerf/pierce/THC.
 > Summarize, compact and commit. 

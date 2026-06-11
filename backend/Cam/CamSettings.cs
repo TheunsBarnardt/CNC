@@ -17,6 +17,8 @@ public enum MachineType
     Plasma,
     /// <summary>Laser: no kerf/pierce/leads; beam on/off + power %.</summary>
     Laser,
+    /// <summary>Drag knife (vinyl cutter): blade-offset arc compensation, overcut, knife Z up/down.</summary>
+    VinylKnife,
 }
 
 /// <summary>
@@ -58,4 +60,25 @@ public sealed class CamSettings
     /// (100 % = S1000). Default 80 % is a reasonable starting point for cutting.
     /// </summary>
     public double LaserPowerPercent { get; set; } = 80;
+
+    // ── Vinyl / drag-knife only ─────────────────────────────────────────────
+
+    /// <summary>
+    /// Distance from the blade pivot (machine Z-axis) to the blade tip (mm).
+    /// At each sharp corner the machine sweeps a small arc of this radius to
+    /// re-align the blade before the next segment.
+    /// </summary>
+    public double VinylBladeOffsetMm { get; set; } = 1.0;
+
+    /// <summary>
+    /// How far to extend the cut past the start point on closed contours (mm).
+    /// Ensures the cut closes cleanly; typically 1–3 mm.
+    /// </summary>
+    public double VinylOvercutMm { get; set; } = 1.0;
+
+    /// <summary>Z height (mm) when the knife is lifted between cuts.</summary>
+    public double VinylKnifeUpMm { get; set; } = 3.0;
+
+    /// <summary>Z height (mm) when the knife is down and cutting (usually 0 = surface).</summary>
+    public double VinylKnifeDownMm { get; set; } = 0.0;
 }

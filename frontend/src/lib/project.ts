@@ -75,7 +75,7 @@ export interface ImportResult {
 
 export type CutSide = "Outside" | "Inside" | "OnLine";
 export type LeadType = "None" | "Line" | "Arc";
-export type MachineType = "Plasma" | "Laser";
+export type MachineType = "Plasma" | "Laser" | "VinylKnife";
 
 /** CAM parameters persisted on the project (mirrors CamSettings). */
 export interface CamSettings {
@@ -92,6 +92,11 @@ export interface CamSettings {
   leadOutLengthMm: number;
   // Laser-only
   laserPowerPercent: number;
+  // Vinyl / drag-knife only
+  vinylBladeOffsetMm: number;
+  vinylOvercutMm: number;
+  vinylKnifeUpMm: number;
+  vinylKnifeDownMm: number;
 }
 
 /** App-level material preset (mirrors MaterialProfile). */

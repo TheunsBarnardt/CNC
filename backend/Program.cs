@@ -50,6 +50,7 @@ builder.Services.AddSingleton<FileImportService>();
 // dialect is one IPostProcessor registration here.
 builder.Services.AddSingleton<IPostProcessor, GrblPlasmaPostProcessor>();
 builder.Services.AddSingleton<IPostProcessor, GrblLaserPostProcessor>();
+builder.Services.AddSingleton<IPostProcessor, GrblVinylPostProcessor>();
 builder.Services.AddSingleton<PostProcessorRegistry>();
 
 // Material profiles: app-level presets persisted under LocalAppData.

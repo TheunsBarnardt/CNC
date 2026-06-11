@@ -381,4 +381,68 @@ public class CamEngineEndToEndTests
         Assert.Single(toolpath.Cuts);
         Assert.Empty(toolpath.Warnings);
     }
+
+    // ── Vinyl mode ────────────────────────────────────────────────────────
+
+    [Fact]
+    public void VinylMode_ClosedPath_NoKerfNoLeadsNoPierceDelay()
+    {
+        // Vinyl mode should skip kerf, leads, and pierce delay — same as laser.
+        var project = CamTestData.ProjectWith(0, 0, CamTestData.Square(0, 0, 100));
+        var settings = new CamSettings
+        {
+            OperationMode = MachineType.VinylKnife,
+            KerfWidthMm = 2,            // ignored
+            LeadInType = LeadType.Arc,  // ignored
+            LeadOutType = LeadType.Line,
+            VinylBladeOffsetMm = 0,     // zero offset → no arcs, easier to assert
+            VinylOvercutMm = 0,
+            FeedRateMmMin = 1000,
+        };
+        var toolpath = CamEngine.Generate(project, settings);
+
+        var cut = Assert.Single(toolpath.Cuts);
+        Assert.Equal(0, cut.LeadInPointCount);
+        Assert.Equal(0, cut.LeadOutPointCount);
+        Assert.Equal(0, cut.PierceDelayS);
+        // No kerf → cut length ≈ perimeter of original square.
+        Assert.Equal(400, cut.CutLengthMm(), 1);
+    }
+
+    [Fact]
+    public void VinylMode_ClosedPath_BladeOffsetAddsArcPoints()
+    {
+        // With non-zero blade offset, corner arcs are inserted so path has more points.
+        var project = CamTestData.ProjectWith(0, 0, CamTestData.Square(0, 0, 100));
+        var settings = new CamSettings
+        {
+            OperationMode = MachineType.VinylKnife,
+            VinylBladeOffsetMm = 1,
+            VinylOvercutMm = 0,
+        };
+        var toolpath = CamEngine.Generate(project, settings);
+
+        var cut = Assert.Single(toolpath.Cuts);
+        // Original square has 4 vertices → at least 5 points (4 + start).
+        // With 4 corners each getting 6 arc points → at least 4 + 4*6 = 28 extra.
+        Assert.True(cut.Points.Count > 10,
+            $"Expected corner arc points, got {cut.Points.Count}");
+        Assert.False(cut.IsClosedContour, "Compensated vinyl path should be marked open");
+    }
+
+    [Fact]
+    public void VinylMode_TinyPath_NotSkipped()
+    {
+        // Kerf offsetting is skipped → a 1mm path survives (unlike plasma mode).
+        var project = CamTestData.ProjectWith(0, 0, CamTestData.Square(0, 0, 1));
+        var settings = new CamSettings
+        {
+            OperationMode = MachineType.VinylKnife,
+            KerfWidthMm = 2,
+        };
+        var toolpath = CamEngine.Generate(project, settings);
+
+        Assert.Single(toolpath.Cuts);
+        Assert.Empty(toolpath.Warnings);
+    }
 }

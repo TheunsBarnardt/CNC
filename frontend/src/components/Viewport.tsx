@@ -416,41 +416,15 @@ export function Viewport({
 
   // Build geometry from the two drag-points and notify the parent.
   const commitShape = (start: Vec, end: Vec) => {
-    if (activeTool.type === "select" || activeTool.type === "pen" || activeTool.type === "text")
-      return;
-    const opts = activeTool.options;
-    let result: { paths: GeometryPath[]; x: number; y: number } | null = null;
-    let name = "Shape";
-
-    switch (activeTool.type) {
-      case "line":
-        result = lineFromPoints(start[0], start[1], end[0], end[1]);
-        name = "Line";
-        break;
-      case "rect":
-        result = rectFromPoints(start[0], start[1], end[0], end[1], opts.cornerRadiusMm);
-        name = "Rectangle";
-        break;
-      case "circle":
-        result = circleFromCenter(start[0], start[1], end[0], end[1]);
-        name = "Circle";
-        break;
-      case "ellipse":
-        result = ellipseFromPoints(start[0], start[1], end[0], end[1]);
-        name = "Ellipse";
-        break;
-      case "polygon":
-        result = polygonFromCenter(start[0], start[1], end[0], end[1], opts.sides);
-        name = "Polygon";
-        break;
-      case "star":
-        result = starFromCenter(start[0], start[1], end[0], end[1], opts.starPoints, opts.innerRatio);
-        name = "Star";
-        break;
-    }
-    if (result && result.paths.length > 0) {
-      onShapeCreated?.(result.paths, name, result.x, result.y);
-    }
+    const result = getShapeResult(start, end);
+    if (!result || result.paths.length === 0) return;
+    const nameMap: Record<string, string> = {
+      line: "Line", rect: "Rectangle", circle: "Circle",
+      ellipse: "Ellipse", polygon: "Polygon", star: "Star",
+    };
+    const name = nameMap[activeTool.type] ?? "Shape";
+    onShapeCreated?.(result.paths, name, result.x, result.y);
+    onToolReset?.();
   };
 
   const handleWheel = (e: React.WheelEvent) => {
@@ -539,21 +513,23 @@ export function Viewport({
     onPartCommit(part);
   };
 
-  // --- shape preview helper -------------------------------------------------
+  // --- shape geometry helper (used for both preview and commit) ------------
 
-  function previewPaths(start: Vec, current: Vec): GeometryPath[] {
+  function getShapeResult(
+    start: Vec, current: Vec,
+  ): { paths: GeometryPath[]; x: number; y: number } | null {
     if (activeTool.type === "select" || activeTool.type === "pen" || activeTool.type === "text")
-      return [];
+      return null;
     const opts = activeTool.options;
     switch (activeTool.type) {
-      case "line":    return lineFromPoints(start[0], start[1], current[0], current[1]).paths;
-      case "rect":    return rectFromPoints(start[0], start[1], current[0], current[1], opts.cornerRadiusMm).paths;
-      case "circle":  return circleFromCenter(start[0], start[1], current[0], current[1]).paths;
-      case "ellipse": return ellipseFromPoints(start[0], start[1], current[0], current[1]).paths;
-      case "polygon": return polygonFromCenter(start[0], start[1], current[0], current[1], opts.sides).paths;
-      case "star":    return starFromCenter(start[0], start[1], current[0], current[1], opts.starPoints, opts.innerRatio).paths;
+      case "line":    return lineFromPoints(start[0], start[1], current[0], current[1]);
+      case "rect":    return rectFromPoints(start[0], start[1], current[0], current[1], opts.cornerRadiusMm);
+      case "circle":  return circleFromCenter(start[0], start[1], current[0], current[1]);
+      case "ellipse": return ellipseFromPoints(start[0], start[1], current[0], current[1]);
+      case "polygon": return polygonFromCenter(start[0], start[1], current[0], current[1], opts.sides);
+      case "star":    return starFromCenter(start[0], start[1], current[0], current[1], opts.starPoints, opts.innerRatio);
     }
-    return [];
+    return null;
   }
 
   // --- drawing (canvas) -----------------------------------------------------
@@ -692,21 +668,25 @@ export function Viewport({
     // --- draw preview (shape rubber-band) -----------------------------------
     if (drawState?.phase === "shape") {
       const { start, current } = drawState;
-      const preview = previewPaths(start, current);
-      ctx.strokeStyle = colPrimary;
-      ctx.lineWidth = 1.5;
-      ctx.setLineDash([5, 3]);
-      ctx.globalAlpha = 0.8;
-      for (const p of preview) {
-        if (p.points.length < 2) continue;
-        ctx.beginPath();
-        ctx.moveTo(...toScreen(p.points[0] as Vec));
-        for (let i = 1; i < p.points.length; i++) ctx.lineTo(...toScreen(p.points[i] as Vec));
-        if (p.closed) ctx.closePath();
-        ctx.stroke();
+      const result = getShapeResult(start, current);
+      if (result) {
+        ctx.strokeStyle = colPrimary;
+        ctx.lineWidth = 1.5;
+        ctx.setLineDash([5, 3]);
+        ctx.globalAlpha = 0.8;
+        for (const p of result.paths) {
+          if (p.points.length < 2) continue;
+          ctx.beginPath();
+          // Translate local-space points by world placement origin.
+          ctx.moveTo(...toScreen([p.points[0][0] + result.x, p.points[0][1] + result.y] as Vec));
+          for (let i = 1; i < p.points.length; i++)
+            ctx.lineTo(...toScreen([p.points[i][0] + result.x, p.points[i][1] + result.y] as Vec));
+          if (p.closed) ctx.closePath();
+          ctx.stroke();
+        }
+        ctx.setLineDash([]);
+        ctx.globalAlpha = 1;
       }
-      ctx.setLineDash([]);
-      ctx.globalAlpha = 1;
     }
 
     // --- pen tool preview ---------------------------------------------------

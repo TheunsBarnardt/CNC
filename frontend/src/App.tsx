@@ -129,15 +129,18 @@ function App() {
   const handleShapeCreated = useCallback(
     async (paths: GeometryPath[], name: string, worldX: number, worldY: number) => {
       try {
+        const prevIds = new Set(project?.parts.map((p) => p.id) ?? []);
         const updated = await projectApi.createSyntheticFile(name, paths, worldX, worldY);
         setProject(updated);
         await refreshGeometry();
+        const newPart = updated.parts.find((p) => !prevIds.has(p.id));
+        if (newPart) setSelectedPartId(newPart.id);
         setError(null);
       } catch (err) {
         setError((err as Error).message);
       }
     },
-    [refreshGeometry],
+    [refreshGeometry, project],
   );
 
   /** Fetch the toolpath and build the playback timeline. */

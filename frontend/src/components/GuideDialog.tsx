@@ -14,9 +14,16 @@ interface Props {
   onClose: () => void;
 }
 
+const AXIS_LABEL: Record<string, string> = { h: "Horizontal", v: "Vertical", a: "Angled" };
+
 export function GuideDialog({ guide, rulerUnit, onSave, onDelete, onClose }: Props) {
   const [label, setLabel] = useState(guide.label ?? "");
-  const [posText, setPosText] = useState(rulerFormatMm(guide.posMm, rulerUnit));
+  const [posText, setPosText] = useState(
+    guide.axis === "a"
+      ? `${rulerFormatMm(guide.pointMm?.[0] ?? 0, rulerUnit)}, ${rulerFormatMm(guide.pointMm?.[1] ?? 0, rulerUnit)}`
+      : rulerFormatMm(guide.posMm, rulerUnit)
+  );
+  const [angleText, setAngleText] = useState(String((guide.angleDeg ?? 45).toFixed(2)));
   const [locked, setLocked] = useState(guide.locked);
   const dialogRef = useRef<HTMLDivElement>(null);
 
@@ -32,17 +39,29 @@ export function GuideDialog({ guide, rulerUnit, onSave, onDelete, onClose }: Pro
     const handler = (e: MouseEvent) => {
       if (dialogRef.current && !dialogRef.current.contains(e.target as Node)) onClose();
     };
-    // Delay so the click that opened the dialog doesn't immediately close it.
     const id = setTimeout(() => window.addEventListener("mousedown", handler), 100);
     return () => { clearTimeout(id); window.removeEventListener("mousedown", handler); };
   }, [onClose]);
 
-  const axisLabel = guide.axis === "v" ? "X position" : "Y position";
+  const posLabel =
+    guide.axis === "a"
+      ? `Through point X, Y (${rulerUnit})`
+      : guide.axis === "v"
+        ? `X position (${rulerUnit})`
+        : `Y position (${rulerUnit})`;
 
   const handleSave = () => {
-    const raw = Number(posText.replace(",", "."));
-    const posMm = Number.isFinite(raw) ? rulerValueToMm(raw, rulerUnit) : guide.posMm;
-    onSave({ ...guide, label: label.trim() || undefined, posMm, locked });
+    if (guide.axis === "a") {
+      const parts = posText.split(",").map((s) => Number(s.replace(",", ".").trim()));
+      const px = Number.isFinite(parts[0]) ? rulerValueToMm(parts[0], rulerUnit) : (guide.pointMm?.[0] ?? 0);
+      const py = Number.isFinite(parts[1]) ? rulerValueToMm(parts[1], rulerUnit) : (guide.pointMm?.[1] ?? 0);
+      const angleDeg = Number(angleText);
+      onSave({ ...guide, label: label.trim() || undefined, pointMm: [px, py], angleDeg: Number.isFinite(angleDeg) ? angleDeg : 45, locked });
+    } else {
+      const raw = Number(posText.replace(",", "."));
+      const posMm = Number.isFinite(raw) ? rulerValueToMm(raw, rulerUnit) : guide.posMm;
+      onSave({ ...guide, label: label.trim() || undefined, posMm, locked });
+    }
   };
 
   return (
@@ -57,7 +76,7 @@ export function GuideDialog({ guide, rulerUnit, onSave, onDelete, onClose }: Pro
           <div>
             <p className="text-sm font-semibold">Guideline</p>
             <p className="text-xs text-muted-foreground">
-              {guide.axis === "v" ? "Vertical" : "Horizontal"} · ID {guide.id.slice(0, 8)}
+              {AXIS_LABEL[guide.axis]} · ID {guide.id.slice(0, 8)}
             </p>
           </div>
           <button
@@ -83,20 +102,37 @@ export function GuideDialog({ guide, rulerUnit, onSave, onDelete, onClose }: Pro
           </div>
 
           <div className="grid gap-1.5">
-            <Label htmlFor="guide-pos">
-              {axisLabel} ({rulerUnit})
-            </Label>
+            <Label htmlFor="guide-pos">{posLabel}</Label>
             <Input
               id="guide-pos"
               inputMode="decimal"
               value={posText}
               onChange={(e) => setPosText(e.target.value)}
               onKeyDown={(e) => e.key === "Enter" && handleSave()}
+              placeholder={guide.axis === "a" ? "x, y" : undefined}
             />
-            <p className="text-[10px] text-muted-foreground">
-              {rulerDisplayValue(guide.posMm, rulerUnit).toFixed(4)} {rulerUnit} current
-            </p>
+            {guide.axis !== "a" && (
+              <p className="text-[10px] text-muted-foreground">
+                {rulerDisplayValue(guide.posMm, rulerUnit).toFixed(4)} {rulerUnit} current
+              </p>
+            )}
           </div>
+
+          {guide.axis === "a" && (
+            <div className="grid gap-1.5">
+              <Label htmlFor="guide-angle">Angle (°)</Label>
+              <Input
+                id="guide-angle"
+                inputMode="decimal"
+                value={angleText}
+                onChange={(e) => setAngleText(e.target.value)}
+                onKeyDown={(e) => e.key === "Enter" && handleSave()}
+              />
+              <p className="text-[10px] text-muted-foreground">
+                0° = horizontal · 90° = vertical · 45° = diagonal
+              </p>
+            </div>
+          )}
 
           <div className="flex items-center gap-2">
             <input

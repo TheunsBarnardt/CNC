@@ -192,7 +192,14 @@ export function Viewport({
   const dragRef = useRef<DragState | null>(null);
   const fittedRef = useRef(false);
   // Guide being created (id=null) or dragged (id=guideId).
-  const [guideDrag, setGuideDrag] = useState<{ id: string | null; axis: "h" | "v"; posMm: number } | null>(null);
+  const [guideDrag, setGuideDrag] = useState<{
+    id: string | null;
+    axis: "h" | "v" | "a";
+    posMm: number;
+    angleDeg?: number;
+    pointMm?: [number, number];
+    startScreen?: [number, number];
+  } | null>(null);
   // Guide being hovered (for highlight).
   const [hoveredGuideId, setHoveredGuideId] = useState<string | null>(null);
   // Canvas context menu state.
@@ -336,9 +343,18 @@ export function Viewport({
       // Right-click on a guide line.
       if (settings?.showGuides ?? true) {
         for (const guide of guides) {
-          const dist = guide.axis === "v"
-            ? Math.abs(s[0] - toScreen([guide.posMm, 0])[0])
-            : Math.abs(s[1] - toScreen([0, guide.posMm])[1]);
+          let dist: number;
+          if (guide.axis === "v") {
+            dist = Math.abs(s[0] - toScreen([guide.posMm, 0])[0]);
+          } else if (guide.axis === "h") {
+            dist = Math.abs(s[1] - toScreen([0, guide.posMm])[1]);
+          } else {
+            const pt = guide.pointMm ?? [0, 0];
+            const ang = ((guide.angleDeg ?? 45) * Math.PI) / 180;
+            const [sx, sy] = toScreen(pt as Vec);
+            const dx = s[0] - sx, dy = s[1] - sy;
+            dist = Math.abs(dx * Math.sin(ang) + dy * Math.cos(ang));
+          }
           if (dist < 7) {
             setContextMenu({ x: s[0], y: s[1], target: { type: "guide", guideId: guide.id } });
             return;
@@ -369,10 +385,16 @@ export function Viewport({
     // ── Guide creation / dragging ──────────────────────────────────────────
     if (!readOnly && e.button === 0) {
       const R = RULER_PX;
+      const inCorner = screen[0] < R && screen[1] < R;
       const inTopRuler = screen[1] < R && screen[0] >= R;
       const inLeftRuler = screen[0] < R && screen[1] >= R;
-      if ((settings?.showRulers ?? true) && (inTopRuler || inLeftRuler)) {
-        setGuideDrag({ id: null, axis: inTopRuler ? "v" : "h", posMm: inTopRuler ? world[0] : world[1] });
+      if ((settings?.showRulers ?? true) && (inCorner || inTopRuler || inLeftRuler)) {
+        if (inCorner) {
+          // Drag from corner = angled guide, angle determined by drag direction
+          setGuideDrag({ id: null, axis: "a", posMm: 0, angleDeg: 45, pointMm: [world[0], world[1]], startScreen: screen });
+        } else {
+          setGuideDrag({ id: null, axis: inTopRuler ? "v" : "h", posMm: inTopRuler ? world[0] : world[1] });
+        }
         return;
       }
       if (settings?.showGuides ?? true) {
@@ -382,12 +404,19 @@ export function Viewport({
           if (guide.axis === "v") {
             const [sx] = toScreen([guide.posMm, 0]);
             dist = Math.abs(screen[0] - sx);
-          } else {
+          } else if (guide.axis === "h") {
             const [, sy] = toScreen([0, guide.posMm]);
             dist = Math.abs(screen[1] - sy);
+          } else {
+            // Angled guide: distance from point to line
+            const pt = guide.pointMm ?? [0, 0];
+            const ang = ((guide.angleDeg ?? 45) * Math.PI) / 180;
+            const [sx, sy] = toScreen(pt as Vec);
+            const dx = screen[0] - sx, dy = screen[1] - sy;
+            dist = Math.abs(dx * Math.sin(ang) + dy * Math.cos(ang));
           }
           if (dist < 7) {
-            setGuideDrag({ id: guide.id, axis: guide.axis, posMm: guide.posMm });
+            setGuideDrag({ id: guide.id, axis: guide.axis, posMm: guide.posMm, angleDeg: guide.angleDeg, pointMm: guide.pointMm as [number,number] | undefined });
             return;
           }
         }
@@ -559,9 +588,21 @@ export function Viewport({
 
     // Guide drag update (with optional snap).
     if (guideDrag) {
-      let posMm = guideDrag.axis === "v" ? world[0] : world[1];
-      if (snap) posMm = Math.round(posMm / snapStep) * snapStep;
-      setGuideDrag((gd) => gd ? { ...gd, posMm } : null);
+      if (guideDrag.axis === "a") {
+        // Angle from drag start to current position; point follows cursor.
+        const start = guideDrag.startScreen ?? screen;
+        const dx = screen[0] - start[0], dy = screen[1] - start[1];
+        const dist2 = dx * dx + dy * dy;
+        let angleDeg = guideDrag.angleDeg ?? 45;
+        if (dist2 > 9) angleDeg = (Math.atan2(-dy, dx) * 180) / Math.PI;
+        let pt: [number, number] = [world[0], world[1]];
+        if (snap) pt = [Math.round(pt[0] / snapStep) * snapStep, Math.round(pt[1] / snapStep) * snapStep];
+        setGuideDrag((gd) => gd ? { ...gd, angleDeg, pointMm: pt } : null);
+      } else {
+        let posMm = guideDrag.axis === "v" ? world[0] : world[1];
+        if (snap) posMm = Math.round(posMm / snapStep) * snapStep;
+        setGuideDrag((gd) => gd ? { ...gd, posMm } : null);
+      }
       return;
     }
 
@@ -569,9 +610,18 @@ export function Viewport({
     if (settings?.showGuides ?? true) {
       let found: string | null = null;
       for (const guide of guides) {
-        const dist = guide.axis === "v"
-          ? Math.abs(screen[0] - toScreen([guide.posMm, 0])[0])
-          : Math.abs(screen[1] - toScreen([0, guide.posMm])[1]);
+        let dist: number;
+        if (guide.axis === "v") {
+          dist = Math.abs(screen[0] - toScreen([guide.posMm, 0])[0]);
+        } else if (guide.axis === "h") {
+          dist = Math.abs(screen[1] - toScreen([0, guide.posMm])[1]);
+        } else {
+          const pt = guide.pointMm ?? [0, 0];
+          const ang = ((guide.angleDeg ?? 45) * Math.PI) / 180;
+          const [sx, sy] = toScreen(pt as Vec);
+          const dx2 = screen[0] - sx, dy2 = screen[1] - sy;
+          dist = Math.abs(dx2 * Math.sin(ang) + dy2 * Math.cos(ang));
+        }
         if (dist < 7) { found = guide.id; break; }
       }
       setHoveredGuideId(found);
@@ -711,14 +761,33 @@ export function Viewport({
       if (outside && guideDrag.id) {
         onGuidesChange?.(guides.filter((g) => g.id !== guideDrag.id));
       } else if (!outside) {
+        // For angled guides, recompute angle+point from the current pointer position
+        // at commit time to avoid stale-closure issues.
+        let finalAngle = guideDrag.angleDeg ?? 45;
+        let finalPoint: [number, number] = guideDrag.pointMm ?? [world[0], world[1]];
+        if (guideDrag.axis === "a") {
+          const start = guideDrag.startScreen;
+          if (start) {
+            const dx = screen[0] - start[0], dy = screen[1] - start[1];
+            if (dx * dx + dy * dy > 9) finalAngle = (Math.atan2(-dy, dx) * 180) / Math.PI;
+          }
+          let pt: [number, number] = [world[0], world[1]];
+          if (snap) pt = [Math.round(pt[0] / snapStep) * snapStep, Math.round(pt[1] / snapStep) * snapStep];
+          finalPoint = pt;
+        }
+        const newGuide: Guide =
+          guideDrag.axis === "a"
+            ? { id: crypto.randomUUID(), axis: "a", posMm: 0, angleDeg: finalAngle, pointMm: finalPoint, locked: false }
+            : { id: crypto.randomUUID(), axis: guideDrag.axis, posMm: guideDrag.posMm, locked: false };
         if (guideDrag.id === null) {
-          onGuidesChange?.([
-            ...guides,
-            { id: crypto.randomUUID(), axis: guideDrag.axis, posMm: guideDrag.posMm, locked: false },
-          ]);
+          onGuidesChange?.([...guides, newGuide]);
         } else {
           onGuidesChange?.(
-            guides.map((g) => (g.id === guideDrag.id ? { ...g, posMm: guideDrag.posMm } : g)),
+            guides.map((g) => g.id !== guideDrag.id ? g :
+              guideDrag.axis === "a"
+                ? { ...g, posMm: 0, angleDeg: finalAngle, pointMm: finalPoint }
+                : { ...g, posMm: guideDrag.posMm }
+            ),
           );
         }
       }
@@ -771,9 +840,18 @@ export function Viewport({
     if (readOnly || !(settings?.showGuides ?? true)) return;
     const s = screenPos(e);
     for (const guide of guides) {
-      const dist = guide.axis === "v"
-        ? Math.abs(s[0] - toScreen([guide.posMm, 0])[0])
-        : Math.abs(s[1] - toScreen([0, guide.posMm])[1]);
+      let dist: number;
+      if (guide.axis === "v") {
+        dist = Math.abs(s[0] - toScreen([guide.posMm, 0])[0]);
+      } else if (guide.axis === "h") {
+        dist = Math.abs(s[1] - toScreen([0, guide.posMm])[1]);
+      } else {
+        const pt = guide.pointMm ?? [0, 0];
+        const ang = ((guide.angleDeg ?? 45) * Math.PI) / 180;
+        const [sx, sy] = toScreen(pt as Vec);
+        const dx = s[0] - sx, dy = s[1] - sy;
+        dist = Math.abs(dx * Math.sin(ang) + dy * Math.cos(ang));
+      }
       if (dist < 7) {
         setGuideDialog(guide);
         return;
@@ -1439,15 +1517,41 @@ export function Viewport({
 
     // ── Guide lines ───────────────────────────────────────────────────────────
     if (settings?.showGuides ?? true) {
-      const allGuides: Array<{ id: string | null; axis: "h" | "v"; posMm: number; locked: boolean; label?: string }> =
-        guides.map((g) => ({ ...g }));
+      type GuideLike = { id: string | null; axis: "h" | "v" | "a"; posMm: number; locked: boolean; label?: string; angleDeg?: number; pointMm?: [number, number] };
+      const allGuides: GuideLike[] = guides.map((g) => ({ ...g, pointMm: g.pointMm as [number,number] | undefined }));
       // Overlay the live drag position.
       if (guideDrag) {
         const idx = allGuides.findIndex((g) => g.id === guideDrag.id);
-        if (idx >= 0) allGuides[idx] = { ...allGuides[idx], posMm: guideDrag.posMm };
-        else allGuides.push({ id: null, axis: guideDrag.axis, posMm: guideDrag.posMm, locked: false });
+        if (guideDrag.axis === "a") {
+          const aGuide: GuideLike = { id: guideDrag.id, axis: "a", posMm: 0, locked: false, angleDeg: guideDrag.angleDeg ?? 45, pointMm: guideDrag.pointMm ?? [0, 0] };
+          if (idx >= 0) allGuides[idx] = { ...allGuides[idx], ...aGuide };
+          else allGuides.push(aGuide);
+        } else {
+          if (idx >= 0) allGuides[idx] = { ...allGuides[idx], posMm: guideDrag.posMm };
+          else allGuides.push({ id: null, axis: guideDrag.axis, posMm: guideDrag.posMm, locked: false });
+        }
       }
       const rulerUnit = settings?.rulerUnit ?? "mm";
+
+      /** Clip a line through (px,py) at angleDeg to canvas bounds, return screen endpoints. */
+      const angledLineEndpoints = (px: number, py: number, angleDeg: number): [[number,number],[number,number]] | null => {
+        const [sx, sy] = toScreen([px, py]);
+        const ang = (angleDeg * Math.PI) / 180;
+        const cosA = Math.cos(ang), sinA = Math.sin(ang);
+        // Parametric: (sx + t*cosA, sy - t*sinA)  (screen Y is flipped)
+        const ts: number[] = [];
+        if (Math.abs(cosA) > 1e-9) { ts.push(-sx / cosA); ts.push((size.w - sx) / cosA); }
+        else { ts.push(-1e6); ts.push(1e6); }
+        if (Math.abs(sinA) > 1e-9) { ts.push(sy / sinA); ts.push((sy - size.h) / sinA); }
+        else { ts.push(-1e6); ts.push(1e6); }
+        ts.sort((a, b) => a - b);
+        // Pick the two intersection points closest to canvas interior
+        const pts = ts.map(t => [sx + t * cosA, sy - t * sinA] as [number,number])
+          .filter(([x, y]) => x >= -1 && x <= size.w + 1 && y >= -1 && y <= size.h + 1);
+        if (pts.length < 2) return null;
+        return [pts[0], pts[pts.length - 1]];
+      };
+
       for (const g of allGuides) {
         const isActiveDrag = guideDrag && (g.id === guideDrag.id || (g.id === null && guideDrag.id === null));
         const isHovered = !isActiveDrag && g.id !== null && g.id === hoveredGuideId;
@@ -1462,12 +1566,27 @@ export function Viewport({
         if (g.axis === "h") {
           const [, sy] = toScreen([0, g.posMm]);
           ctx.beginPath(); ctx.moveTo(0, sy); ctx.lineTo(size.w, sy); ctx.stroke();
-        } else {
+        } else if (g.axis === "v") {
           const [sx] = toScreen([g.posMm, 0]);
           ctx.beginPath(); ctx.moveTo(sx, 0); ctx.lineTo(sx, size.h); ctx.stroke();
+        } else {
+          // Angled guide
+          const pt = g.pointMm ?? [0, 0];
+          const endpoints = angledLineEndpoints(pt[0], pt[1], g.angleDeg ?? 45);
+          if (endpoints) {
+            ctx.beginPath(); ctx.moveTo(...endpoints[0]); ctx.lineTo(...endpoints[1]); ctx.stroke();
+          }
+          // Angle label near the point
+          const [sx, sy] = toScreen(pt as Vec);
+          ctx.globalAlpha = 0.9;
+          ctx.fillStyle = color;
+          ctx.font = "bold 9px system-ui";
+          ctx.textAlign = "left";
+          ctx.textBaseline = "bottom";
+          ctx.fillText(`${(g.angleDeg ?? 45).toFixed(1)}°`, sx + 5, sy - 3);
         }
         ctx.setLineDash([]);
-        // Label next to ruler edge.
+        // User label next to ruler edge.
         if (g.label) {
           ctx.globalAlpha = 0.9;
           ctx.fillStyle = color;
@@ -1477,25 +1596,35 @@ export function Viewport({
           if (g.axis === "h") {
             const [, sy] = toScreen([0, g.posMm]);
             ctx.fillText(g.label, RULER_PX + 3, sy - 2);
-          } else {
+          } else if (g.axis === "v") {
             const [sx] = toScreen([g.posMm, 0]);
             ctx.fillText(g.label, sx + 3, RULER_PX + 12);
+          } else {
+            const pt = g.pointMm ?? [0, 0];
+            const [sx, sy] = toScreen(pt as Vec);
+            ctx.fillText(g.label, sx + 5, sy + 12);
           }
         }
-        // Position label while dragging.
+        // Position/angle HUD while dragging.
         if (isActiveDrag) {
-          const posLabel = `${rulerFormatMm(g.posMm, rulerUnit)} ${rulerUnit}`;
+          let posLabel: string;
+          let lx: number, ly: number;
+          if (g.axis === "a") {
+            const pt = (guideDrag?.pointMm ?? g.pointMm) ?? [0, 0];
+            posLabel = `${(guideDrag?.angleDeg ?? g.angleDeg ?? 45).toFixed(1)}°  (${rulerFormatMm(pt[0], rulerUnit)}, ${rulerFormatMm(pt[1], rulerUnit)}) ${rulerUnit}`;
+            const [sx, sy] = toScreen(pt as Vec);
+            lx = sx + 8; ly = sy - 16;
+          } else {
+            posLabel = `${rulerFormatMm(g.posMm, rulerUnit)} ${rulerUnit}`;
+            if (g.axis === "h") { const [, sy] = toScreen([0, g.posMm]); lx = RULER_PX + 8; ly = sy - 14; }
+            else { const [sx] = toScreen([g.posMm, 0]); lx = sx + 6; ly = RULER_PX + 14; }
+          }
           ctx.globalAlpha = 1;
           ctx.font = "bold 10px system-ui";
           const tw = ctx.measureText(posLabel).width;
-          let lx: number, ly: number;
-          if (g.axis === "h") {
-            const [, sy] = toScreen([0, g.posMm]);
-            lx = RULER_PX + 8; ly = sy - 14;
-          } else {
-            const [sx] = toScreen([g.posMm, 0]);
-            lx = sx + 6; ly = RULER_PX + 14;
-          }
+          // Clamp inside canvas
+          lx = Math.min(lx, size.w - tw - 8);
+          ly = Math.max(ly, RULER_PX + 14);
           ctx.fillStyle = darkCanvas ? "rgba(0,0,0,0.8)" : "rgba(255,255,255,0.9)";
           ctx.fillRect(lx - 3, ly - 10, tw + 6, 14);
           ctx.fillStyle = "#00bcd4";
@@ -1519,8 +1648,8 @@ export function Viewport({
       ctx.fillStyle = rulerBg;
       ctx.fillRect(0, 0, size.w, R);
       ctx.fillRect(0, 0, R, size.h);
-      // Corner square
-      ctx.fillStyle = darkCanvas ? "#27272a" : "#e4e4e7";
+      // Corner square (slightly darker, acts as angled-guide drag origin)
+      ctx.fillStyle = darkCanvas ? "#27272a" : "#d4d4d8";
       ctx.fillRect(0, 0, R, R);
       // Borders
       ctx.strokeStyle = rulerBorder;
@@ -1533,19 +1662,21 @@ export function Viewport({
       const rulerUnit = settings?.rulerUnit ?? "mm";
       const tickSteps = rulerTickStepsMm(rulerUnit);
       const minor = tickSteps.find((s) => s * view.scale >= 20) ?? tickSteps[tickSteps.length - 1];
-      ctx.strokeStyle = tickCol;
-      ctx.fillStyle = labelCol;
       ctx.lineWidth = 0.5;
       ctx.font = `9px system-ui`;
+
+      // Top ruler — X axis (clip to ruler strip so labels don't bleed)
+      ctx.save();
+      ctx.beginPath(); ctx.rect(R, 0, size.w - R, R); ctx.clip();
+      ctx.strokeStyle = tickCol;
+      ctx.fillStyle = labelCol;
       ctx.textAlign = "center";
       ctx.textBaseline = "top";
-
-      // Top ruler — X axis
-      const xStart = Math.floor((0 - view.tx) / view.scale / minor) * minor;
+      const xStart = Math.floor((R - view.tx) / view.scale / minor) * minor;
       const xEnd = Math.ceil((size.w - view.tx) / view.scale / minor) * minor;
       for (let wx = xStart; wx <= xEnd; wx += minor) {
         const sx = wx * view.scale + view.tx;
-        // "major" = every 5th step, but for inch/ft check if step aligns to a whole unit.
+        if (sx < R) continue;
         const major = Math.abs(wx % (minor * 5)) < 0.001;
         ctx.beginPath();
         ctx.moveTo(sx, major ? R - 9 : R - 5);
@@ -1558,17 +1689,22 @@ export function Viewport({
           ctx.fillText(label, sx, 2);
         }
       }
+      ctx.restore();
 
       // Left ruler — Y axis (world Y-up, screen Y-down)
-      ctx.textAlign = "right";
-      ctx.textBaseline = "middle";
+      // Clip to left ruler strip so labels don't bleed into canvas.
+      ctx.save();
+      ctx.beginPath(); ctx.rect(0, R, R, size.h - R); ctx.clip();
+      ctx.strokeStyle = tickCol;
+      ctx.fillStyle = labelCol;
       const yStart = Math.floor((-view.ty) / view.scale / minor) * minor;
       const yEnd = Math.ceil((size.h - view.ty) / view.scale / minor) * minor;
       for (let wy = yStart; wy <= yEnd; wy += minor) {
         const sy = size.h - (wy * view.scale + view.ty);
+        if (sy < R || sy > size.h) continue;
         const major = Math.abs(wy % (minor * 5)) < 0.001;
         ctx.beginPath();
-        ctx.moveTo(major ? R - 9 : R - 5, sy);
+        ctx.moveTo(major ? 1 : R - 5, sy);
         ctx.lineTo(R, sy);
         ctx.stroke();
         if (major) {
@@ -1576,13 +1712,25 @@ export function Viewport({
             rulerUnit === "mm" ? 0 : rulerUnit === "cm" ? 1 : rulerUnit === "in" ? 2 : 2,
           );
           ctx.save();
-          ctx.translate(2, sy);
+          ctx.translate(R / 2, sy);   // center of the 20px ruler strip
           ctx.rotate(-Math.PI / 2);
           ctx.textAlign = "center";
+          ctx.textBaseline = "middle";
+          ctx.fillStyle = labelCol;
+          ctx.font = "9px system-ui";
           ctx.fillText(label, 0, 0);
           ctx.restore();
         }
       }
+      ctx.restore();
+
+      // Corner: diagonal arrow hint (shows it's draggable for angled guides)
+      ctx.strokeStyle = darkCanvas ? "#52525b" : "#a1a1aa";
+      ctx.lineWidth = 1;
+      ctx.beginPath();
+      ctx.moveTo(4, 4); ctx.lineTo(R - 4, R - 4);
+      ctx.moveTo(R - 7, R - 4); ctx.lineTo(R - 4, R - 4); ctx.lineTo(R - 4, R - 7);
+      ctx.stroke();
     }
   }, [project, geometry, selectedPartId, secondaryPartId, view, size, toScreen, rotateHandleWorld, table,
       simulation, simTime, showGrid, darkCanvas, drawState, activeTool, nodeEdit,
@@ -1627,6 +1775,40 @@ export function Viewport({
         onPointerLeave={() => { setCursorMm(null); setHoveredGuideId(null); }}
         onContextMenu={(e) => e.preventDefault()}
       />
+
+      {/* ── Lock-all guides button in the ruler corner ──────────────────────── */}
+      {(settings?.showRulers ?? true) && (settings?.showGuides ?? true) && guides.length > 0 && !readOnly && (() => {
+        const allLocked = guides.every((g) => g.locked);
+        const anyLocked = guides.some((g) => g.locked);
+        return (
+          <button
+            title={allLocked ? "Unlock all guides" : "Lock all guides"}
+            className="absolute top-0 left-0 flex items-center justify-center"
+            style={{ width: 20, height: 20, zIndex: 10 }}
+            onClick={() => onGuidesChange?.(guides.map((g) => ({ ...g, locked: !allLocked })))}
+          >
+            <svg width="10" height="11" viewBox="0 0 10 11" fill="none" xmlns="http://www.w3.org/2000/svg">
+              {/* Lock body */}
+              <rect x="1" y="5" width="8" height="6" rx="1"
+                fill={allLocked ? "#a855f7" : anyLocked ? "#e91e8c" : "none"}
+                stroke={allLocked ? "#a855f7" : anyLocked ? "#e91e8c" : "#a1a1aa"}
+                strokeWidth="1"
+              />
+              {/* Shackle */}
+              <path
+                d={allLocked
+                  ? "M3 5V3.5a2 2 0 0 1 4 0V5"  // closed shackle
+                  : "M3 5V3.5a2 2 0 0 1 4 0"      // open shackle
+                }
+                stroke={allLocked ? "#a855f7" : anyLocked ? "#e91e8c" : "#a1a1aa"}
+                strokeWidth="1" fill="none"
+              />
+              {/* Keyhole */}
+              {allLocked && <circle cx="5" cy="8" r="1" fill="white" />}
+            </svg>
+          </button>
+        );
+      })()}
 
       {/* Floating edit toolbar — selection only (hidden in node-edit mode). */}
       {!readOnly && activeTool.type === "select" && selectedPart && selectedBBox && !nodeEdit && (() => {

@@ -2,6 +2,7 @@ using System.Text.Json.Serialization;
 using Backend.Api;
 using Backend.Hubs;
 using Backend.Import;
+using Backend.Import.Bitmap;
 using Backend.Import.Dxf;
 using Backend.Import.Svg;
 using Backend.Machine;
@@ -44,6 +45,7 @@ builder.Services.AddHostedService<HeartbeatBroadcaster>();
 builder.Services.AddSingleton<ProjectService>();
 builder.Services.AddSingleton<IFileImporter, SvgImporter>();
 builder.Services.AddSingleton<IFileImporter, DxfImporter>();
+builder.Services.AddSingleton<IFileImporter, BitmapImporter>();
 builder.Services.AddSingleton<FileImportService>();
 
 // Post-processors: neutral toolpath → controller dialect. Pluggable — a new

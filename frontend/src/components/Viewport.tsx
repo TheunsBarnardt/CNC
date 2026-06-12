@@ -24,10 +24,12 @@ import {
   bboxOfPaths,
   hitTestPart,
   localPivot,
+  partToWorld,
   partWorldBBox,
   type Vec,
+  worldToPartLocal,
 } from "@/lib/geometry";
-import { partToWorld } from "@/lib/geometry";
+import { BACKEND_URL } from "@/lib/backend";
 import type { GeometryPath, Layer, Part, ProjectDto, TableOrigin } from "@/lib/project";
 import { stateAt, type Simulation } from "@/lib/simulation";
 import type { ActiveTool } from "@/lib/tools";
@@ -187,6 +189,11 @@ export function Viewport({
 
   const RULER_PX = 20; // thickness of ruler strips in CSS px
 
+  // Cache of loaded bitmap HTMLImageElements keyed by fileId.
+  // Images are loaded once and the canvas is invalidated on load via a counter.
+  const bitmapCacheRef = useRef<Map<string, HTMLImageElement>>(new Map());
+  const [bitmapLoadTick, setBitmapLoadTick] = useState(0);
+
   const { table } = project;
   const selectedPart = project.parts.find((p) => p.id === selectedPartId) ?? null;
 
@@ -246,6 +253,22 @@ export function Viewport({
     if (fittedRef.current) fitToView();
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [table.widthMm, table.heightMm]);
+
+  // Load bitmap images when files with bitmaps are added/changed.
+  useEffect(() => {
+    const cache = bitmapCacheRef.current;
+    for (const file of project.files) {
+      if (!file.hasBitmap || cache.has(file.id)) continue;
+      const img = new Image();
+      img.src = `${BACKEND_URL}/api/project/files/${file.id}/bitmap-image`;
+      img.onload = () => setBitmapLoadTick((t) => t + 1);
+      cache.set(file.id, img);
+    }
+    // Purge entries for deleted files
+    for (const key of cache.keys()) {
+      if (!project.files.some((f) => f.id === key)) cache.delete(key);
+    }
+  }, [project.files]);
 
   const zoomAt = useCallback(
     (screen: Vec, factor: number) => {
@@ -819,7 +842,7 @@ export function Viewport({
     const newPoints: [number, number][] = path.points.map((pt, i) =>
       i === drag.nodeIdx ? [localDrag[0], localDrag[1]] : [pt[0], pt[1]],
     );
-    onNodesChanged?.(fileId, path.id, newPoints);
+    if (path.id) onNodesChanged?.(fileId, path.id, newPoints);
   }, [nodeEdit, project.parts, geometry, onNodesChanged]);
 
   const deleteSelectedNode = useCallback(() => {
@@ -831,7 +854,7 @@ export function Viewport({
     const minNodes = path.closed ? 3 : 2;
     if (path.points.length <= minNodes) return; // can't reduce further
     const newPoints: [number, number][] = path.points.filter((_, i) => i !== nodeIdx);
-    onNodesChanged?.(fileId, path.id, newPoints);
+    if (path.id) onNodesChanged?.(fileId, path.id, newPoints);
     setNodeEdit((ne) => ne ? { ...ne, selectedNode: null } : ne);
   }, [nodeEdit, geometry, onNodesChanged]);
 
@@ -849,7 +872,7 @@ export function Viewport({
       const mid: [number, number] = [(a[0] + b[0]) / 2, (a[1] + b[1]) / 2];
       const newPoints: [number, number][] = [...path.points.map((p): [number, number] => [p[0], p[1]])];
       newPoints.splice(bIdx, 0, mid);
-      onNodesChanged?.(fileId, path.id, newPoints);
+      if (path.id) onNodesChanged?.(fileId, path.id, newPoints);
     },
     [nodeEdit, geometry, onNodesChanged],
   );
@@ -965,6 +988,30 @@ export function Viewport({
     ctx.moveTo(ox - 11, oy); ctx.lineTo(ox + 11, oy);
     ctx.moveTo(ox, oy - 11); ctx.lineTo(ox, oy + 11);
     ctx.stroke();
+
+    // Bitmap images (drawn beneath traced paths as a semi-transparent reference).
+    // Uses an affine transform so the image follows rotation/scale correctly.
+    for (const part of project.parts) {
+      const file = project.files.find((f) => f.id === part.fileId);
+      if (!file?.visible || !file.hasBitmap) continue;
+      const img = bitmapCacheRef.current.get(file.id);
+      if (!img?.complete || img.naturalWidth === 0) continue;
+      const paths = geometry.get(part.fileId);
+      const pivot = paths ? localPivot(paths) : ([file.widthMm / 2, file.heightMm / 2] as Vec);
+      // Three corners in local space; image is Y-flipped (pixel 0,0 = local top-left = Y-up top)
+      const [stlx, stly] = toScreen(partToWorld(part, pivot, [0, file.heightMm] as Vec)); // top-left
+      const [strx, stry] = toScreen(partToWorld(part, pivot, [file.widthMm, file.heightMm] as Vec)); // top-right
+      const [sblx, sbly] = toScreen(partToWorld(part, pivot, [0, 0] as Vec)); // bottom-left
+      // Affine transform: pixel(0,0)→tl, pixel(w,0)→tr, pixel(0,h)→bl
+      const iw = img.naturalWidth, ih = img.naturalHeight;
+      const a = (strx - stlx) / iw, b = (stry - stly) / iw;
+      const c = (sblx - stlx) / ih, d = (sbly - stly) / ih;
+      ctx.save();
+      ctx.globalAlpha = 0.55;
+      ctx.transform(a, b, c, d, stlx, stly);
+      ctx.drawImage(img, 0, 0);
+      ctx.restore();
+    }
 
     // Parts.
     for (const part of project.parts) {
@@ -1420,7 +1467,7 @@ export function Viewport({
     }
   }, [project, geometry, selectedPartId, secondaryPartId, view, size, toScreen, rotateHandleWorld, table,
       simulation, simTime, showGrid, darkCanvas, drawState, activeTool, nodeEdit,
-      guides, guideDrag, settings]); // eslint-disable-line react-hooks/exhaustive-deps
+      guides, guideDrag, settings, bitmapLoadTick]); // eslint-disable-line react-hooks/exhaustive-deps
 
   // --- render ---------------------------------------------------------------
 

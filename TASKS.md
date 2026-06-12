@@ -424,7 +424,23 @@ Each is one session; split further if a task grows.*
 > in material profiles — xTool's "array test" equivalent for finding good settings.
 > Summarize, compact and commit. 
 
-### [ ] Task 18 — Bitmap import + trace to vector
+### [x] Task 18 — Bitmap import + trace to vector
+<!-- Done: BitmapImporter (PNG/JPG/BMP/GIF/WEBP) implements IFileImporter — reads raw bytes,
+     runs BitmapTracer with default settings, stores BitmapData+MimeType on ImportedFile for
+     re-trace. BitmapTracer: SixLabors.ImageSharp for load + filters (brightness/contrast/
+     grayscale/invert); threshold → binary; Outline mode uses Moore-neighborhood boundary
+     tracing (Jacob's stopping criterion) → closed polylines; Centerline mode uses Zhang-Suen
+     thinning → skeleton path tracing → open polylines. Both modes output mm-coords Y-up and
+     run Ramer-Douglas-Peucker simplification. GET /api/project/files/{id}/bitmap-image serves
+     raw bytes; POST /api/project/files/{id}/retrace re-traces with new BitmapTraceSettings.
+     FileSummaryDto: hasBitmap + bitmapTraceSettingsJson fields. ImportedFile: BitmapData /
+     BitmapMimeType / BitmapTraceSettingsJson. Frontend: BitmapTraceDialog (mode, threshold,
+     brightness, contrast, invert, simplify tolerance) shown in FileListPanel for bitmap files;
+     import accepts .png/.jpg/.jpeg/.bmp/.webp alongside SVG/DXF; Viewport loads and draws
+     bitmap preview on canvas with affine transform (rotation/scale correct); bitmap cache keyed
+     by fileId, auto-refreshes on file list changes. Deferred: halftone/dither output (raster
+     engrave laser path — depends on per-layer engrave mode, Task 19); max-dim resize setting
+     (fixed 1000px in BitmapTraceSettings). -->
 > Import PNG/JPG, auto-trace (and center-line trace) to vector paths for cutting.
 > Image filters/adjustments (grayscale, invert, brightness/contrast, halftone/dither)
 > matter mainly for laser engraving — implement alongside or after Task 12 (laser mode),

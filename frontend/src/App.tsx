@@ -24,6 +24,7 @@ import { Viewport } from "@/components/Viewport";
 import { buildSimulation, formatTime, type Simulation } from "@/lib/simulation";
 import {
   projectApi,
+  type BitmapTraceSettings,
   type FileGeometry,
   type GeometryPath,
   type Layer,
@@ -38,7 +39,7 @@ import { useSettings } from "@/lib/settings";
 /** Workspace modes (xTool anatomy): edit the layout, or preview the processing. */
 type Mode = "edit" | "preview";
 
-const ACCEPTED = [".svg", ".dxf"];
+const ACCEPTED = [".svg", ".dxf", ".png", ".jpg", ".jpeg", ".bmp", ".webp"];
 
 function App() {
   const [project, setProject] = useState<ProjectDto | null>(null);
@@ -229,6 +230,13 @@ function App() {
     [run],
   );
 
+  const handleRetrace = useCallback(
+    async (fileId: string, settings: BitmapTraceSettings) => {
+      await run(() => projectApi.retraceBitmap(fileId, settings), true);
+    },
+    [run],
+  );
+
   /** Called by Viewport when a drawn shape or text is ready to persist. */
   const handleShapeCreated = useCallback(
     async (paths: GeometryPath[], name: string, worldX: number, worldY: number) => {
@@ -374,8 +382,8 @@ function App() {
             onDrop={(e) => {
               if (mode !== "edit") return;
               e.preventDefault();
-              const files = Array.from(e.dataTransfer.files).filter((f) =>
-                ACCEPTED.some((ext) => f.name.toLowerCase().endsWith(ext)),
+              const files = Array.from(e.dataTransfer.files).filter(
+                (f) => ACCEPTED.some((ext) => f.name.toLowerCase().endsWith(ext)),
               );
               if (files.length > 0) void handleImport(files);
             }}
@@ -460,6 +468,7 @@ function App() {
                       }
                       onDelete={(id) => void run(() => projectApi.deleteFile(id), true)}
                       onAddToTable={(id) => void run(() => projectApi.createPart(id))}
+                      onRetrace={handleRetrace}
                     />
                   )}
                 </CardContent>

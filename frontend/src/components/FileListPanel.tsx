@@ -3,9 +3,11 @@ import { AlertTriangle, Check, Eye, EyeOff, Pencil, PlusSquare, Trash2, X } from
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
+import { BitmapTraceDialog } from "@/components/BitmapTraceDialog";
 import {
   displayLength,
   unitSuffix,
+  type BitmapTraceSettings,
   type FileSummary,
   type Units,
 } from "@/lib/project";
@@ -18,10 +20,12 @@ interface Props {
   onDelete: (id: string) => void;
   /** Place another copy of this file on the table. */
   onAddToTable: (id: string) => void;
+  /** Re-trace a bitmap file with new settings. */
+  onRetrace?: (id: string, settings: BitmapTraceSettings) => Promise<void>;
 }
 
 /** Imported-files panel: visibility, rename, delete + parsed-geometry summary. */
-export function FileListPanel({ files, units, onToggleVisible, onRename, onDelete, onAddToTable }: Props) {
+export function FileListPanel({ files, units, onToggleVisible, onRename, onDelete, onAddToTable, onRetrace }: Props) {
   if (files.length === 0) {
     return (
       <p className="py-6 text-center text-sm text-muted-foreground">
@@ -41,6 +45,7 @@ export function FileListPanel({ files, units, onToggleVisible, onRename, onDelet
           onRename={onRename}
           onDelete={onDelete}
           onAddToTable={onAddToTable}
+          onRetrace={onRetrace}
         />
       ))}
     </ul>
@@ -54,6 +59,7 @@ function FileRow({
   onRename,
   onDelete,
   onAddToTable,
+  onRetrace,
 }: { file: FileSummary } & Omit<Props, "files">) {
   const [editing, setEditing] = useState(false);
   const [draft, setDraft] = useState(file.displayName);
@@ -135,6 +141,12 @@ function FileRow({
             >
               <PlusSquare className="size-4" />
             </Button>
+            {file.hasBitmap && onRetrace && (
+              <BitmapTraceDialog
+                file={file}
+                onRetrace={(settings) => onRetrace(file.id, settings)}
+              />
+            )}
             <Button
               variant="ghost"
               size="icon"

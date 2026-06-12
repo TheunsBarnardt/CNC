@@ -44,7 +44,8 @@ public enum ImportedFileKind
 {
     Svg,
     Dxf,
-    Shape,  // drawn/created in-app (not imported from file)
+    Shape,   // drawn/created in-app (not imported from file)
+    Bitmap,  // raster image traced to vector
 }
 
 /// <summary>
@@ -66,6 +67,14 @@ public sealed class ImportedFile
 
     /// <summary>Warnings produced during import (unsupported entities etc.).</summary>
     public List<string> Warnings { get; init; } = [];
+
+    // ---- Bitmap-only fields (null for vector files) ----
+    /// <summary>Original raster bytes, served by GET /api/project/files/{id}/bitmap-image.</summary>
+    public byte[]? BitmapData { get; set; }
+    /// <summary>MIME type of BitmapData ("image/png" or "image/jpeg").</summary>
+    public string? BitmapMimeType { get; set; }
+    /// <summary>Settings used for the most recent trace, stored as JSON for re-trace.</summary>
+    public string? BitmapTraceSettingsJson { get; set; }
 }
 
 /// <summary>

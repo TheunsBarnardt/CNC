@@ -27,7 +27,7 @@ import { Separator } from "@/components/ui/separator";
 import type { ActiveTool, ShapeOptions, ShapeToolType } from "@/lib/tools";
 import { DEFAULT_SHAPE_OPTIONS } from "@/lib/tools";
 
-const ACCEPTED = [".svg", ".dxf"];
+const ACCEPTED = [".svg", ".dxf", ".png", ".jpg", ".jpeg", ".bmp", ".webp"];
 
 interface Props {
   activeTool: ActiveTool;

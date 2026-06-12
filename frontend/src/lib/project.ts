@@ -32,6 +32,17 @@ export interface FileSummary {
   heightMm: number;
   layers: string[];
   warnings: string[];
+  hasBitmap: boolean;
+  bitmapTraceSettingsJson: string | null;
+}
+
+export interface BitmapTraceSettings {
+  thresholdPercent: number;
+  invert: boolean;
+  brightness: number;   // -1..1
+  contrast: number;     // 0.1..3
+  mode: "outline" | "centerline";
+  simplifyToleranceMm: number;
 }
 
 /** A named layer for grouping parts (visibility / lock). */
@@ -70,7 +81,7 @@ export interface ProjectDto {
 
 /** One file's local-space geometry, as sent by GET /api/project/geometry. */
 export interface GeometryPath {
-  id: string;
+  id?: string;  // only present on paths received from backend; undefined for client-constructed paths
   layer: string | null;
   closed: boolean;
   points: [number, number][];
@@ -363,6 +374,23 @@ export const projectApi = {
     fetch(`${BACKEND_URL}/api/project/parts/${id}`, { method: "DELETE" }).then(
       (r) => json<ProjectDto>(r),
     ),
+
+  bitmapImageUrl: (fileId: string) =>
+    `${BACKEND_URL}/api/project/files/${fileId}/bitmap-image`,
+
+  retraceBitmap: (fileId: string, settings: BitmapTraceSettings) =>
+    fetch(`${BACKEND_URL}/api/project/files/${fileId}/retrace`, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({
+        thresholdPercent: settings.thresholdPercent,
+        invert: settings.invert,
+        brightness: settings.brightness,
+        contrast: settings.contrast,
+        mode: settings.mode,
+        simplifyToleranceMm: settings.simplifyToleranceMm,
+      }),
+    }).then((r) => json<ProjectDto>(r)),
 
   getCam: () =>
     fetch(`${BACKEND_URL}/api/project/cam`).then((r) => json<CamSettings>(r)),

@@ -1,5 +1,6 @@
 using Backend.Cam;
 using Backend.Import;
+using Backend.Import.Bitmap;
 using Backend.Models;
 using Backend.Nest;
 using Backend.Post;
@@ -848,9 +849,59 @@ public static class ProjectApi
             return Results.Ok(projects.With(ToDto));
         })
         .DisableAntiforgery();
+
+        // Serve the original raster image for a bitmap-traced file.
+        group.MapGet("/files/{id:guid}/bitmap-image", (Guid id, ProjectService projects) =>
+        {
+            var result = projects.With<(byte[]? data, string? mime)>(p =>
+            {
+                var f = p.Files.FirstOrDefault(x => x.Id == id);
+                return (f?.BitmapData, f?.BitmapMimeType);
+            });
+            if (result.data is null)
+                return Results.NotFound();
+            return Results.File(result.data, result.mime ?? "image/png");
+        });
+
+        // Re-trace a bitmap file with new settings.
+        group.MapPost("/files/{id:guid}/retrace", (Guid id, RetraceRequest request, ProjectService projects) =>
+        {
+            return projects.With<IResult>(p =>
+            {
+                var file = p.Files.FirstOrDefault(f => f.Id == id);
+                if (file is null || file.BitmapData is null)
+                    return Results.NotFound();
+
+                var settings = new BitmapTraceSettings(
+                    request.ThresholdPercent,
+                    request.Invert,
+                    request.Brightness,
+                    request.Contrast,
+                    request.Mode == "centerline" ? TraceMode.Centerline : TraceMode.Outline,
+                    request.SimplifyToleranceMm
+                );
+
+                var (newPaths, _, _) = BitmapTracer.Trace(file.BitmapData, settings);
+
+                projects.Mutate(mp =>
+                {
+                    var mf = mp.Files.First(f => f.Id == id);
+                    mf.Paths.Clear();
+                    foreach (var poly in newPaths)
+                        mf.Paths.Add(new PathGeometry { Polyline = poly });
+                    mf.Warnings.Clear();
+                    if (mf.Paths.Count == 0)
+                        mf.Warnings.Add("No foreground found — try adjusting the threshold.");
+                    mf.BitmapTraceSettingsJson =
+                        System.Text.Json.JsonSerializer.Serialize(settings);
+                });
+
+                return Results.Ok(projects.With(ToDto));
+            });
+        });
     }
 
-    private static string SafeFileName(string name)
+    private static string SafeFileName(string name) // placed after bitmap section
     {
         var invalid = Path.GetInvalidFileNameChars();
         var cleaned = new string(name.Select(c => invalid.Contains(c) ? '_' : c).ToArray()).Trim();
@@ -877,7 +928,9 @@ public static class ProjectApi
         double WidthMm,
         double HeightMm,
         IReadOnlyList<string> Layers,
-        IReadOnlyList<string> Warnings);
+        IReadOnlyList<string> Warnings,
+        bool HasBitmap,
+        string? BitmapTraceSettingsJson);
 
     public sealed record LayerDto(Guid Id, string Name, string Color, bool Visible, bool Locked);
     public sealed record PartDto(Guid Id, Guid FileId, double X, double Y, double RotationDeg, double ScaleX, double ScaleY, Guid? LayerId);
@@ -925,6 +978,15 @@ public static class ProjectApi
         TestParamRange Param1, TestParamRange Param2);
 
     public sealed record CreateLayerRequest(string? Name, string? Color);
+
+    public sealed record RetraceRequest(
+        int ThresholdPercent = 50,
+        bool Invert = false,
+        float Brightness = 0f,
+        float Contrast = 1f,
+        string Mode = "outline",    // "outline" | "centerline"
+        double SimplifyToleranceMm = 0.3
+    );
     public sealed record UpdateLayerRequest(string? Name, string? Color, bool? Visible, bool? Locked);
     public sealed record NestRequest(double? MarginMm, double? SpacingMm, int? RotationStepDeg);
 
@@ -1041,6 +1103,8 @@ public static class ProjectApi
             Math.Round(maxX, 2),
             Math.Round(maxY, 2),
             f.Paths.Select(p => p.Layer).OfType<string>().Distinct().Order().ToList(),
-            f.Warnings);
+            f.Warnings,
+            f.BitmapData is not null,
+            f.BitmapTraceSettingsJson);
     }
 }

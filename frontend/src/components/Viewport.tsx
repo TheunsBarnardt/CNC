@@ -1531,6 +1531,24 @@ export function Viewport({
         );
       })()}
 
+      {/* Measurement overlay — dimensions of the selected part. */}
+      {selectedBBox && !nodeEdit && (() => {
+        const w = selectedBBox.maxX - selectedBBox.minX;
+        const h = selectedBBox.maxY - selectedBBox.minY;
+        const [bx, by] = toScreen([selectedBBox.minX + w / 2, selectedBBox.minY]);
+        const suffix = project.units === "Inches" ? "in" : "mm";
+        const fmt = (v: number) =>
+          project.units === "Inches" ? (v / 25.4).toFixed(3) : v.toFixed(1);
+        return (
+          <div
+            className="pointer-events-none absolute select-none font-mono text-[10px] text-blue-500 opacity-80"
+            style={{ left: bx, top: by + 4, transform: "translateX(-50%)" }}
+          >
+            {fmt(w)}{suffix} × {fmt(h)}{suffix}
+          </div>
+        );
+      })()}
+
       {/* Boolean toolbar — shown when a secondary part is shift-selected. */}
       {!readOnly && selectedPartId && secondaryPartId && (
         <BooleanToolbar

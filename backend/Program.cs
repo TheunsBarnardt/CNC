@@ -8,6 +8,7 @@ using Backend.Import.Svg;
 using Backend.Machine;
 using Backend.Post;
 using Backend.Services;
+using Backend.Models;
 
 var builder = WebApplication.CreateBuilder(args);
 
@@ -58,6 +59,10 @@ builder.Services.AddSingleton<PostProcessorRegistry>();
 // Material profiles: app-level presets persisted under LocalAppData.
 builder.Services.AddSingleton<ProfileStore>();
 
+// Project templates and element library.
+builder.Services.AddSingleton<TemplateStore>();
+builder.Services.AddSingleton<ElementStore>();
+
 // Job checkpoints: power-loss recovery persisted under LocalAppData.
 builder.Services.AddSingleton<CheckpointService>();
 
@@ -84,6 +89,8 @@ app.MapGet("/api/health", () => Results.Ok(new
 app.MapProjectApi();
 app.MapProfileApi();
 app.MapMachineApi();
+app.MapTemplateApi();
+app.MapLibraryApi();
 app.MapHub<MachineHub>("/hubs/machine");
 
 app.Run();

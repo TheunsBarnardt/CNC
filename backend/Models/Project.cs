@@ -101,6 +101,20 @@ public sealed class Part
     public Guid? LayerId { get; set; }
 }
 
+/// <summary>
+/// Processing operation assigned to a layer. Determines how paths on this
+/// layer are treated by the CAM engine and post-processor.
+/// </summary>
+public enum LayerOperationMode
+{
+    /// <summary>Normal full-depth cut (default).</summary>
+    Cut,
+    /// <summary>Lighter pass — for laser: lower power; for plasma: same kerf at reduced feed.</summary>
+    Score,
+    /// <summary>Surface mark / engrave — for laser: low power fast pass; no pierce for plasma.</summary>
+    Engrave,
+}
+
 /// <summary>A named layer that groups parts for visibility / lock control.</summary>
 public sealed class Layer
 {
@@ -110,6 +124,12 @@ public sealed class Layer
     public string Color { get; set; } = "#3b82f6";
     public bool Visible { get; set; } = true;
     public bool Locked { get; set; } = false;
+    /// <summary>Processing mode for paths on this layer. Defaults to Cut.</summary>
+    public LayerOperationMode OperationMode { get; set; } = LayerOperationMode.Cut;
+    /// <summary>Per-layer feed rate override (mm/min). Null = use global CAM setting.</summary>
+    public double? FeedRateMmMinOverride { get; set; }
+    /// <summary>Per-layer laser power override (0–100 %). Null = use global CAM setting.</summary>
+    public double? LaserPowerPercentOverride { get; set; }
 }
 
 /// <summary>A whole project: table setup + imported files. Saved as one JSON file.</summary>

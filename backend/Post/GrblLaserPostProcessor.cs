@@ -27,15 +27,15 @@ public sealed class GrblLaserPostProcessor : IPostProcessor
         var g = new GcodeProgram();
         var cam = project.Cam;
 
-        // S-word range: 0-1000 (GRBL default $30=1000). Map 0-100 % linearly.
-        int sValue = (int)Math.Clamp(Math.Round(cam.LaserPowerPercent * 10), 0, 1000);
+        // Default S-value from global settings (used in header comment).
+        int defaultS = (int)Math.Clamp(Math.Round(cam.LaserPowerPercent * 10), 0, 1000);
 
         var workOrigin = OriginPoint(project.Table);
 
         g.Lines.Add($"; {project.Name} — {DisplayName} post");
         g.Lines.Add($"; Generated {DateTime.Now:yyyy-MM-dd HH:mm} by DIY GRBL Cutting CAM");
         g.Lines.Add($"; Table {Num(project.Table.WidthMm)}x{Num(project.Table.HeightMm)}mm, work origin: {project.Table.Origin}");
-        g.Lines.Add($"; Laser power {Num(cam.LaserPowerPercent)}% (S{sValue}) | Feed {Num(cam.FeedRateMmMin)}mm/min");
+        g.Lines.Add($"; Laser power {Num(cam.LaserPowerPercent)}% (S{defaultS} default) | Feed {Num(cam.FeedRateMmMin)}mm/min");
         g.Lines.Add("; IMPORTANT: set $32=1 (laser mode) on the controller before running");
         foreach (var warning in toolpath.Warnings)
             g.Lines.Add($"; WARNING: {warning}");
@@ -54,9 +54,18 @@ public sealed class GrblLaserPostProcessor : IPostProcessor
         foreach (var cut in toolpath.Cuts)
         {
             n++;
-            g.Lines.Add($"; --- cut {n}/{toolpath.Cuts.Count}: {cut.Side}" +
+            // Per-cut S-word: resolved by CamEngine from layer settings (0 = no override → use default).
+            int sValue = cut.LaserPowerS > 0 ? cut.LaserPowerS : defaultS;
+            string modeTag = cut.OperationMode switch
+            {
+                Backend.Models.LayerOperationMode.Score   => " [score]",
+                Backend.Models.LayerOperationMode.Engrave => " [engrave]",
+                _ => "",
+            };
+
+            g.Lines.Add($"; --- cut {n}/{toolpath.Cuts.Count}: {cut.Side}{modeTag}" +
                         (cut.Layer is null ? "" : $", layer {cut.Layer}") +
-                        $", {Num(Math.Round(cut.CutLengthMm(), 1))}mm ---");
+                        $", S{sValue}, {Num(Math.Round(cut.CutLengthMm(), 1))}mm ---");
 
             g.Lines.Add($"G0 {Xy(cut.Points[0], workOrigin)}");
             g.Lines.Add($"M3 S{sValue} ; laser on");

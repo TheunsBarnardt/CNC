@@ -15,6 +15,38 @@ public static class CamEngine
     {
         var toolpath = new Toolpath();
 
+        // Build lookup dictionaries for per-layer operation mode resolution.
+        var layerById = project.Layers.ToDictionary(l => l.Id);
+        var partById = project.Parts.ToDictionary(p => p.Id);
+        Layer? PartLayer(Part p) =>
+            p.LayerId.HasValue && layerById.TryGetValue(p.LayerId.Value, out var l) ? l : null;
+
+        // Resolve laser S-word for a cut given its layer and the global cam settings.
+        int ResolveLaserS(Layer? layer, LayerOperationMode mode)
+        {
+            double pct = layer?.LaserPowerPercentOverride ?? settings.LaserPowerPercent;
+            pct = mode switch
+            {
+                LayerOperationMode.Score   => pct * 0.5,
+                LayerOperationMode.Engrave => pct * 0.2,
+                _                         => pct,
+            };
+            return (int)Math.Clamp(Math.Round(pct * 10), 0, 1000);
+        }
+
+        // Resolve feed rate for a cut given its layer and the global cam settings.
+        double ResolveFeed(Layer? layer, LayerOperationMode mode)
+        {
+            double feed = layer?.FeedRateMmMinOverride ?? settings.FeedRateMmMin;
+            // Score is slower to allow better material marking; engrave is faster.
+            return mode switch
+            {
+                LayerOperationMode.Score   => feed * 0.7,
+                LayerOperationMode.Engrave => feed * 1.5,
+                _                         => feed,
+            };
+        }
+
         // 1. Gather world-space paths from every visible placed part.
         var worldPaths = new List<WorldPath>();
         foreach (var part in project.Parts)
@@ -128,6 +160,8 @@ public static class CamEngine
                 points = contour.Points.ToList();
             }
 
+            var partLayer = partById.TryGetValue(source.PartId, out var sp) ? PartLayer(sp) : null;
+            var opMode = partLayer?.OperationMode ?? LayerOperationMode.Cut;
             toolpath.Cuts.Add(new Cut
             {
                 PartId = source.PartId,
@@ -139,7 +173,9 @@ public static class CamEngine
                 LeadOutPointCount = leadOut,
                 IsClosedContour = isClosedContour,
                 PierceDelayS = (isLaser || isVinyl) ? 0 : settings.PierceDelayS,
-                FeedRateMmMin = settings.FeedRateMmMin,
+                FeedRateMmMin = ResolveFeed(partLayer, opMode),
+                OperationMode = opMode,
+                LaserPowerS = isLaser ? ResolveLaserS(partLayer, opMode) : 0,
             });
         }
 

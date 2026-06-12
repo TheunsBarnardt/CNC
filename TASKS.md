@@ -447,7 +447,25 @@ Each is one session; split further if a task grows.*
 > where engrave processing actually consumes them.
 > Summarize, compact and commit. 
 
-### [ ] Task 19 — Templates, element library, canvas QoL & efficiency tools
+### [x] Task 19 — Templates, element library, canvas QoL & efficiency tools
+<!-- Done: Per-layer operation mode (Cut/Score/Engrave) — LayerOperationMode enum on
+     backend Layer model; CamEngine resolves per-layer feed rate (Score×0.7, Engrave×1.5)
+     and laser power (Score×0.5, Engrave×0.2) with optional per-layer overrides;
+     GrblLaserPostProcessor uses per-cut LaserPowerS; LayerDto + UpdateLayerRequest
+     extended; LayersPanel shows Cut/Score/Engrave combobox per layer row.
+     Project templates — TemplateStore persists stripped project snapshots (no BitmapData)
+     as {id}.json in %LOCALAPPDATA%/diy-grbl-cam/templates/; TemplateApi: list/save/load/delete;
+     TemplateDialog component with save form + saved template list (load/delete buttons);
+     Templates button in header.
+     Element library — ElementStore persists named PathGeometry collections as {id}.json
+     in %LOCALAPPDATA%/diy-grbl-cam/library/; LibraryApi: list/save/insert/delete;
+     LibraryPanel popover in left creation rail with file picker to save + insert button.
+     Measurement overlay — when a part is selected (not in node-edit mode), W×H readout
+     appears below the bounding box in canvas coordinates in current units.
+     Canvas light/dark, grid, snap — already built in Task 6b; no duplication.
+     Step-and-repeat — covered by Task 17 ArrayPanel; no duplication.
+     Deferred: Smart fill (polygon flood-fill, complex geometry — out of scope for now);
+     batch parameter assignment (requires multi-select deferred since Task 2). -->
 > Project templates and a reusable element/shape library; canvas light/dark toggle,
 > grid show/hide, snap settings UI; per-object processing-mode assignment UI
 > (cut/engrave/score per layer or object — wires the existing per-layer provenance

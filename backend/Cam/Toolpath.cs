@@ -1,4 +1,5 @@
 using Backend.Geometry;
+using Backend.Models;
 
 namespace Backend.Cam;
 
@@ -38,6 +39,10 @@ public sealed class Cut
 
     public double PierceDelayS { get; init; }
     public double FeedRateMmMin { get; init; }
+    /// <summary>Resolved layer operation mode for this cut.</summary>
+    public LayerOperationMode OperationMode { get; init; } = LayerOperationMode.Cut;
+    /// <summary>Resolved laser S-word value (0–1000). Laser post-processor uses this directly.</summary>
+    public int LaserPowerS { get; init; }
 
     public Point2 PierceAt => Points[0];
     public Point2 EndsAt => Points[^1];

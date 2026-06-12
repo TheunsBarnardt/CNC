@@ -1,6 +1,7 @@
 import { useCallback, useEffect, useRef, useState } from "react";
 import { Download, FilePlus2, FolderOpen, Pencil, PlayCircle } from "lucide-react";
 import { Button } from "@/components/ui/button";
+import { TemplateDialog } from "@/components/TemplateDialog";
 import {
   Card,
   CardContent,
@@ -230,6 +231,26 @@ function App() {
     [run],
   );
 
+  /** Replace the current project with a loaded template and reload geometry. */
+  const handleTemplateLoad = useCallback(
+    async (dto: import("@/lib/project").ProjectDto) => {
+      setProject(dto);
+      await refreshGeometry();
+      setSelectedPartId(null);
+      setSecondaryPartId(null);
+    },
+    [refreshGeometry],
+  );
+
+  /** Handle library element insertion — project updated, geometry reloaded. */
+  const handleLibraryInsert = useCallback(
+    async (dto: import("@/lib/project").ProjectDto) => {
+      setProject(dto);
+      await refreshGeometry();
+    },
+    [refreshGeometry],
+  );
+
   const handleRetrace = useCallback(
     async (fileId: string, settings: BitmapTraceSettings) => {
       await run(() => projectApi.retraceBitmap(fileId, settings), true);
@@ -319,6 +340,7 @@ function App() {
               >
                 <FolderOpen className="size-4" /> Open
               </Button>
+              <TemplateDialog onLoad={(dto) => void handleTemplateLoad(dto)} />
               <Button variant="ghost" size="sm" asChild>
                 <a href={projectApi.exportUrl} download>
                   <Download className="size-4" /> Save
@@ -359,6 +381,8 @@ function App() {
           onImport={handleImport}
           busy={importing}
           disabled={mode === "preview"}
+          files={project?.files ?? []}
+          onLibraryInsert={handleLibraryInsert}
         />
 
         {/* Canvas area */}

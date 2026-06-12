@@ -696,6 +696,13 @@ public static class ProjectApi
                 if (request.Color is { Length: > 0 } c) layer.Color = c;
                 if (request.Visible is { } v) layer.Visible = v;
                 if (request.Locked is { } lk) layer.Locked = lk;
+                // Operation mode + overrides are updated together; send OperationMode to trigger.
+                if (request.OperationMode.HasValue)
+                {
+                    layer.OperationMode = request.OperationMode.Value;
+                    layer.FeedRateMmMinOverride = request.FeedRateMmMinOverride;
+                    layer.LaserPowerPercentOverride = request.LaserPowerPercentOverride;
+                }
                 return true;
             });
             return found ? Results.Ok(projects.With(ToDto)) : Results.NotFound();
@@ -932,7 +939,8 @@ public static class ProjectApi
         bool HasBitmap,
         string? BitmapTraceSettingsJson);
 
-    public sealed record LayerDto(Guid Id, string Name, string Color, bool Visible, bool Locked);
+    public sealed record LayerDto(Guid Id, string Name, string Color, bool Visible, bool Locked,
+        LayerOperationMode OperationMode, double? FeedRateMmMinOverride, double? LaserPowerPercentOverride);
     public sealed record PartDto(Guid Id, Guid FileId, double X, double Y, double RotationDeg, double ScaleX, double ScaleY, Guid? LayerId);
 
     public sealed record ProjectDto(
@@ -987,7 +995,8 @@ public static class ProjectApi
         string Mode = "outline",    // "outline" | "centerline"
         double SimplifyToleranceMm = 0.3
     );
-    public sealed record UpdateLayerRequest(string? Name, string? Color, bool? Visible, bool? Locked);
+    public sealed record UpdateLayerRequest(string? Name, string? Color, bool? Visible, bool? Locked,
+        LayerOperationMode? OperationMode, double? FeedRateMmMinOverride, double? LaserPowerPercentOverride);
     public sealed record NestRequest(double? MarginMm, double? SpacingMm, int? RotationStepDeg);
 
     public sealed record NestResultDto(
@@ -1069,6 +1078,7 @@ public static class ProjectApi
         Math.Round(tp.TotalRapidLengthMm(new Backend.Geometry.Point2(0, 0)), 2),
         tp.Warnings);
 
+    internal static ProjectDto ToProjectDto(Project p) => ToDto(p);
     private static ProjectDto ToDto(Project p) => new(
         p.Name,
         p.Units,
@@ -1076,7 +1086,8 @@ public static class ProjectApi
             p.Table.WidthMm, p.Table.HeightMm, p.Table.Origin, p.Table.MaterialThicknessMm),
         p.Files.Select(ToFileDto).ToList(),
         p.Parts.Select(x => new PartDto(x.Id, x.FileId, x.X, x.Y, x.RotationDeg, x.ScaleX, x.ScaleY, x.LayerId)).ToList(),
-        p.Layers.Select(l => new LayerDto(l.Id, l.Name, l.Color, l.Visible, l.Locked)).ToList());
+        p.Layers.Select(l => new LayerDto(l.Id, l.Name, l.Color, l.Visible, l.Locked,
+            l.OperationMode, l.FeedRateMmMinOverride, l.LaserPowerPercentOverride)).ToList());
 
     private static FileSummaryDto ToFileDto(ImportedFile f)
     {

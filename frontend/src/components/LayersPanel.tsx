@@ -1,7 +1,14 @@
 import { useRef, useState } from "react";
 import { Eye, EyeOff, Lock, LockOpen, Plus, Trash2 } from "lucide-react";
 import { Button } from "@/components/ui/button";
-import type { Layer } from "@/lib/project";
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from "@/components/ui/select";
+import type { Layer, LayerOperationMode } from "@/lib/project";
 
 interface Props {
   layers: Layer[];
@@ -85,6 +92,27 @@ export function LayersPanel({
                 {layer.name}
               </span>
             )}
+
+            {/* Operation mode */}
+            <Select
+              value={layer.operationMode ?? "Cut"}
+              onValueChange={(v) => {
+                onUpdate(layer.id, { operationMode: v as LayerOperationMode });
+              }}
+            >
+              <SelectTrigger
+                className="h-5 w-20 shrink-0 border-0 bg-transparent px-1 text-[10px] focus:ring-0"
+                onClick={(e) => e.stopPropagation()}
+                title="Processing mode for paths on this layer"
+              >
+                <SelectValue />
+              </SelectTrigger>
+              <SelectContent>
+                <SelectItem value="Cut" className="text-xs">Cut</SelectItem>
+                <SelectItem value="Score" className="text-xs">Score</SelectItem>
+                <SelectItem value="Engrave" className="text-xs">Engrave</SelectItem>
+              </SelectContent>
+            </Select>
 
             {/* Visibility */}
             <Button

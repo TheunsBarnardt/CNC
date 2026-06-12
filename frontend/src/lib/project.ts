@@ -45,6 +45,8 @@ export interface BitmapTraceSettings {
   simplifyToleranceMm: number;
 }
 
+export type LayerOperationMode = "Cut" | "Score" | "Engrave";
+
 /** A named layer for grouping parts (visibility / lock). */
 export interface Layer {
   id: string;
@@ -52,6 +54,9 @@ export interface Layer {
   color: string;
   visible: boolean;
   locked: boolean;
+  operationMode: LayerOperationMode;
+  feedRateMmMinOverride: number | null;
+  laserPowerPercentOverride: number | null;
 }
 
 /**
@@ -352,7 +357,15 @@ export const projectApi = {
 
   updateLayer: (
     id: string,
-    patch: { name?: string; color?: string; visible?: boolean; locked?: boolean },
+    patch: {
+      name?: string;
+      color?: string;
+      visible?: boolean;
+      locked?: boolean;
+      operationMode?: LayerOperationMode;
+      feedRateMmMinOverride?: number | null;
+      laserPowerPercentOverride?: number | null;
+    },
   ) =>
     fetch(`${BACKEND_URL}/api/project/layers/${id}`, {
       method: "PATCH",
@@ -474,6 +487,70 @@ export const projectApi = {
       body: form,
     }).then((r) => json<ProjectDto>(r));
   },
+};
+
+// --- Templates & Library types ----------------------------------------------
+
+export interface TemplateInfo {
+  id: string;
+  name: string;
+  createdAt: string;
+  partCount: number;
+  fileCount: number;
+  description: string;
+}
+
+export interface ElementInfo {
+  id: string;
+  name: string;
+  createdAt: string;
+  pathCount: number;
+  widthMm: number;
+  heightMm: number;
+}
+
+export const templateApi = {
+  list: () =>
+    fetch(`${BACKEND_URL}/api/templates`).then((r) => json<TemplateInfo[]>(r)),
+
+  save: (name: string, description = "") =>
+    fetch(`${BACKEND_URL}/api/templates`, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ name, description }),
+    }).then((r) => json<TemplateInfo>(r)),
+
+  load: (id: string) =>
+    fetch(`${BACKEND_URL}/api/templates/${id}/load`, { method: "POST" }).then(
+      (r) => json<ProjectDto>(r),
+    ),
+
+  delete: (id: string) =>
+    fetch(`${BACKEND_URL}/api/templates/${id}`, { method: "DELETE" }).then(
+      (r) => { if (!r.ok) throw new Error(`${r.status} ${r.statusText}`); },
+    ),
+};
+
+export const libraryApi = {
+  list: () =>
+    fetch(`${BACKEND_URL}/api/library`).then((r) => json<ElementInfo[]>(r)),
+
+  save: (name: string, fileId: string) =>
+    fetch(`${BACKEND_URL}/api/library`, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ name, fileId }),
+    }).then((r) => json<ElementInfo>(r)),
+
+  insert: (id: string) =>
+    fetch(`${BACKEND_URL}/api/library/${id}/insert`, { method: "POST" }).then(
+      (r) => json<ProjectDto>(r),
+    ),
+
+  delete: (id: string) =>
+    fetch(`${BACKEND_URL}/api/library/${id}`, { method: "DELETE" }).then(
+      (r) => { if (!r.ok) throw new Error(`${r.status} ${r.statusText}`); },
+    ),
 };
 
 // --- unit display helpers ---------------------------------------------------

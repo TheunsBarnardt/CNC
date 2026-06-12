@@ -38,6 +38,12 @@ public sealed class ProjectService
         lock (_gate) _project = new Project { Name = name };
     }
 
+    /// <summary>Replaces the current project with the given instance (e.g. loaded from a template).</summary>
+    public void ReplaceProject(Project project)
+    {
+        lock (_gate) _project = project;
+    }
+
     public string ExportJson()
     {
         lock (_gate) return JsonSerializer.Serialize(_project, JsonOptions);

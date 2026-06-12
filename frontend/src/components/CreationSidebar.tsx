@@ -26,6 +26,8 @@ import {
 import { Separator } from "@/components/ui/separator";
 import type { ActiveTool, ShapeOptions, ShapeToolType } from "@/lib/tools";
 import { DEFAULT_SHAPE_OPTIONS } from "@/lib/tools";
+import { LibraryPanel } from "@/components/LibraryPanel";
+import type { FileSummary, ProjectDto } from "@/lib/project";
 
 const ACCEPTED = [".svg", ".dxf", ".png", ".jpg", ".jpeg", ".bmp", ".webp"];
 
@@ -35,6 +37,8 @@ interface Props {
   onImport: (files: File[]) => void;
   busy: boolean;
   disabled?: boolean;
+  files?: FileSummary[];
+  onLibraryInsert?: (project: ProjectDto) => void;
 }
 
 function ToolBtn({
@@ -102,6 +106,8 @@ export function CreationSidebar({
   onImport,
   busy,
   disabled = false,
+  files = [],
+  onLibraryInsert,
 }: Props) {
   const inputRef = useRef<HTMLInputElement>(null);
   const [shapeOpts, setShapeOpts] = useState<ShapeOptions>(DEFAULT_SHAPE_OPTIONS);
@@ -256,6 +262,17 @@ export function CreationSidebar({
       >
         <Type className="size-5" />
       </ToolBtn>
+
+      <Separator className="my-1 w-7" />
+
+      {/* Element library */}
+      {onLibraryInsert && (
+        <LibraryPanel
+          files={files}
+          onInsert={onLibraryInsert}
+          disabled={disabled}
+        />
+      )}
 
       <input
         ref={inputRef}

@@ -4,6 +4,7 @@ export interface Guide {
   axis: "h" | "v";
   posMm: number;
   locked: boolean;
+  label?: string;
 }
 
 const STORAGE_KEY = "grblcam-guides";

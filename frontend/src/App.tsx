@@ -3,6 +3,12 @@ import { Download, FilePlus2, FolderOpen, Pencil, PlayCircle } from "lucide-reac
 import { Button } from "@/components/ui/button";
 import { TemplateDialog } from "@/components/TemplateDialog";
 import {
+  Dialog,
+  DialogContent,
+  DialogHeader,
+  DialogTitle,
+} from "@/components/ui/dialog";
+import {
   Card,
   CardContent,
   CardDescription,
@@ -58,6 +64,7 @@ function App() {
   const [guides, setGuides] = useState<Guide[]>(loadGuides);
   const [activeLayerId, setActiveLayerId] = useState<string | null>(null);
   const { settings, update: updateSettings_ } = useSettings();
+  const [showProjectSettingsModal, setShowProjectSettingsModal] = useState(false);
 
   const applyGeometry = (files: FileGeometry[]) =>
     setGeometry(new Map(files.map((f) => [f.fileId, f.paths])));
@@ -435,6 +442,8 @@ function App() {
                 onGuidesChange={handleGuidesChange}
                 layers={project?.layers}
                 settings={settings}
+                onUpdateSettings={updateSettings_}
+                onProjectSettings={() => setShowProjectSettingsModal(true)}
                 simulation={mode === "preview" ? simulation : null}
                 simTime={simTime}
                 readOnly={mode === "preview"}
@@ -598,6 +607,18 @@ function App() {
           )}
         </aside>
       </main>
+
+      {/* Project settings modal — opened from canvas right-click menu. */}
+      {project && (
+        <Dialog open={showProjectSettingsModal} onOpenChange={setShowProjectSettingsModal}>
+          <DialogContent className="max-w-lg">
+            <DialogHeader>
+              <DialogTitle>Project Settings</DialogTitle>
+            </DialogHeader>
+            <ProjectSettingsCard project={project} onUpdate={updateSettings} />
+          </DialogContent>
+        </Dialog>
+      )}
     </div>
   );
 }

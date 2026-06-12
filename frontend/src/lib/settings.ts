@@ -1,10 +1,13 @@
 import { useState } from "react";
 
+export type RulerUnit = "mm" | "cm" | "m" | "in" | "ft";
+
 export interface AppSettings {
   showRulers: boolean;
   showGuides: boolean;
   snapToGuides: boolean;
   mouseWheelPans: boolean;
+  rulerUnit: RulerUnit;
 }
 
 const STORAGE_KEY = "grblcam-settings";
@@ -13,6 +16,7 @@ const DEFAULTS: AppSettings = {
   showGuides: true,
   snapToGuides: true,
   mouseWheelPans: false,
+  rulerUnit: "mm",
 };
 
 export function useSettings() {

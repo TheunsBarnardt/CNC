@@ -35,6 +35,9 @@ import { stateAt, type Simulation } from "@/lib/simulation";
 import type { ActiveTool } from "@/lib/tools";
 import type { Guide } from "@/lib/guides";
 import type { AppSettings } from "@/lib/settings";
+import { GuideDialog } from "@/components/GuideDialog";
+import { CanvasContextMenu, type ContextMenuItem } from "@/components/CanvasContextMenu";
+import { rulerFormatMm, rulerTickStepsMm, rulerDisplayValue } from "@/lib/project";
 import {
   circleFromCenter,
   ellipseFromPoints,
@@ -66,6 +69,8 @@ interface ViewportProps {
   onGuidesChange?: (guides: Guide[]) => void;
   layers?: Layer[];
   settings?: AppSettings;
+  onUpdateSettings?: (patch: Partial<AppSettings>) => void;
+  onProjectSettings?: () => void;
   simulation?: Simulation | null;
   simTime?: number;
   readOnly?: boolean;
@@ -164,6 +169,8 @@ export function Viewport({
   onGuidesChange,
   layers,
   settings,
+  onUpdateSettings,
+  onProjectSettings,
   simulation = null,
   simTime = 0,
   readOnly = false,
@@ -186,6 +193,13 @@ export function Viewport({
   const fittedRef = useRef(false);
   // Guide being created (id=null) or dragged (id=guideId).
   const [guideDrag, setGuideDrag] = useState<{ id: string | null; axis: "h" | "v"; posMm: number } | null>(null);
+  // Guide being hovered (for highlight).
+  const [hoveredGuideId, setHoveredGuideId] = useState<string | null>(null);
+  // Canvas context menu state.
+  type CtxMenuTarget = { type: "guide"; guideId: string } | { type: "part" } | { type: "canvas"; worldX: number; worldY: number } | { type: "ruler" };
+  const [contextMenu, setContextMenu] = useState<{ x: number; y: number; target: CtxMenuTarget } | null>(null);
+  // Guide properties dialog.
+  const [guideDialog, setGuideDialog] = useState<Guide | null>(null);
 
   const RULER_PX = 20; // thickness of ruler strips in CSS px
 
@@ -309,18 +323,41 @@ export function Viewport({
   // --- pointer handlers -----------------------------------------------------
 
   const handlePointerDown = (e: React.PointerEvent) => {
-    // Right-click on guide: toggle lock.
-    if (e.button === 2 && !readOnly && (settings?.showGuides ?? true)) {
+    // Right-click: context menus.
+    if (e.button === 2) {
+      e.preventDefault();
       const s = screenPos(e);
-      for (const guide of guides) {
-        const dist = guide.axis === "v"
-          ? Math.abs(s[0] - (toScreen([guide.posMm, 0])[0]))
-          : Math.abs(s[1] - (toScreen([0, guide.posMm])[1]));
-        if (dist < 7) {
-          onGuidesChange?.(guides.map((g) => g.id === guide.id ? { ...g, locked: !g.locked } : g));
+      const R = RULER_PX;
+      // Right-click on ruler strip → unit picker.
+      if ((settings?.showRulers ?? true) && (s[1] < R || s[0] < R)) {
+        setContextMenu({ x: s[0], y: s[1], target: { type: "ruler" } });
+        return;
+      }
+      // Right-click on a guide line.
+      if (settings?.showGuides ?? true) {
+        for (const guide of guides) {
+          const dist = guide.axis === "v"
+            ? Math.abs(s[0] - toScreen([guide.posMm, 0])[0])
+            : Math.abs(s[1] - toScreen([0, guide.posMm])[1]);
+          if (dist < 7) {
+            setContextMenu({ x: s[0], y: s[1], target: { type: "guide", guideId: guide.id } });
+            return;
+          }
+        }
+      }
+      // Right-click on selected part.
+      if (selectedPart) {
+        const world = toWorld(s);
+        const paths = geometry.get(selectedPart.fileId);
+        if (paths && hitTestPart(selectedPart, paths, world, 5)) {
+          setContextMenu({ x: s[0], y: s[1], target: { type: "part" } });
           return;
         }
       }
+      // Right-click on empty canvas.
+      const world = toWorld(s);
+      setContextMenu({ x: s[0], y: s[1], target: { type: "canvas", worldX: world[0], worldY: world[1] } });
+      return;
     }
     if (e.button !== 0 && e.button !== 1) return;
     try { canvasRef.current?.setPointerCapture(e.pointerId); } catch { /* best-effort */ }
@@ -520,10 +557,24 @@ export function Viewport({
     const snapped = snapWorld(world);
     setCursorMm(world);
 
-    // Guide drag update.
+    // Guide drag update (with optional snap).
     if (guideDrag) {
-      setGuideDrag((gd) => gd ? { ...gd, posMm: gd.axis === "v" ? world[0] : world[1] } : null);
+      let posMm = guideDrag.axis === "v" ? world[0] : world[1];
+      if (snap) posMm = Math.round(posMm / snapStep) * snapStep;
+      setGuideDrag((gd) => gd ? { ...gd, posMm } : null);
       return;
+    }
+
+    // Guide hover detection.
+    if (settings?.showGuides ?? true) {
+      let found: string | null = null;
+      for (const guide of guides) {
+        const dist = guide.axis === "v"
+          ? Math.abs(screen[0] - toScreen([guide.posMm, 0])[0])
+          : Math.abs(screen[1] - toScreen([0, guide.posMm])[1]);
+        if (dist < 7) { found = guide.id; break; }
+      }
+      setHoveredGuideId(found);
     }
 
     // Update drawing preview.
@@ -714,6 +765,20 @@ export function Viewport({
     const name = nameMap[activeTool.type] ?? "Shape";
     onShapeCreated?.(result.paths, name, result.x, result.y);
     onToolReset?.();
+  };
+
+  const handleDoubleClick = (e: React.MouseEvent) => {
+    if (readOnly || !(settings?.showGuides ?? true)) return;
+    const s = screenPos(e);
+    for (const guide of guides) {
+      const dist = guide.axis === "v"
+        ? Math.abs(s[0] - toScreen([guide.posMm, 0])[0])
+        : Math.abs(s[1] - toScreen([0, guide.posMm])[1]);
+      if (dist < 7) {
+        setGuideDialog(guide);
+        return;
+      }
+    }
   };
 
   const handleWheel = (e: React.WheelEvent) => {
@@ -1374,7 +1439,7 @@ export function Viewport({
 
     // ── Guide lines ───────────────────────────────────────────────────────────
     if (settings?.showGuides ?? true) {
-      const allGuides: Array<{ id: string | null; axis: "h" | "v"; posMm: number; locked: boolean }> =
+      const allGuides: Array<{ id: string | null; axis: "h" | "v"; posMm: number; locked: boolean; label?: string }> =
         guides.map((g) => ({ ...g }));
       // Overlay the live drag position.
       if (guideDrag) {
@@ -1382,11 +1447,18 @@ export function Viewport({
         if (idx >= 0) allGuides[idx] = { ...allGuides[idx], posMm: guideDrag.posMm };
         else allGuides.push({ id: null, axis: guideDrag.axis, posMm: guideDrag.posMm, locked: false });
       }
+      const rulerUnit = settings?.rulerUnit ?? "mm";
       for (const g of allGuides) {
-        ctx.strokeStyle = g.locked ? "#a855f7" : "#e91e8c";
-        ctx.globalAlpha = 0.75;
-        ctx.lineWidth = 1;
-        ctx.setLineDash(g.locked ? [5, 3] : []);
+        const isActiveDrag = guideDrag && (g.id === guideDrag.id || (g.id === null && guideDrag.id === null));
+        const isHovered = !isActiveDrag && g.id !== null && g.id === hoveredGuideId;
+        // Color: active=cyan, hover=bright pink, locked=purple, normal=pink
+        let color = g.locked ? "#a855f7" : "#e91e8c";
+        if (isHovered) color = "#ff4db3";
+        if (isActiveDrag) color = "#00bcd4";
+        ctx.strokeStyle = color;
+        ctx.globalAlpha = isHovered || isActiveDrag ? 0.95 : 0.75;
+        ctx.lineWidth = isHovered ? 1.5 : 1;
+        ctx.setLineDash(g.locked || isActiveDrag ? [5, 3] : []);
         if (g.axis === "h") {
           const [, sy] = toScreen([0, g.posMm]);
           ctx.beginPath(); ctx.moveTo(0, sy); ctx.lineTo(size.w, sy); ctx.stroke();
@@ -1395,6 +1467,42 @@ export function Viewport({
           ctx.beginPath(); ctx.moveTo(sx, 0); ctx.lineTo(sx, size.h); ctx.stroke();
         }
         ctx.setLineDash([]);
+        // Label next to ruler edge.
+        if (g.label) {
+          ctx.globalAlpha = 0.9;
+          ctx.fillStyle = color;
+          ctx.font = "9px system-ui";
+          ctx.textAlign = "left";
+          ctx.textBaseline = "bottom";
+          if (g.axis === "h") {
+            const [, sy] = toScreen([0, g.posMm]);
+            ctx.fillText(g.label, RULER_PX + 3, sy - 2);
+          } else {
+            const [sx] = toScreen([g.posMm, 0]);
+            ctx.fillText(g.label, sx + 3, RULER_PX + 12);
+          }
+        }
+        // Position label while dragging.
+        if (isActiveDrag) {
+          const posLabel = `${rulerFormatMm(g.posMm, rulerUnit)} ${rulerUnit}`;
+          ctx.globalAlpha = 1;
+          ctx.font = "bold 10px system-ui";
+          const tw = ctx.measureText(posLabel).width;
+          let lx: number, ly: number;
+          if (g.axis === "h") {
+            const [, sy] = toScreen([0, g.posMm]);
+            lx = RULER_PX + 8; ly = sy - 14;
+          } else {
+            const [sx] = toScreen([g.posMm, 0]);
+            lx = sx + 6; ly = RULER_PX + 14;
+          }
+          ctx.fillStyle = darkCanvas ? "rgba(0,0,0,0.8)" : "rgba(255,255,255,0.9)";
+          ctx.fillRect(lx - 3, ly - 10, tw + 6, 14);
+          ctx.fillStyle = "#00bcd4";
+          ctx.textAlign = "left";
+          ctx.textBaseline = "top";
+          ctx.fillText(posLabel, lx, ly - 9);
+        }
         ctx.globalAlpha = 1;
       }
     }
@@ -1422,7 +1530,9 @@ export function Viewport({
       ctx.moveTo(R, 0); ctx.lineTo(R, size.h);   // right of left ruler
       ctx.stroke();
 
-      const minor = [1, 2, 5, 10, 25, 50, 100, 250].find((s) => s * view.scale >= 20) ?? 500;
+      const rulerUnit = settings?.rulerUnit ?? "mm";
+      const tickSteps = rulerTickStepsMm(rulerUnit);
+      const minor = tickSteps.find((s) => s * view.scale >= 20) ?? tickSteps[tickSteps.length - 1];
       ctx.strokeStyle = tickCol;
       ctx.fillStyle = labelCol;
       ctx.lineWidth = 0.5;
@@ -1435,12 +1545,18 @@ export function Viewport({
       const xEnd = Math.ceil((size.w - view.tx) / view.scale / minor) * minor;
       for (let wx = xStart; wx <= xEnd; wx += minor) {
         const sx = wx * view.scale + view.tx;
-        const major = wx % (minor * 5) === 0;
+        // "major" = every 5th step, but for inch/ft check if step aligns to a whole unit.
+        const major = Math.abs(wx % (minor * 5)) < 0.001;
         ctx.beginPath();
         ctx.moveTo(sx, major ? R - 9 : R - 5);
         ctx.lineTo(sx, R);
         ctx.stroke();
-        if (major) ctx.fillText(String(wx), sx, 2);
+        if (major) {
+          const label = rulerDisplayValue(wx, rulerUnit).toFixed(
+            rulerUnit === "mm" ? 0 : rulerUnit === "cm" ? 1 : rulerUnit === "in" ? 2 : 2,
+          );
+          ctx.fillText(label, sx, 2);
+        }
       }
 
       // Left ruler — Y axis (world Y-up, screen Y-down)
@@ -1450,24 +1566,27 @@ export function Viewport({
       const yEnd = Math.ceil((size.h - view.ty) / view.scale / minor) * minor;
       for (let wy = yStart; wy <= yEnd; wy += minor) {
         const sy = size.h - (wy * view.scale + view.ty);
-        const major = wy % (minor * 5) === 0;
+        const major = Math.abs(wy % (minor * 5)) < 0.001;
         ctx.beginPath();
         ctx.moveTo(major ? R - 9 : R - 5, sy);
         ctx.lineTo(R, sy);
         ctx.stroke();
         if (major) {
+          const label = rulerDisplayValue(wy, rulerUnit).toFixed(
+            rulerUnit === "mm" ? 0 : rulerUnit === "cm" ? 1 : rulerUnit === "in" ? 2 : 2,
+          );
           ctx.save();
           ctx.translate(2, sy);
           ctx.rotate(-Math.PI / 2);
           ctx.textAlign = "center";
-          ctx.fillText(String(wy), 0, 0);
+          ctx.fillText(label, 0, 0);
           ctx.restore();
         }
       }
     }
   }, [project, geometry, selectedPartId, secondaryPartId, view, size, toScreen, rotateHandleWorld, table,
       simulation, simTime, showGrid, darkCanvas, drawState, activeTool, nodeEdit,
-      guides, guideDrag, settings, bitmapLoadTick]); // eslint-disable-line react-hooks/exhaustive-deps
+      guides, guideDrag, hoveredGuideId, settings, bitmapLoadTick]); // eslint-disable-line react-hooks/exhaustive-deps
 
   // --- render ---------------------------------------------------------------
 
@@ -1502,9 +1621,10 @@ export function Viewport({
         onPointerDown={handlePointerDown}
         onPointerMove={handlePointerMove}
         onPointerUp={handlePointerUp}
+        onDoubleClick={handleDoubleClick}
         onWheel={handleWheel}
         onKeyDown={handleKeyDown}
-        onPointerLeave={() => setCursorMm(null)}
+        onPointerLeave={() => { setCursorMm(null); setHoveredGuideId(null); }}
         onContextMenu={(e) => e.preventDefault()}
       />
 
@@ -1611,6 +1731,79 @@ export function Viewport({
         <div className="absolute left-1/2 top-2 -translate-x-1/2 rounded-md bg-background/90 border px-3 py-1 text-xs text-muted-foreground shadow-sm backdrop-blur pointer-events-none select-none">
           Click + drag to draw · Esc to cancel
         </div>
+      )}
+
+      {/* ── Canvas context menu ─────────────────────────────────────────────── */}
+      {contextMenu && (() => {
+        const { x, y, target } = contextMenu;
+        const close = () => setContextMenu(null);
+        const rulerUnit = settings?.rulerUnit ?? "mm";
+
+        let items: ContextMenuItem[] = [];
+
+        if (target.type === "ruler") {
+          const unitOptions: { label: string; value: import("@/lib/settings").RulerUnit }[] = [
+            { label: "Millimeters (mm)", value: "mm" },
+            { label: "Centimeters (cm)", value: "cm" },
+            { label: "Meters (m)", value: "m" },
+            { label: "Inches (in)", value: "in" },
+            { label: "Feet (ft)", value: "ft" },
+          ];
+          items = unitOptions.map((u) => ({
+            label: (u.value === rulerUnit ? "✓ " : "  ") + u.label,
+            onClick: () => onUpdateSettings?.({ rulerUnit: u.value }),
+          }));
+        } else if (target.type === "guide") {
+          const guide = guides.find((g) => g.id === target.guideId);
+          if (guide) {
+            items = [
+              { label: guide.locked ? "Unlock" : "Lock", onClick: () => onGuidesChange?.(guides.map((g) => g.id === guide.id ? { ...g, locked: !g.locked } : g)) },
+              { label: "Edit…", onClick: () => setGuideDialog(guide) },
+              { label: "Delete", onClick: () => onGuidesChange?.(guides.filter((g) => g.id !== guide.id)), danger: true },
+            ];
+          }
+        } else if (target.type === "part" && selectedPart) {
+          items = [
+            { label: "Duplicate", onClick: () => onDuplicate(selectedPart.id) },
+            { label: "Bring to Front", onClick: () => onReorder?.(selectedPart.id, "front") },
+            { label: "Send to Back", onClick: () => onReorder?.(selectedPart.id, "back") },
+            { label: "Delete", onClick: () => onDelete(selectedPart.id), danger: true, divider: true },
+          ];
+        } else if (target.type === "canvas") {
+          items = [
+            { label: "Add Horizontal Guide here", onClick: () => onGuidesChange?.([...guides, { id: crypto.randomUUID(), axis: "h", posMm: target.worldY, locked: false }]) },
+            { label: "Add Vertical Guide here", onClick: () => onGuidesChange?.([...guides, { id: crypto.randomUUID(), axis: "v", posMm: target.worldX, locked: false }]) },
+            { label: "Project Settings…", onClick: () => onProjectSettings?.(), divider: true },
+            { label: "Fit to Window", onClick: fitToView, divider: true },
+          ];
+        }
+
+        return items.length > 0 ? (
+          <CanvasContextMenu
+            x={x} y={y}
+            items={items}
+            onClose={close}
+            containerW={size.w}
+            containerH={size.h}
+          />
+        ) : null;
+      })()}
+
+      {/* ── Guide properties dialog ─────────────────────────────────────────── */}
+      {guideDialog && (
+        <GuideDialog
+          guide={guideDialog}
+          rulerUnit={settings?.rulerUnit ?? "mm"}
+          onSave={(updated) => {
+            onGuidesChange?.(guides.map((g) => g.id === updated.id ? updated : g));
+            setGuideDialog(null);
+          }}
+          onDelete={() => {
+            onGuidesChange?.(guides.filter((g) => g.id !== guideDialog.id));
+            setGuideDialog(null);
+          }}
+          onClose={() => setGuideDialog(null)}
+        />
       )}
 
       {/* Bottom bar */}

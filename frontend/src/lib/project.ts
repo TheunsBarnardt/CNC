@@ -571,3 +571,56 @@ export function parseLengthToMm(text: string, units: Units): number | null {
 export function unitSuffix(units: Units): string {
   return units === "Inches" ? "in" : "mm";
 }
+
+// --- ruler unit helpers -----------------------------------------------------
+// RulerUnit is independent of the project's cut unit (mm vs inches for G-code).
+
+import type { RulerUnit } from "@/lib/settings";
+
+/** Convert mm to the given ruler display unit. */
+export function rulerDisplayValue(mm: number, unit: RulerUnit): number {
+  switch (unit) {
+    case "cm": return mm / 10;
+    case "m":  return mm / 1000;
+    case "in": return mm / MM_PER_INCH;
+    case "ft": return mm / (MM_PER_INCH * 12);
+    default:   return mm; // mm
+  }
+}
+
+/** Convert a ruler unit value back to mm. */
+export function rulerValueToMm(value: number, unit: RulerUnit): number {
+  switch (unit) {
+    case "cm": return value * 10;
+    case "m":  return value * 1000;
+    case "in": return value * MM_PER_INCH;
+    case "ft": return value * MM_PER_INCH * 12;
+    default:   return value; // mm
+  }
+}
+
+/** Format a mm value for display in the given ruler unit. */
+export function rulerFormatMm(mm: number, unit: RulerUnit): string {
+  const v = rulerDisplayValue(mm, unit);
+  switch (unit) {
+    case "cm": return v.toFixed(2);
+    case "m":  return v.toFixed(4);
+    case "in": return v.toFixed(3);
+    case "ft": return v.toFixed(4);
+    default:   return v.toFixed(1);
+  }
+}
+
+/** The interval step (in mm) that produces readable ruler ticks for a given ruler unit.
+ *  Returns mm-world steps to try, smallest first — caller picks first where step*scale >= 20px. */
+export function rulerTickStepsMm(unit: RulerUnit): number[] {
+  switch (unit) {
+    case "cm": return [1, 2, 5, 10, 20, 50, 100, 200, 500];
+    case "m":  return [10, 20, 50, 100, 250, 500, 1000];
+    case "in": return [MM_PER_INCH / 8, MM_PER_INCH / 4, MM_PER_INCH / 2, MM_PER_INCH,
+                       MM_PER_INCH * 2, MM_PER_INCH * 6, MM_PER_INCH * 12];
+    case "ft": return [MM_PER_INCH * 3, MM_PER_INCH * 6, MM_PER_INCH * 12,
+                       MM_PER_INCH * 24, MM_PER_INCH * 60];
+    default:   return [1, 2, 5, 10, 25, 50, 100, 250, 500];
+  }
+}

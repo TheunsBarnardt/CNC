@@ -56,6 +56,8 @@ public static class CamEngine
             var pivot = PartTransform.LocalCenter(file);
             foreach (var path in file.Paths)
             {
+                // Flatten Bézier handles to straight-segment polyline for CAM.
+                var localFlat = FlattenPath(path);
                 worldPaths.Add(new WorldPath
                 {
                     PartId = part.Id,
@@ -64,7 +66,7 @@ public static class CamEngine
                     Polyline = new Polyline2
                     {
                         IsClosed = path.Polyline.IsClosed,
-                        Points = path.Polyline.Points
+                        Points = localFlat
                             .Select(p => PartTransform.Apply(part, pivot, p))
                             .ToList(),
                     },
@@ -181,4 +183,67 @@ public static class CamEngine
 
         return toolpath;
     }
+
+    // ── Bézier flattening helpers ────────────────────────────────────────────
+
+    /// <summary>
+    /// Returns a flattened list of local-space points for the path.
+    /// If the path has Handles entries for smooth nodes, cubic Bézier segments
+    /// are subdivided to 0.1mm chord tolerance. Otherwise the anchor list is
+    /// returned directly (no copy).
+    /// </summary>
+    private static List<Point2> FlattenPath(Backend.Models.PathGeometry path)
+    {
+        var pts = path.Polyline.Points;
+        var handles = path.Handles;
+        if (handles == null || handles.All(h => h == null))
+            return pts; // no curves — fast path
+
+        int n = pts.Count;
+        int segCount = path.Polyline.IsClosed ? n : n - 1;
+        var result = new List<Point2> { pts[0] };
+
+        for (int i = 0; i < segCount; i++)
+        {
+            var p0 = pts[i];
+            var p3 = pts[(i + 1) % n];
+            double[]? hOut = (i < handles.Count && handles[i] is { Length: >= 4 } h0) ? [h0[2], h0[3]] : null;
+            double[]? hIn  = ((i + 1) < handles.Count && handles[(i + 1) % n] is { Length: >= 2 } h1) ? [h1[0], h1[1]] : null;
+
+            if (hOut == null && hIn == null)
+            {
+                result.Add(p3);
+            }
+            else
+            {
+                var cp1 = hOut != null ? new Point2(hOut[0], hOut[1]) : p0;
+                var cp2 = hIn  != null ? new Point2(hIn[0],  hIn[1])  : p3;
+                SubdivideBezier(result, p0, cp1, cp2, p3, 0.1);
+            }
+        }
+        return result;
+    }
+
+    private static void SubdivideBezier(List<Point2> result, Point2 p0, Point2 cp1, Point2 cp2, Point2 p3, double tol)
+    {
+        // Flatness test using cross-product deviation.
+        double d = Math.Abs((cp1.X - p0.X) * (p3.Y - p0.Y) - (cp1.Y - p0.Y) * (p3.X - p0.X))
+                 + Math.Abs((cp2.X - p3.X) * (p3.Y - p0.Y) - (cp2.Y - p3.Y) * (p3.X - p0.X));
+        if (d <= tol * (p0.DistanceTo(p3) + 1))
+        {
+            result.Add(p3);
+            return;
+        }
+        // De Casteljau split at t=0.5.
+        var m01   = Mid(p0,  cp1);
+        var m12   = Mid(cp1, cp2);
+        var m23   = Mid(cp2, p3);
+        var m012  = Mid(m01, m12);
+        var m123  = Mid(m12, m23);
+        var m0123 = Mid(m012, m123);
+        SubdivideBezier(result, p0,    m01,  m012,  m0123, tol);
+        SubdivideBezier(result, m0123, m123, m23,   p3,    tol);
+    }
+
+    private static Point2 Mid(Point2 a, Point2 b) => new((a.X + b.X) / 2, (a.Y + b.Y) / 2);
 }

@@ -480,6 +480,25 @@ Each is one session; split further if a task grows.*
 
 ---
 
+### [x] Task 21 — Node edit UX: smooth/sharp nodes, Bézier handles, node toolbar, scissors
+<!-- Done: Backend — PathGeometry.Handles (List<double[]?>?) stores per-node Bézier handles
+     [inX,inY,outX,outY] relative to anchor; PATCH /files/{id}/paths/{id} now accepts optional
+     Handles + ClearHandles flag; new POST /files/{id}/paths/{id}/split splits a path at a node
+     index into two open sub-paths (handles sliced accordingly); CamEngine.FlattenPath
+     (de Casteljau, 0.1mm chord tol) flattens curved paths before toolpath generation —
+     geometry endpoint includes handles in response.
+     Frontend — GeometryPath.handles type added; projectApi.updatePathNodes accepts handles +
+     clearHandles; projectApi.splitPath added. NodeEditToolbar (new component): X/Y of selected
+     node, sharp-corner/smooth-corner toggle buttons, Scissors (split at node), Simplify,
+     green Done button. EditToolbar: PenLine "Edit nodes" button + E keyboard shortcut to
+     enter node-edit from selection. Viewport: NodeEditState extended with handles Map +
+     hoveredHandle; DragMode gains "handle"; Bézier bezierCurveTo rendering in both normal
+     and node-edit modes; handle dots (squares) rendered with stem lines; handle drag mode
+     fully supported; smooth nodes shown as circles, sharp as squares; autoSmoothHandle
+     computes Catmull-Rom tangents on toggle; nodeEdit handles persisted to backend on
+     commit. Deferred: symmetric handle constraint (dragging one handle moves the other);
+     multi-node selection; node alignment across multiple nodes. -->
+
 ## Working agreement for Claude Code
 - One task per session. Read the plan + CLAUDE.md first.
 - Don't pull later tasks forward. Flag scope creep instead of acting on it.

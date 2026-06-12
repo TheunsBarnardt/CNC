@@ -30,14 +30,25 @@ public sealed class TableSettings
 }
 
 /// <summary>
-/// One flattened path from an imported file, with provenance (layer) kept so
-/// users can later filter/assign operations per layer.
+/// One path from an imported file, with provenance (layer) kept so users can
+/// later filter/assign operations per layer.
+///
+/// <para>Polyline.Points holds the anchor nodes. Handles, when present, store
+/// per-node Bézier control points so the user can create smooth curves in the
+/// node editor. Format per entry: [inX, inY, outX, outY] in local-file
+/// millimetres, or null for a sharp corner. CAM flattens the curves to a
+/// straight-segment polyline at toolpath-generation time.</para>
 /// </summary>
 public sealed class PathGeometry
 {
     public Guid Id { get; init; } = Guid.NewGuid();
     public string? Layer { get; init; }
     public required Polyline2 Polyline { get; init; }
+    /// <summary>
+    /// Optional per-node Bézier handles (length == Polyline.Points.Count).
+    /// Each entry is either null (sharp corner) or double[4] = [inX,inY,outX,outY].
+    /// </summary>
+    public List<double[]?>? Handles { get; set; }
 }
 
 public enum ImportedFileKind

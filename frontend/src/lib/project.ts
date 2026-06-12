@@ -90,6 +90,11 @@ export interface GeometryPath {
   layer: string | null;
   closed: boolean;
   points: [number, number][];
+  /**
+   * Optional per-node Bézier handles (length == points.length).
+   * Each entry: null (sharp corner) or [inX, inY, outX, outY] in local mm.
+   */
+  handles?: ([number, number, number, number] | null)[];
 }
 
 export interface FileGeometry {
@@ -290,11 +295,28 @@ export const projectApi = {
       body: JSON.stringify({ offsetMm }),
     }).then((r) => json<ProjectDto>(r)),
 
-  updatePathNodes: (fileId: string, pathId: string, points: [number, number][]) =>
+  updatePathNodes: (
+    fileId: string,
+    pathId: string,
+    points: [number, number][],
+    handles?: ([number, number, number, number] | null)[] | null,
+    clearHandles?: boolean,
+  ) =>
     fetch(`${BACKEND_URL}/api/project/files/${fileId}/paths/${pathId}`, {
       method: "PATCH",
       headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ points }),
+      body: JSON.stringify({
+        points,
+        ...(handles !== undefined ? { handles } : {}),
+        ...(clearHandles ? { clearHandles: true } : {}),
+      }),
+    }).then((r) => json<ProjectDto>(r)),
+
+  splitPath: (fileId: string, pathId: string, nodeIndex: number) =>
+    fetch(`${BACKEND_URL}/api/project/files/${fileId}/paths/${pathId}/split`, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ nodeIndex }),
     }).then((r) => json<ProjectDto>(r)),
 
   simplifyFile: (fileId: string, toleranceMm: number) =>

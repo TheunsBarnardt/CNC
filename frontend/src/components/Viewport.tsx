@@ -10,6 +10,7 @@ import {
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { EditToolbar, type AlignEdge } from "@/components/EditToolbar";
+import { NodeEditToolbar } from "@/components/NodeEditToolbar";
 import { BooleanToolbar } from "@/components/BooleanToolbar";
 import { TextPanel } from "@/components/TextPanel";
 import {
@@ -60,7 +61,14 @@ interface ViewportProps {
   onDelete: (id: string) => void;
   onReorder?: (id: string, direction: "up" | "down" | "front" | "back") => void;
   onOffset?: (id: string, offsetMm: number) => void;
-  onNodesChanged?: (fileId: string, pathId: string, points: [number, number][]) => void;
+  onNodesChanged?: (
+    fileId: string,
+    pathId: string,
+    points: [number, number][],
+    handles?: ([number, number, number, number] | null)[] | null,
+    clearHandles?: boolean,
+  ) => void;
+  onSplitPath?: (fileId: string, pathId: string, nodeIndex: number) => void;
   onSimplify?: (fileId: string) => void;
   onBoolean?: (op: "unite" | "subtract" | "intersect") => void;
   onArray?: (id: string, type: "grid" | "circular", params: object) => void;
@@ -85,7 +93,8 @@ interface View {
   ty: number;
 }
 
-type DragMode = "pan" | "move" | "rotate" | "node";
+type DragMode = "pan" | "move" | "rotate" | "resize" | "node" | "handle";
+type ResizeHandle = "TL" | "T" | "TR" | "R" | "BR" | "B" | "BL" | "L";
 
 interface DragState {
   mode: DragMode;
@@ -99,10 +108,24 @@ interface DragState {
   nodePathIdx?: number;
   nodeIdx?: number;
   nodeStartWorld?: Vec;
-  nodeDragWorld?: Vec; // live position during drag (for canvas preview)
+  nodeDragWorld?: Vec;
+  // Handle-drag fields (mode === "handle"):
+  handleWhich?: "in" | "out";
+  handleDragWorld?: Vec;
+  // Resize fields (mode === "resize"):
+  resizeHandle?: ResizeHandle;
+  resizeBBox?: { minX: number; minY: number; maxX: number; maxY: number };
+  resizeNaturalW?: number;
+  resizeNaturalH?: number;
 }
 
-/** Node editing state: tracks which path/node is selected/hovered. */
+/**
+ * Per-node Bézier handle: [inX, inY, outX, outY] in part-local mm.
+ * null = sharp corner (no handles).
+ */
+type NodeHandle = [number, number, number, number] | null;
+
+/** Node editing state: tracks which path/node is selected/hovered + Bézier handles. */
 interface NodeEditState {
   partId: string;
   fileId: string;
@@ -112,6 +135,14 @@ interface NodeEditState {
   hoveredNode: { pathIdx: number; nodeIdx: number } | null;
   /** Hovered segment midpoint (for "add node" affordance). */
   hoveredSeg: { pathIdx: number; segIdx: number } | null;
+  /** Hovered handle dot (for highlight). Key = "pi:ni:in|out". */
+  hoveredHandle: string | null;
+  /**
+   * Per-node handle overrides. Key = "pathIdx:nodeIdx".
+   * Undefined key = use whatever the path already has (from GeometryPath.handles).
+   * Explicit null = sharp corner. Array = smooth node with those handles.
+   */
+  handles: Map<string, NodeHandle>;
 }
 
 // Shape drawing state: rubber-band from start to current world point.
@@ -161,6 +192,7 @@ export function Viewport({
   onReorder,
   onOffset,
   onNodesChanged,
+  onSplitPath,
   onSimplify,
   onBoolean,
   onArray,
@@ -189,6 +221,8 @@ export function Viewport({
   const [cursorMm, setCursorMm] = useState<Vec | null>(null);
   const [drawState, setDrawState] = useState<DrawState>(null);
   const [nodeEdit, setNodeEdit] = useState<NodeEditState | null>(null);
+  // Incremented on every pointer-move during node/handle drag to force canvas repaint.
+  const [dragTick, setDragTick] = useState(0);
   const dragRef = useRef<DragState | null>(null);
   const fittedRef = useRef(false);
   // Guide being created (id=null) or dragged (id=guideId).
@@ -424,14 +458,65 @@ export function Viewport({
     }
     // ──────────────────────────────────────────────────────────────────────
 
+    // === RESIZE HANDLES (checked before node-edit so dragging a handle always works) ===
+    if (e.button === 0 && selectedPart && !readOnly) {
+      const selPaths = geometry.get(selectedPart.fileId);
+      const selFile = project.files.find((f) => f.id === selectedPart.fileId);
+      if (selPaths && selFile && selectedPart.rotationDeg === 0) {
+        const b = partWorldBBox(selectedPart, selPaths);
+        const mx = (b.minX + b.maxX) / 2, my = (b.minY + b.maxY) / 2;
+        const rHandleDefs: [ResizeHandle, Vec][] = [
+          ["TL", [b.minX, b.maxY]], ["T", [mx, b.maxY]], ["TR", [b.maxX, b.maxY]],
+          ["L",  [b.minX, my]],                           ["R",  [b.maxX, my]],
+          ["BL", [b.minX, b.minY]], ["B", [mx, b.minY]], ["BR", [b.maxX, b.minY]],
+        ];
+        const HR = 6 / view.scale;
+        for (const [rh, wp] of rHandleDefs) {
+          if (Math.hypot(world[0] - wp[0], world[1] - wp[1]) < HR) {
+            setNodeEdit(null); // exit node-edit if active
+            dragRef.current = {
+              mode: "resize", pointerId: e.pointerId,
+              startScreen: screen, startView: view,
+              startPart: { ...selectedPart }, moved: false,
+              resizeHandle: rh,
+              resizeBBox: { minX: b.minX, minY: b.minY, maxX: b.maxX, maxY: b.maxY },
+              resizeNaturalW: selFile.widthMm,
+              resizeNaturalH: selFile.heightMm,
+            };
+            return;
+          }
+        }
+      }
+    }
+
     // === NODE EDITING MODE ===
     if (!readOnly && nodeEdit && e.button === 0) {
       const part = project.parts.find((p) => p.id === nodeEdit.partId);
       const paths = geometry.get(nodeEdit.fileId);
       if (part && paths) {
-        const pivot = localPivot(paths);
+        const HANDLE_RADIUS = 7 / view.scale;
         const NODE_RADIUS = 8 / view.scale;
         const SEG_RADIUS = 6 / view.scale;
+
+        // Check if clicking a handle dot (must be before node check).
+        for (let pi = 0; pi < paths.length; pi++) {
+          const path = paths[pi];
+          for (let ni = 0; ni < path.points.length; ni++) {
+            for (const which of ["in", "out"] as const) {
+              const hw = handleWorldPos(nodeEdit, part, paths, pi, ni, which);
+              if (hw && Math.hypot(world[0] - hw[0], world[1] - hw[1]) < HANDLE_RADIUS) {
+                dragRef.current = {
+                  mode: "handle", pointerId: e.pointerId,
+                  startScreen: screen, startView: view,
+                  nodePathIdx: pi, nodeIdx: ni,
+                  handleWhich: which, handleDragWorld: hw,
+                  moved: false,
+                };
+                return;
+              }
+            }
+          }
+        }
 
         // Check if clicking a node.
         for (let pi = 0; pi < paths.length; pi++) {
@@ -453,6 +538,7 @@ export function Viewport({
         }
 
         // Check if clicking a segment midpoint (add node).
+        const pivot = localPivot(paths);
         for (let pi = 0; pi < paths.length; pi++) {
           const path = paths[pi];
           const ptCount = path.points.length;
@@ -470,8 +556,17 @@ export function Viewport({
           }
         }
       }
-      // Clicked outside — exit node-edit if outside the part's bbox.
-      setNodeEdit(null);
+      // Clicked on empty space: deselect node if inside part bbox, exit if outside.
+      const partBb = partWorldBBox(part, paths);
+      const margin = 5 / view.scale;
+      if (
+        world[0] >= partBb.minX - margin && world[0] <= partBb.maxX + margin &&
+        world[1] >= partBb.minY - margin && world[1] <= partBb.maxY + margin
+      ) {
+        setNodeEdit((ne) => ne ? { ...ne, selectedNode: null } : ne);
+      } else {
+        setNodeEdit(null);
+      }
       return;
     }
 
@@ -517,8 +612,8 @@ export function Viewport({
       return;
     }
 
-    // === SELECT TOOL ===
-    if (e.button === 0 && selectedPart && !readOnly) {
+    // === SELECT TOOL — rotation handle ===
+    if (e.button === 0 && selectedPart && !readOnly && !nodeEdit) {
       const handle = rotateHandleWorld(selectedPart);
       if (handle) {
         const hs = toScreen(handle);
@@ -549,14 +644,17 @@ export function Viewport({
             onSecondarySelect?.(part.id);
             return;
           }
-          // Double-click on already-selected part: enter node-edit mode.
-          if (e.detail === 2 && part.id === selectedPartId) {
+          // Double-click enters node-edit mode (even if not yet selected).
+          if (e.detail === 2) {
+            onSelect(part.id);
             setNodeEdit({
               partId: part.id,
               fileId: part.fileId,
               selectedNode: null,
               hoveredNode: null,
               hoveredSeg: null,
+              hoveredHandle: null,
+              handles: new Map(),
             });
             return;
           }
@@ -702,6 +800,39 @@ export function Viewport({
 
     if (drag.mode === "node") {
       drag.nodeDragWorld = world;
+      setDragTick((t) => t + 1);
+      return;
+    }
+    if (drag.mode === "handle") {
+      drag.handleDragWorld = world;
+      setDragTick((t) => t + 1);
+      return;
+    }
+
+    if (drag.mode === "resize" && drag.startPart && drag.resizeBBox && drag.resizeNaturalW && drag.resizeNaturalH) {
+      const { resizeHandle: rh, resizeBBox: b0, resizeNaturalW: nw, resizeNaturalH: nh, startPart: part } = drag;
+      let { minX, maxX, minY, maxY } = b0;
+      if (rh === "TL" || rh === "BL" || rh === "L") minX = world[0];
+      if (rh === "TR" || rh === "BR" || rh === "R") maxX = world[0];
+      if (rh === "BL" || rh === "BR" || rh === "B") minY = world[1];
+      if (rh === "TL" || rh === "TR" || rh === "T") maxY = world[1];
+      // Enforce 1mm minimum.
+      if (maxX - minX < 1) (rh === "L" || rh === "TL" || rh === "BL") ? (minX = maxX - 1) : (maxX = minX + 1);
+      if (maxY - minY < 1) (rh === "B" || rh === "BL" || rh === "BR") ? (minY = maxY - 1) : (maxY = minY + 1);
+      const newScaleX = ((maxX - minX) / nw) * Math.sign(part.scaleX || 1);
+      const newScaleY = ((maxY - minY) / nh) * Math.sign(part.scaleY || 1);
+      const paths = geometry.get(part.fileId);
+      if (paths) {
+        const pivot = localPivot(paths);
+        const lb = bboxOfPaths(paths);
+        const localLeft = (part.scaleX ?? 1) >= 0 ? lb.minX : lb.maxX;
+        const localBot  = (part.scaleY ?? 1) >= 0 ? lb.minY : lb.maxY;
+        const newPartX = minX - pivot[0] - (localLeft - pivot[0]) * newScaleX;
+        const newPartY = minY - pivot[1] - (localBot  - pivot[1]) * newScaleY;
+        const newPart = { ...part, scaleX: newScaleX, scaleY: newScaleY, x: newPartX, y: newPartY };
+        drag.lastPart = newPart;
+        onPartChange(newPart);
+      }
       return;
     }
 
@@ -819,6 +950,11 @@ export function Viewport({
       dragRef.current = null;
       return;
     }
+    if (drag.mode === "handle") {
+      if (drag.moved) commitHandleDrag();
+      dragRef.current = null;
+      return;
+    }
     dragRef.current = null;
     if (drag.mode !== "pan" && drag.lastPart && drag.moved) onPartCommit(drag.lastPart);
   };
@@ -920,6 +1056,20 @@ export function Viewport({
       case "d":
         if (e.ctrlKey || e.metaKey) { e.preventDefault(); onDuplicate(selectedPart.id); }
         break;
+      case "e":
+        if (!e.ctrlKey && !e.metaKey && !nodeEdit) {
+          e.preventDefault();
+          setNodeEdit({
+            partId: selectedPart.id,
+            fileId: selectedPart.fileId,
+            selectedNode: null,
+            hoveredNode: null,
+            hoveredSeg: null,
+            hoveredHandle: null,
+            handles: new Map(),
+          });
+        }
+        break;
       case "ArrowLeft": e.preventDefault(); nudge(-step, 0); break;
       case "ArrowRight": e.preventDefault(); nudge(step, 0); break;
       case "ArrowUp": e.preventDefault(); nudge(0, step); break;
@@ -968,11 +1118,101 @@ export function Viewport({
     [],
   );
 
+  /** Get the effective handle for node (pathIdx, nodeIdx). Merges ne.handles override with path data. */
+  const getNodeHandle = useCallback(
+    (ne: NodeEditState, paths: GeometryPath[], pathIdx: number, nodeIdx: number): NodeHandle => {
+      const key = `${pathIdx}:${nodeIdx}`;
+      if (ne.handles.has(key)) return ne.handles.get(key)!;
+      const raw = paths[pathIdx]?.handles?.[nodeIdx];
+      if (!raw || raw.length < 4) return null;
+      return [raw[0], raw[1], raw[2], raw[3]];
+    },
+    [],
+  );
+
+  /** World position of a handle point (in or out), taking active handle drag into account. */
+  const handleWorldPos = useCallback(
+    (
+      ne: NodeEditState,
+      part: Part,
+      paths: GeometryPath[],
+      pathIdx: number,
+      nodeIdx: number,
+      which: "in" | "out",
+    ): Vec | null => {
+      const drag = dragRef.current;
+      if (drag?.mode === "handle" && drag.nodePathIdx === pathIdx && drag.nodeIdx === nodeIdx && drag.handleWhich === which && drag.handleDragWorld)
+        return drag.handleDragWorld;
+      const h = getNodeHandle(ne, paths, pathIdx, nodeIdx);
+      if (!h) return null;
+      const pivot = localPivot(paths);
+      const anchor = paths[pathIdx].points[nodeIdx] as Vec;
+      const localH: Vec = which === "in" ? [h[0], h[1]] : [h[2], h[3]];
+      // Handles are stored relative to anchor.
+      return partToWorld(part, pivot, [anchor[0] + localH[0], anchor[1] + localH[1]]);
+    },
+    [getNodeHandle],
+  );
+
+  /** Auto-compute smooth handles for node ni in pathIdx using Catmull-Rom tangent. */
+  const autoSmoothHandle = useCallback(
+    (paths: GeometryPath[], pathIdx: number, ni: number): NodeHandle => {
+      const path = paths[pathIdx];
+      const n = path.points.length;
+      const prev = (ni - 1 + n) % n;
+      const next = (ni + 1) % n;
+      const canWrap = path.closed;
+      if (!canWrap && (ni === 0 || ni === n - 1)) {
+        // Endpoint of open path: use direction toward the adjacent node.
+        const neighbour = ni === 0 ? 1 : n - 2;
+        const dx = path.points[neighbour][0] - path.points[ni][0];
+        const dy = path.points[neighbour][1] - path.points[ni][1];
+        const len = Math.hypot(dx, dy) / 3;
+        const ux = dx / (Math.hypot(dx, dy) || 1), uy = dy / (Math.hypot(dx, dy) || 1);
+        if (ni === 0)
+          return [0, 0, ux * len, uy * len];
+        else
+          return [-ux * len, -uy * len, 0, 0];
+      }
+      const ap = path.points[prev];
+      const an = path.points[next];
+      // Catmull-Rom tangent.
+      const tx = (an[0] - ap[0]) / 2;
+      const ty = (an[1] - ap[1]) / 2;
+      const lenIn = Math.hypot(path.points[ni][0] - ap[0], path.points[ni][1] - ap[1]) / 3;
+      const lenOut = Math.hypot(an[0] - path.points[ni][0], an[1] - path.points[ni][1]) / 3;
+      const mag = Math.hypot(tx, ty) || 1;
+      const ux = tx / mag, uy = ty / mag;
+      return [-ux * lenIn, -uy * lenIn, ux * lenOut, uy * lenOut];
+    },
+    [],
+  );
+
+  /** Build the full handles array for a path from the nodeEdit state. */
+  const buildHandlesArray = useCallback(
+    (ne: NodeEditState, paths: GeometryPath[], pathIdx: number): ([number, number, number, number] | null)[] | undefined => {
+      const path = paths[pathIdx];
+      // Check if any node has a custom handle override.
+      let hasAny = false;
+      for (let ni = 0; ni < path.points.length; ni++) {
+        const key = `${pathIdx}:${ni}`;
+        if (ne.handles.has(key)) { hasAny = true; break; }
+        if (path.handles?.[ni]) { hasAny = true; break; }
+      }
+      if (!hasAny) return undefined;
+      return path.points.map((_, ni) => {
+        const h = getNodeHandle(ne, paths, pathIdx, ni);
+        return h;
+      });
+    },
+    [getNodeHandle],
+  );
+
   const commitNodeDrag = useCallback(() => {
     const drag = dragRef.current;
     if (drag?.mode !== "node" || !drag.nodeDragWorld || !nodeEdit) return;
-    const { partId, fileId } = nodeEdit;
-    const part = project.parts.find((p) => p.id === partId);
+    const { fileId } = nodeEdit;
+    const part = project.parts.find((p) => p.id === nodeEdit.partId);
     const paths = geometry.get(fileId);
     if (!part || !paths || drag.nodePathIdx === undefined) return;
 
@@ -980,13 +1220,51 @@ export function Viewport({
     const path = paths[drag.nodePathIdx];
     if (!path) return;
 
-    // Rebuild the point list: replace the dragged node with the new local position.
     const localDrag = worldToPartLocal(part, pivot, drag.nodeDragWorld);
     const newPoints: [number, number][] = path.points.map((pt, i) =>
       i === drag.nodeIdx ? [localDrag[0], localDrag[1]] : [pt[0], pt[1]],
     );
-    if (path.id) onNodesChanged?.(fileId, path.id, newPoints);
-  }, [nodeEdit, project.parts, geometry, onNodesChanged]);
+    const newHandles = buildHandlesArray(nodeEdit, paths, drag.nodePathIdx);
+    if (path.id) onNodesChanged?.(fileId, path.id, newPoints, newHandles);
+  }, [nodeEdit, project.parts, geometry, onNodesChanged, buildHandlesArray]);
+
+  const commitHandleDrag = useCallback(() => {
+    const drag = dragRef.current;
+    if (drag?.mode !== "handle" || !drag.handleDragWorld || !nodeEdit) return;
+    const { fileId } = nodeEdit;
+    const part = project.parts.find((p) => p.id === nodeEdit.partId);
+    const paths = geometry.get(fileId);
+    if (!part || !paths || drag.nodePathIdx === undefined || drag.nodeIdx === undefined) return;
+
+    const pivot = localPivot(paths);
+    const path = paths[drag.nodePathIdx];
+    if (!path) return;
+
+    const localDrag = worldToPartLocal(part, pivot, drag.handleDragWorld);
+    const anchor = path.points[drag.nodeIdx] as Vec;
+    // Store relative to anchor.
+    const relX = localDrag[0] - anchor[0];
+    const relY = localDrag[1] - anchor[1];
+
+    const existing = getNodeHandle(nodeEdit, paths, drag.nodePathIdx, drag.nodeIdx);
+    let newH: NodeHandle;
+    if (drag.handleWhich === "in") {
+      const outX = existing ? existing[2] : -relX;
+      const outY = existing ? existing[3] : -relY;
+      newH = [relX, relY, outX, outY];
+    } else {
+      const inX = existing ? existing[0] : -relX;
+      const inY = existing ? existing[1] : -relY;
+      newH = [inX, inY, relX, relY];
+    }
+
+    const key = `${drag.nodePathIdx}:${drag.nodeIdx}`;
+    const updatedNe = { ...nodeEdit, handles: new Map(nodeEdit.handles).set(key, newH) };
+    setNodeEdit(updatedNe);
+
+    const newHandles = buildHandlesArray(updatedNe, paths, drag.nodePathIdx);
+    if (path.id) onNodesChanged?.(fileId, path.id, path.points.map((p): [number, number] => [p[0], p[1]]), newHandles);
+  }, [nodeEdit, project.parts, geometry, onNodesChanged, getNodeHandle, buildHandlesArray]);
 
   const deleteSelectedNode = useCallback(() => {
     if (!nodeEdit?.selectedNode) return;
@@ -995,11 +1273,17 @@ export function Viewport({
     if (!paths) return;
     const path = paths[pathIdx];
     const minNodes = path.closed ? 3 : 2;
-    if (path.points.length <= minNodes) return; // can't reduce further
+    if (path.points.length <= minNodes) return;
     const newPoints: [number, number][] = path.points.filter((_, i) => i !== nodeIdx);
-    if (path.id) onNodesChanged?.(fileId, path.id, newPoints);
+    // Rebuild handles, dropping the deleted node's entry.
+    const newHandles: ([number, number, number, number] | null)[] = newPoints.map((_, ni) => {
+      const origIdx = ni >= nodeIdx ? ni + 1 : ni;
+      return getNodeHandle(nodeEdit, paths, pathIdx, origIdx);
+    });
+    const hasHandles = newHandles.some((h) => h !== null);
+    if (path.id) onNodesChanged?.(fileId, path.id, newPoints, hasHandles ? newHandles : null, !hasHandles);
     setNodeEdit((ne) => ne ? { ...ne, selectedNode: null } : ne);
-  }, [nodeEdit, geometry, onNodesChanged]);
+  }, [nodeEdit, geometry, onNodesChanged, getNodeHandle]);
 
   const addNodeOnSegment = useCallback(
     (pathIdx: number, segIdx: number) => {
@@ -1018,6 +1302,45 @@ export function Viewport({
       if (path.id) onNodesChanged?.(fileId, path.id, newPoints);
     },
     [nodeEdit, geometry, onNodesChanged],
+  );
+
+  const scissorsAtSelectedNode = useCallback(() => {
+    if (!nodeEdit?.selectedNode) return;
+    const { fileId, selectedNode: { pathIdx, nodeIdx } } = nodeEdit;
+    const paths = geometry.get(fileId);
+    if (!paths) return;
+    const path = paths[pathIdx];
+    if (!path?.id) return;
+    // Can only split at interior nodes of open paths, or any node of closed paths.
+    if (!path.closed && (nodeIdx === 0 || nodeIdx === path.points.length - 1)) return;
+    onSplitPath?.(fileId, path.id, nodeIdx);
+    setNodeEdit((ne) => ne ? { ...ne, selectedNode: null } : ne);
+  }, [nodeEdit, geometry, onSplitPath]);
+
+  const setNodeType = useCallback(
+    (smooth: boolean) => {
+      if (!nodeEdit?.selectedNode) return;
+      const { selectedNode: { pathIdx, nodeIdx } } = nodeEdit;
+      const paths = geometry.get(nodeEdit.fileId);
+      if (!paths) return;
+      const key = `${pathIdx}:${nodeIdx}`;
+      let newH: NodeHandle;
+      if (smooth) {
+        newH = autoSmoothHandle(paths, pathIdx, nodeIdx);
+      } else {
+        newH = null;
+      }
+      const updatedNe = { ...nodeEdit, handles: new Map(nodeEdit.handles).set(key, newH) };
+      setNodeEdit(updatedNe);
+      // Persist immediately.
+      const path = paths[pathIdx];
+      if (path?.id) {
+        const newHandles = buildHandlesArray(updatedNe, paths, pathIdx);
+        const pts = path.points.map((p): [number, number] => [p[0], p[1]]);
+        onNodesChanged?.(nodeEdit.fileId, path.id, pts, newHandles, !newHandles);
+      }
+    },
+    [nodeEdit, geometry, autoSmoothHandle, buildHandlesArray, onNodesChanged],
   );
 
   const align = (edge: "left" | "centerX" | "right" | "bottom" | "centerY" | "top") => {
@@ -1174,11 +1497,25 @@ export function Viewport({
       for (const path of paths) {
         if (path.points.length < 2) continue;
         ctx.beginPath();
-        const [mx, my] = toScreen(partToWorld(part, pivot, path.points[0] as Vec));
-        ctx.moveTo(mx, my);
-        for (let i = 1; i < path.points.length; i++) {
-          const [lx, ly] = toScreen(partToWorld(part, pivot, path.points[i] as Vec));
-          ctx.lineTo(lx, ly);
+        const p0w = partToWorld(part, pivot, path.points[0] as Vec);
+        ctx.moveTo(...toScreen(p0w));
+        const n = path.points.length;
+        const segCount = path.closed ? n : n - 1;
+        for (let i = 0; i < segCount; i++) {
+          const ni = i, nj = (i + 1) % n;
+          const pw = partToWorld(part, pivot, path.points[nj] as Vec);
+          const hOut = path.handles?.[ni];
+          const hIn = path.handles?.[nj];
+          if ((hOut && hOut.length >= 4 && (hOut[2] !== 0 || hOut[3] !== 0)) ||
+              (hIn && hIn.length >= 4 && (hIn[0] !== 0 || hIn[1] !== 0))) {
+            const anchorI = path.points[ni] as Vec;
+            const anchorJ = path.points[nj] as Vec;
+            const cp1w = partToWorld(part, pivot, [anchorI[0] + (hOut?.[2] ?? 0), anchorI[1] + (hOut?.[3] ?? 0)]);
+            const cp2w = partToWorld(part, pivot, [anchorJ[0] + (hIn?.[0] ?? 0), anchorJ[1] + (hIn?.[1] ?? 0)]);
+            ctx.bezierCurveTo(...toScreen(cp1w), ...toScreen(cp2w), ...toScreen(pw));
+          } else {
+            ctx.lineTo(...toScreen(pw));
+          }
         }
         if (path.closed) {
           ctx.closePath();
@@ -1196,10 +1533,30 @@ export function Viewport({
         const [bx0, by0] = toScreen([b.minX, b.maxY]);
         const [bx1, by1] = toScreen([b.maxX, b.minY]);
         ctx.setLineDash([4, 4]);
-        ctx.strokeStyle = colPrimary;
+        ctx.strokeStyle = colFg;
         ctx.lineWidth = 1;
         ctx.strokeRect(bx0, by0, bx1 - bx0, by1 - by0);
         ctx.setLineDash([]);
+        // Resize handles — 8 squares at corners and edge midpoints.
+        if (part.rotationDeg === 0 && !nodeEdit) {
+          const mx = (b.minX + b.maxX) / 2, my = (b.minY + b.maxY) / 2;
+          const rHandles: Vec[] = [
+            [b.minX, b.maxY], [mx, b.maxY], [b.maxX, b.maxY],
+            [b.minX, my],                   [b.maxX, my],
+            [b.minX, b.minY], [mx, b.minY], [b.maxX, b.minY],
+          ];
+          const HS = 7; // handle size px
+          ctx.fillStyle = colCard;
+          ctx.strokeStyle = colFg;
+          ctx.lineWidth = 1.5;
+          for (const hw of rHandles) {
+            const [hsx, hsy] = toScreen(hw);
+            ctx.beginPath();
+            ctx.rect(hsx - HS / 2, hsy - HS / 2, HS, HS);
+            ctx.fill(); ctx.stroke();
+          }
+        }
+        // Rotation handle.
         const handle = rotateHandleWorld(part);
         if (handle) {
           const top = partToWorld(part, localPivot(paths), [
@@ -1208,10 +1565,10 @@ export function Viewport({
           ]);
           const [hx, hy] = toScreen(handle);
           const [htx, hty] = toScreen(top);
-          ctx.strokeStyle = colPrimary;
+          ctx.strokeStyle = colFg;
           ctx.beginPath(); ctx.moveTo(htx, hty); ctx.lineTo(hx, hy); ctx.stroke();
           ctx.beginPath(); ctx.arc(hx, hy, 5, 0, Math.PI * 2);
-          ctx.fillStyle = colPrimary; ctx.fill();
+          ctx.fillStyle = colFg; ctx.fill();
         }
       }
     }
@@ -1347,8 +1704,11 @@ export function Viewport({
           const ptCount = path.points.length;
           const segs = path.closed ? ptCount : ptCount - 1;
 
-          // Draw segment midpoint dots (add-node affordance).
+          // Draw segment midpoint dots (add-node affordance) — skip for curved segments.
           for (let si = 0; si < segs; si++) {
+            const hOut = getNodeHandle(nodeEdit, nePaths, pi, si);
+            const hIn = getNodeHandle(nodeEdit, nePaths, pi, (si + 1) % ptCount);
+            if (hOut !== null || hIn !== null) continue; // skip midpoint on curved segments
             const a = path.points[si] as Vec;
             const b = path.points[(si + 1) % ptCount] as Vec;
             const wa = partToWorld(nePart, pivot, a);
@@ -1364,6 +1724,38 @@ export function Viewport({
             ctx.globalAlpha = 1;
           }
 
+          // Draw Bézier handle lines and dots.
+          for (let ni = 0; ni < ptCount; ni++) {
+            const h = getNodeHandle(nodeEdit, nePaths, pi, ni);
+            if (!h) continue;
+            const anchorW = nodeWorldPos(nePart, nePaths, pi, ni);
+            const [anx, any] = toScreen(anchorW);
+            for (const which of ["in", "out"] as const) {
+              const isDragH = drag?.mode === "handle" && drag.nodePathIdx === pi && drag.nodeIdx === ni && drag.handleWhich === which;
+              const hw: Vec | null = isDragH && drag?.handleDragWorld
+                ? drag.handleDragWorld
+                : handleWorldPos(nodeEdit, nePart, nePaths, pi, ni, which);
+              if (!hw) continue;
+              const [hx, hy] = toScreen(hw);
+              // Handle stem line.
+              ctx.strokeStyle = colFg;
+              ctx.lineWidth = 1;
+              ctx.globalAlpha = 0.35;
+              ctx.beginPath(); ctx.moveTo(anx, any); ctx.lineTo(hx, hy); ctx.stroke();
+              // Handle dot (hollow square).
+              const hovKey = `${pi}:${ni}:${which}`;
+              const hHovered = nodeEdit.hoveredHandle === hovKey;
+              ctx.globalAlpha = 1;
+              ctx.fillStyle = colCard;
+              ctx.strokeStyle = hHovered ? colPrimary : colFg;
+              ctx.lineWidth = 1.5;
+              ctx.beginPath();
+              ctx.rect(hx - 4, hy - 4, 8, 8);
+              ctx.fill(); ctx.stroke();
+            }
+            ctx.globalAlpha = 1;
+          }
+
           // Draw node dots.
           for (let ni = 0; ni < ptCount; ni++) {
             const isDragging = drag?.mode === "node" && drag.nodePathIdx === pi && drag.nodeIdx === ni;
@@ -1373,13 +1765,28 @@ export function Viewport({
             const [snx, sny] = toScreen(wp);
             const selected = nodeEdit.selectedNode?.pathIdx === pi && nodeEdit.selectedNode?.nodeIdx === ni;
             const hovered = nodeEdit.hoveredNode?.pathIdx === pi && nodeEdit.hoveredNode?.nodeIdx === ni;
-            ctx.beginPath();
-            ctx.arc(snx, sny, selected || hovered ? 6 : 4, 0, Math.PI * 2);
-            ctx.fillStyle = selected ? colPrimary : colCard;
-            ctx.strokeStyle = hovered ? colPrimary : colFg;
+            const isSmooth = getNodeHandle(nodeEdit, nePaths, pi, ni) !== null;
+            // Selected = filled dark square; smooth = hollow circle; sharp = hollow square.
+            const r = selected ? 5 : hovered ? 5 : 4;
             ctx.lineWidth = 1.5;
-            ctx.fill();
-            ctx.stroke();
+            if (selected) {
+              ctx.fillStyle = colFg;
+              ctx.strokeStyle = colFg;
+            } else if (hovered) {
+              ctx.fillStyle = colCard;
+              ctx.strokeStyle = colPrimary;
+            } else {
+              ctx.fillStyle = colCard;
+              ctx.strokeStyle = colFg;
+            }
+            ctx.beginPath();
+            if (isSmooth) {
+              ctx.arc(snx, sny, r, 0, Math.PI * 2);
+            } else {
+              const s = r * 2;
+              ctx.rect(snx - r, sny - r, s, s);
+            }
+            ctx.fill(); ctx.stroke();
           }
         }
       }
@@ -1734,7 +2141,7 @@ export function Viewport({
     }
   }, [project, geometry, selectedPartId, secondaryPartId, view, size, toScreen, rotateHandleWorld, table,
       simulation, simTime, showGrid, darkCanvas, drawState, activeTool, nodeEdit,
-      guides, guideDrag, hoveredGuideId, settings, bitmapLoadTick]); // eslint-disable-line react-hooks/exhaustive-deps
+      guides, guideDrag, hoveredGuideId, settings, bitmapLoadTick, dragTick]); // eslint-disable-line react-hooks/exhaustive-deps
 
   // --- render ---------------------------------------------------------------
 
@@ -1829,6 +2236,15 @@ export function Viewport({
             onSimplify={() => onSimplify?.(selectedPart.fileId)}
             onArray={(type, params) => onArray?.(selectedPart.id, type, params)}
             onTestArray={(params) => onTestArray?.(selectedPart.id, params)}
+            onEditNodes={() => setNodeEdit({
+              partId: selectedPart.id,
+              fileId: selectedPart.fileId,
+              selectedNode: null,
+              hoveredNode: null,
+              hoveredSeg: null,
+              hoveredHandle: null,
+              handles: new Map(),
+            })}
           />
         );
       })()}
@@ -1861,19 +2277,43 @@ export function Viewport({
         />
       )}
 
-      {/* Node-edit mode hint + exit button. */}
-      {!readOnly && nodeEdit && (
-        <div className="absolute left-1/2 top-2 -translate-x-1/2 flex items-center gap-2 rounded-md bg-background/90 border px-3 py-1 text-xs text-muted-foreground shadow-sm backdrop-blur select-none">
-          <span>Node edit — drag nodes · click segment to add · Del to delete</span>
-          <button
-            className="ml-1 text-muted-foreground hover:text-foreground"
-            onClick={() => setNodeEdit(null)}
-            title="Exit node edit (Esc)"
-          >
-            ✕
-          </button>
-        </div>
-      )}
+      {/* Node-edit toolbar — replaces selection toolbar while in node-edit mode. */}
+      {!readOnly && nodeEdit && (() => {
+        const nePart = project.parts.find((p) => p.id === nodeEdit.partId);
+        const nePaths = geometry.get(nodeEdit.fileId);
+        const selNode = nodeEdit.selectedNode;
+        let nodeWorldX: number | null = null;
+        let nodeWorldY: number | null = null;
+        let isSmooth: boolean | null = null;
+        let canSplit = false;
+        if (selNode && nePart && nePaths) {
+          const wp = nodeWorldPos(nePart, nePaths, selNode.pathIdx, selNode.nodeIdx);
+          nodeWorldX = wp[0];
+          nodeWorldY = wp[1];
+          const h = getNodeHandle(nodeEdit, nePaths, selNode.pathIdx, selNode.nodeIdx);
+          isSmooth = h !== null;
+          const path = nePaths[selNode.pathIdx];
+          if (path) {
+            const n = path.points.length;
+            canSplit = path.closed
+              ? n >= 3
+              : selNode.nodeIdx > 0 && selNode.nodeIdx < n - 1;
+          }
+        }
+        return (
+          <NodeEditToolbar
+            nodeX={nodeWorldX}
+            nodeY={nodeWorldY}
+            isSmooth={selNode ? isSmooth : null}
+            canSplit={canSplit}
+            onMakeSharp={() => setNodeType(false)}
+            onMakeSmooth={() => setNodeType(true)}
+            onScissors={scissorsAtSelectedNode}
+            onSimplify={() => nePaths && onSimplify?.(nodeEdit.fileId)}
+            onDone={() => setNodeEdit(null)}
+          />
+        );
+      })()}
 
       {/* Text panel — appears at click position. */}
       {!readOnly && drawState?.phase === "text" && textScreenPos && (

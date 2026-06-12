@@ -15,6 +15,7 @@ import {
   FlipVertical2,
   Link2,
   Link2Off,
+  PenLine,
   RotateCcw,
   RotateCw,
   Spline,
@@ -46,6 +47,7 @@ interface Props {
   onSimplify?: () => void;
   onArray?: (type: "grid" | "circular", params: object) => void;
   onTestArray?: (params: object) => void;
+  onEditNodes?: () => void;
 }
 
 export function EditToolbar({
@@ -62,6 +64,7 @@ export function EditToolbar({
   onSimplify,
   onArray,
   onTestArray,
+  onEditNodes,
 }: Props) {
   const [draft, setDraft] = useState<Record<string, string>>({});
   const [aspectLocked, setAspectLocked] = useState(true);
@@ -264,6 +267,14 @@ export function EditToolbar({
 
       {onArray && onTestArray && (
         <ArrayPanel onArray={onArray} onTestArray={onTestArray} />
+      )}
+
+      {onEditNodes && (
+        <Button variant="ghost" size="icon" className={iconBtn}
+          title="Edit nodes — double-click or press E (Ctrl+E)"
+          onClick={onEditNodes}>
+          <PenLine className="size-4" />
+        </Button>
       )}
 
       <Button variant="ghost" size="icon" className={iconBtn} title="Duplicate (Ctrl+D)"

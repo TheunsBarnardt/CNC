@@ -165,11 +165,16 @@ public static class ProjectApi
                         points = path.Polyline.Points
                             .Select(pt => new[] { Math.Round(pt.X, 2), Math.Round(pt.Y, 2) })
                             .ToList(),
+                        handles = path.Handles != null
+                            ? path.Handles.Select(h => h != null
+                                ? h.Select(v => Math.Round(v, 4)).ToArray()
+                                : null).ToList<double[]?>()
+                            : null,
                     }).ToList(),
                 }).ToList(),
             })));
 
-        // Replace the node list of a specific path (node editing).
+        // Replace the node list of a specific path (node editing), with optional Bézier handles.
         group.MapPatch("/files/{fileId:guid}/paths/{pathId:guid}", (Guid fileId, Guid pathId, UpdatePathNodesRequest request, ProjectService projects) =>
         {
             if (request.Points is not { Count: >= 2 })
@@ -181,9 +186,52 @@ public static class ProjectApi
                 var path = file?.Paths.FirstOrDefault(pt => pt.Id == pathId);
                 if (path is null) return false;
                 if (path.Polyline.IsClosed && request.Points.Count < 3)
-                    return false; // closed path needs ≥3 points
+                    return false;
                 path.Polyline.Points.Clear();
                 path.Polyline.Points.AddRange(request.Points.Select(pt => new Backend.Geometry.Point2(pt[0], pt[1])));
+                // Store Bézier handles if provided; clear them if explicitly null.
+                if (request.Handles != null)
+                    path.Handles = request.Handles.ToList();
+                else if (request.ClearHandles == true)
+                    path.Handles = null;
+                return true;
+            });
+            return found ? Results.Ok(projects.With(ToDto)) : Results.NotFound();
+        });
+
+        // Split a path at a given node index into two paths.
+        group.MapPost("/files/{fileId:guid}/paths/{pathId:guid}/split", (Guid fileId, Guid pathId, SplitPathRequest request, ProjectService projects) =>
+        {
+            bool found = projects.With(p =>
+            {
+                var file = p.Files.FirstOrDefault(f => f.Id == fileId);
+                var path = file?.Paths.FirstOrDefault(pt => pt.Id == pathId);
+                if (path is null || file is null) return false;
+                int n = path.Polyline.Points.Count;
+                int k = request.NodeIndex;
+                if (k <= 0 || k >= n - 1) return false; // can't split at endpoints of open path
+                // Build two open sub-paths from anchor points.
+                var pts1 = path.Polyline.Points.Take(k + 1).ToList();
+                var pts2 = path.Polyline.Points.Skip(k).ToList();
+                // Build matching handles slices if present.
+                List<double[]?>? h1 = path.Handles != null ? path.Handles.Take(k + 1).ToList() : null;
+                List<double[]?>? h2 = path.Handles != null ? path.Handles.Skip(k).ToList() : null;
+                var newPath1 = new Backend.Models.PathGeometry
+                {
+                    Layer = path.Layer,
+                    Polyline = new Backend.Geometry.Polyline2 { IsClosed = false, Points = pts1 },
+                    Handles = h1,
+                };
+                var newPath2 = new Backend.Models.PathGeometry
+                {
+                    Layer = path.Layer,
+                    Polyline = new Backend.Geometry.Polyline2 { IsClosed = false, Points = pts2 },
+                    Handles = h2,
+                };
+                int idx = file.Paths.IndexOf(path);
+                file.Paths.RemoveAt(idx);
+                file.Paths.Insert(idx, newPath2);
+                file.Paths.Insert(idx, newPath1);
                 return true;
             });
             return found ? Results.Ok(projects.With(ToDto)) : Results.NotFound();
@@ -964,7 +1012,11 @@ public static class ProjectApi
     public sealed record ReorderPartRequest(string Direction); // "up" | "down" | "front" | "back"
     public sealed record OffsetPartRequest(double OffsetMm);
 
-    public sealed record UpdatePathNodesRequest(IReadOnlyList<double[]> Points);
+    public sealed record UpdatePathNodesRequest(
+        IReadOnlyList<double[]> Points,
+        IReadOnlyList<double[]?>? Handles = null,
+        bool? ClearHandles = null);
+    public sealed record SplitPathRequest(int NodeIndex);
     public sealed record SimplifyRequest(double ToleranceMm);
     public sealed record BooleanRequest(string Operation, IReadOnlyList<Guid> PartIds, bool DeleteSources = true);
 

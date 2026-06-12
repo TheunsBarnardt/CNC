@@ -172,8 +172,21 @@ function App() {
   );
 
   const handleNodesChanged = useCallback(
-    (fileId: string, pathId: string, points: [number, number][]) => {
-      void run(() => projectApi.updatePathNodes(fileId, pathId, points), true);
+    (
+      fileId: string,
+      pathId: string,
+      points: [number, number][],
+      handles?: ([number, number, number, number] | null)[] | null,
+      clearHandles?: boolean,
+    ) => {
+      void run(() => projectApi.updatePathNodes(fileId, pathId, points, handles, clearHandles), true);
+    },
+    [run],
+  );
+
+  const handleSplitPath = useCallback(
+    (fileId: string, pathId: string, nodeIndex: number) => {
+      void run(() => projectApi.splitPath(fileId, pathId, nodeIndex), true);
     },
     [run],
   );
@@ -434,6 +447,7 @@ function App() {
                 onReorder={handleReorder}
                 onOffset={handleOffset}
                 onNodesChanged={handleNodesChanged}
+                onSplitPath={handleSplitPath}
                 onSimplify={handleSimplify}
                 onBoolean={handleBoolean}
                 onArray={handleArray}

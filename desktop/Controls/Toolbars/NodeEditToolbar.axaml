@@ -1,0 +1,54 @@
+<UserControl xmlns="https://github.com/avaloniaui"
+             xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+             x:Class="Desktop.Controls.Toolbars.NodeEditToolbar"
+             x:CompileBindings="False"
+             IsVisible="{Binding NodeEditMode}">
+
+  <Border Background="{StaticResource Brush.Bg2}"
+          BorderBrush="{StaticResource Brush.Border}"
+          BorderThickness="0,1,0,0"
+          Padding="8,4">
+    <ScrollViewer HorizontalScrollBarVisibility="Auto"
+                  VerticalScrollBarVisibility="Disabled">
+      <StackPanel Orientation="Horizontal" Spacing="4">
+
+        <!-- Node position X/Y -->
+        <TextBlock Text="X" Classes="muted" VerticalAlignment="Center"/>
+        <TextBox x:Name="TbNodeX" Width="60" Watermark="X" IsEnabled="False"/>
+        <TextBlock Text="Y" Classes="muted" VerticalAlignment="Center" Margin="8,0,0,0"/>
+        <TextBox x:Name="TbNodeY" Width="60" Watermark="Y" IsEnabled="False"/>
+
+        <Separator Theme="{StaticResource Sep.Vertical}"/>
+
+        <!-- Smooth/Sharp toggle -->
+        <Button x:Name="BtnSmooth" Content="⌣" Theme="{StaticResource Btn.Icon}"
+                ToolTip.Tip="Smooth corner (Bézier)" Click="OnToggleSmooth"/>
+        <Button x:Name="BtnSharp" Content="⌊" Theme="{StaticResource Btn.Icon}"
+                ToolTip.Tip="Sharp corner" Click="OnToggleSharp"/>
+
+        <!-- Auto-smooth -->
+        <Button x:Name="BtnAutoSmooth" Content="↗" Theme="{StaticResource Btn.Icon}"
+                ToolTip.Tip="Auto-smooth (Catmull-Rom)" Click="OnAutoSmooth"/>
+
+        <Separator Theme="{StaticResource Sep.Vertical}"/>
+
+        <!-- Scissors (split path) -->
+        <Button x:Name="BtnScissors" Content="✂" Theme="{StaticResource Btn.Icon}"
+                ToolTip.Tip="Split path at node" Click="OnScissors"/>
+
+        <Separator Theme="{StaticResource Sep.Vertical}"/>
+
+        <!-- Complexity indicator -->
+        <TextBlock x:Name="ComplexityInfo" Text="Complexity: —"
+                  VerticalAlignment="Center" FontSize="12" Foreground="#999"
+                  Margin="8,0"/>
+
+        <!-- Done button -->
+        <Button x:Name="BtnDone" Content="Done" Theme="{StaticResource Btn.Ghost}"
+                Click="OnDone" HorizontalAlignment="Right"/>
+
+      </StackPanel>
+    </ScrollViewer>
+  </Border>
+
+</UserControl>

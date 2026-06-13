@@ -89,6 +89,9 @@
         <!-- edit toolbar at bottom (visible only when part selected + edit mode) -->
         <toolbars:EditToolbar x:Name="EditBar" DockPanel.Dock="Bottom"/>
 
+        <!-- node edit toolbar at bottom (visible only in node edit mode) -->
+        <toolbars:NodeEditToolbar x:Name="NodeEditBar" DockPanel.Dock="Bottom"/>
+
         <!-- canvas controls bar -->
         <Border DockPanel.Dock="Bottom"
                 Background="{StaticResource Brush.Bg2}"

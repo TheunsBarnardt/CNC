@@ -585,10 +585,13 @@ public sealed class ViewportControl : Control
                 var pivot = LocalCenter(geom);
                 using var nodePaint = new SKPaint { Color = colPrim, StrokeWidth = 2, IsStroke = false, IsAntialias = true };
                 using var selectPaint = new SKPaint { Color = colRed, StrokeWidth = 2, IsStroke = false, IsAntialias = true };
+                using var handlePaint = new SKPaint { Color = colCyan, StrokeWidth = 1, IsStroke = true, IsAntialias = true };
+                using var stemPaint = new SKPaint { Color = colCyan, StrokeWidth = 1, IsStroke = true, IsAntialias = true };
 
                 int nodeIdx = 0;
                 foreach (var pg in geom)
                 {
+                    int pathNodeIdx = 0;
                     foreach (var local in pg.Polyline.Points)
                     {
                         var world = PartTransform.Apply(part, pivot, local);
@@ -596,13 +599,51 @@ public sealed class ViewportControl : Control
                         float sy = ToSY(world.Y);
 
                         bool selected = nodeIdx == _selectedNodeIndex;
-                        canvas.DrawCircle(sx, sy, 5, selected ? selectPaint : nodePaint);
+                        bool hasHandle = pg.Handles != null && pathNodeIdx < pg.Handles.Count && pg.Handles[pathNodeIdx] != null;
+
+                        // Render node: circle for smooth (has handle), square for sharp
+                        if (hasHandle)
+                        {
+                            canvas.DrawCircle(sx, sy, 5, selected ? selectPaint : nodePaint);
+                        }
+                        else
+                        {
+                            canvas.DrawRect(sx - 4, sy - 4, 8, 8, selected ? selectPaint : nodePaint);
+                        }
+
+                        // Render handles if node is selected
+                        if (selected && hasHandle && pg.Handles[pathNodeIdx] is { } handle)
+                        {
+                            // In-handle (control point on left)
+                            if (handle.Length >= 2)
+                            {
+                                var ih = new Point2(handle[0], handle[1]);
+                                var inWorld = PartTransform.Apply(part, pivot, ih);
+                                float ihsx = ToSX(inWorld.X);
+                                float ihsy = ToSY(inWorld.Y);
+                                canvas.DrawLine(sx, sy, ihsx, ihsy, stemPaint);
+                                canvas.DrawRect(ihsx - 3, ihsy - 3, 6, 6, handlePaint);
+                            }
+
+                            // Out-handle (control point on right)
+                            if (handle.Length >= 4)
+                            {
+                                var oh = new Point2(handle[2], handle[3]);
+                                var outWorld = PartTransform.Apply(part, pivot, oh);
+                                float ohsx = ToSX(outWorld.X);
+                                float ohsy = ToSY(outWorld.Y);
+                                canvas.DrawLine(sx, sy, ohsx, ohsy, stemPaint);
+                                canvas.DrawRect(ohsx - 3, ohsy - 3, 6, 6, handlePaint);
+                            }
+                        }
+
                         nodeIdx++;
+                        pathNodeIdx++;
                     }
                 }
 
                 using var statusPaint2 = new SKPaint { Color = colPrim, TextSize = 12, IsAntialias = true };
-                canvas.DrawText($"Node edit: {nodeIdx} nodes (Esc to exit)", 30, 45, statusPaint2);
+                canvas.DrawText($"Node edit: {nodeIdx} nodes (Esc to exit) | Selected: {(_selectedNodeIndex >= 0 ? _selectedNodeIndex.ToString() : "none")}", 30, 45, statusPaint2);
             }
         }
 

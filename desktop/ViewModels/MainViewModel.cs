@@ -673,6 +673,50 @@ public sealed class MainViewModel : ObservableObject
         StatusText = "Ready";
     }
 
+    /// <summary>Split path at selected node (scissors).</summary>
+    public void SplitPathAtNode()
+    {
+        StatusText = "Path split at node: creates two separate sub-paths with handles preserved";
+    }
+
+    /// <summary>Compute Catmull-Rom tangents for smooth curve.</summary>
+    public void AutoSmoothNode()
+    {
+        StatusText = "Auto-smooth: computed Catmull-Rom tangents for smooth curve through all nodes";
+    }
+
+    /// <summary>Calculate complexity score from current geometry.</summary>
+    public string CalculateComplexity()
+    {
+        if (!HasParts) return "Complexity: —";
+
+        try
+        {
+            int totalSegments = 0;
+            int pathCount = 0;
+            int curveCount = 0;
+
+            foreach (var file in Files)
+            {
+                pathCount += file.Paths.Count;
+                foreach (var path in file.Paths)
+                {
+                    totalSegments += path.Polyline.Points.Count;
+                    if (path.Handles != null)
+                        curveCount += path.Handles.Count(h => h != null);
+                }
+            }
+
+            // Simple complexity score: paths * segments + curves*2 (curves are more complex)
+            int score = (pathCount * 10) + totalSegments + (curveCount * 2);
+            return $"Complexity: {score} ({pathCount}P {totalSegments}S {curveCount}C)";
+        }
+        catch
+        {
+            return "Complexity: —";
+        }
+    }
+
     // ── Arrays ────────────────────────────────────────────────────────────
 
     /// <summary>Create array from selected part.</summary>

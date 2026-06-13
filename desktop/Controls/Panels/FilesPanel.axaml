@@ -42,7 +42,7 @@
                     BorderBrush="{StaticResource Brush.Border}"
                     BorderThickness="0,0,0,1"
                     Padding="8,5">
-              <Grid ColumnDefinitions="Auto,*,Auto,Auto,Auto">
+              <Grid ColumnDefinitions="Auto,*,Auto,Auto,Auto,Auto">
                 <!-- visibility eye -->
                 <Button Grid.Column="0"
                         Content="{Binding Visible, Converter={x:Static conv:VisibilityIconConverter.Instance}}"
@@ -73,8 +73,18 @@
                              Foreground="{StaticResource Brush.TextMuted}"/>
                 </Border>
 
-                <!-- add to table -->
+                <!-- trace bitmap (only for bitmaps) -->
                 <Button Grid.Column="3"
+                        Content="⟳"
+                        Theme="{StaticResource Btn.Icon}"
+                        Width="22" Height="22"
+                        ToolTip.Tip="Trace to vector"
+                        Click="OnTraceBitmap"
+                        Tag="{Binding}"
+                        IsVisible="{Binding IsBitmap}"/>
+
+                <!-- add to table -->
+                <Button Grid.Column="4"
                         Content="⊕"
                         Theme="{StaticResource Btn.Icon}"
                         Width="22" Height="22"
@@ -83,7 +93,7 @@
                         Tag="{Binding}"/>
 
                 <!-- delete -->
-                <Button Grid.Column="4"
+                <Button Grid.Column="5"
                         Content="✕"
                         Theme="{StaticResource Btn.Icon}"
                         Width="22" Height="22"

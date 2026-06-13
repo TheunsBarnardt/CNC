@@ -84,6 +84,8 @@ public sealed class ImportedFile
         ImportedFileKind.Shape  => "SHP",
         _                       => "?",
     };
+    /// <summary>True if this is a bitmap file that can be traced.</summary>
+    public bool IsBitmap => Kind == ImportedFileKind.Bitmap;
     public bool Visible { get; set; } = true;
     public List<PathGeometry> Paths { get; init; } = [];
 

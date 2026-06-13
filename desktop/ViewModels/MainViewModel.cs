@@ -690,4 +690,27 @@ public sealed class MainViewModel : ObservableObject
             StatusText = "Array creation not yet fully implemented";
         }
     }
+
+    // ── Bitmap Trace ──────────────────────────────────────────────────────
+
+    /// <summary>Trace bitmap to vector geometry.</summary>
+    public void TraceBitmap(ImportedFile file, dynamic traceDialog)
+    {
+        if (file.Kind != ImportedFileKind.Bitmap)
+        {
+            StatusText = "Not a bitmap file";
+            return;
+        }
+
+        try
+        {
+            string mode = traceDialog.Mode?.ToString() ?? "Outline";
+            int threshold = traceDialog.ThresholdValue ?? 128;
+            StatusText = $"Bitmap trace not yet fully implemented ({file.Name} via {mode} @ {threshold})";
+        }
+        catch
+        {
+            StatusText = "Bitmap trace not yet fully implemented";
+        }
+    }
 }

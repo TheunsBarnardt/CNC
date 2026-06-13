@@ -1,0 +1,68 @@
+<Window xmlns="https://github.com/avaloniaui"
+        xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+        x:Class="Desktop.Views.BitmapTraceDialog"
+        x:CompileBindings="False"
+        Title="Trace Bitmap to Vector"
+        Width="500" Height="600"
+        WindowStartupLocation="CenterOwner"
+        CanResize="False">
+
+  <StackPanel Spacing="16" Margin="20">
+
+    <TextBlock Text="Trace Settings" FontSize="16" FontWeight="SemiBold"/>
+
+    <!-- Mode selector -->
+    <StackPanel Spacing="8">
+      <TextBlock Text="Trace Mode:" FontWeight="SemiBold"/>
+      <StackPanel Spacing="8">
+        <RadioButton x:Name="RbOutline" Content="Outline (edges)" IsChecked="True"/>
+        <RadioButton x:Name="RbCenterline" Content="Centerline (medial axis)"/>
+      </StackPanel>
+    </StackPanel>
+
+    <!-- Threshold slider -->
+    <StackPanel Spacing="8">
+      <Grid ColumnDefinitions="Auto,*,Auto" ColumnSpacing="8">
+        <TextBlock Grid.Column="0" Text="Threshold:" VerticalAlignment="Center"/>
+        <Slider x:Name="SlrThreshold" Grid.Column="1" Minimum="0" Maximum="255" Value="128"/>
+        <TextBlock Grid.Column="2" Text="{Binding ThresholdValue}" Width="40" VerticalAlignment="Center"/>
+      </Grid>
+    </StackPanel>
+
+    <!-- Filters -->
+    <StackPanel Spacing="8">
+      <TextBlock Text="Filters:" FontWeight="SemiBold"/>
+      <StackPanel Spacing="6">
+        <CheckBox x:Name="CbInvert" Content="Invert colors"/>
+        <CheckBox x:Name="CbGrayscale" Content="Grayscale"/>
+        <CheckBox x:Name="CbBrightness" Content="Adjust brightness"/>
+        <CheckBox x:Name="CbContrast" Content="Adjust contrast"/>
+      </StackPanel>
+    </StackPanel>
+
+    <!-- Simplify tolerance -->
+    <StackPanel Spacing="8">
+      <Grid ColumnDefinitions="Auto,*" ColumnSpacing="8">
+        <TextBlock Grid.Column="0" Text="Simplify tolerance (mm):" VerticalAlignment="Center"/>
+        <TextBox x:Name="TbSimplify" Grid.Column="1" Text="0.1"/>
+      </Grid>
+    </StackPanel>
+
+    <!-- Preview info -->
+    <Border Background="#1a1a1a" CornerRadius="4" Padding="12">
+      <StackPanel Spacing="8">
+        <TextBlock Text="Preview:" FontWeight="SemiBold"/>
+        <TextBlock x:Name="TbPreviewInfo" Text="Ready to trace" Foreground="#999" FontSize="12"/>
+      </StackPanel>
+    </Border>
+
+    <!-- Buttons -->
+    <StackPanel Orientation="Horizontal" Spacing="8" HorizontalAlignment="Right">
+      <Button x:Name="BtnCancel" Content="Cancel" Padding="12,8"/>
+      <Button x:Name="BtnRetrace" Content="Retrace" Padding="12,8" Background="#3b82f6" Foreground="White"/>
+      <Button x:Name="BtnImport" Content="Import" Padding="12,8" Background="#10b981" Foreground="White"/>
+    </StackPanel>
+
+  </StackPanel>
+
+</Window>

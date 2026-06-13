@@ -436,9 +436,9 @@ Work top to bottom. **Each task is one session.** After completing each task:
 > - Commit: "Task 17: ArrayPanel with layer inheritance"
 > - Continue to Task 18.
 
-### [ ] Task 18 — Bitmap import + trace to vector
+### [~] Task 18 — Bitmap import + trace to vector
 
-**Status:** ✅ Backend bitmap import + tracer complete. AvaloniaUI UI needed.
+**Status:** ⏳ IN PROGRESS. BitmapTraceDialog created with mode, threshold, filters, simplify controls. Trace button integrated to FilesPanel. Full bitmap rendering and layer assignment deferred.
 
 **Paste this:**
 > Read the plan and CLAUDE.md. **Backend BitmapImporter + BitmapTracer exist.** Add UI:

@@ -512,4 +512,90 @@ public sealed class MainViewModel : ObservableObject
         }
         catch (Exception ex) { StatusText = $"Import failed: {ex.Message}"; }
     }
+
+    // ── Shape creation ────────────────────────────────────────────────────
+
+    /// <summary>Create and place a rectangle shape.</summary>
+    public void CreateRectangle(double widthMm, double heightMm, double cornerRadiusMm = 0)
+    {
+        var file = ShapeGenerator.CreateRectangle(widthMm, heightMm, cornerRadiusMm);
+        _projects.Mutate(p =>
+        {
+            p.Files.Add(file);
+            p.Parts.Add(PartPlacer.PlaceNew(p, file));
+        });
+        RefreshGeometry(file);
+        Refresh();
+        StatusText = "Rectangle created";
+    }
+
+    /// <summary>Create and place a circle shape.</summary>
+    public void CreateCircle(double radiusMm)
+    {
+        var file = ShapeGenerator.CreateCircle(radiusMm);
+        _projects.Mutate(p =>
+        {
+            p.Files.Add(file);
+            p.Parts.Add(PartPlacer.PlaceNew(p, file));
+        });
+        RefreshGeometry(file);
+        Refresh();
+        StatusText = "Circle created";
+    }
+
+    /// <summary>Create and place an ellipse shape.</summary>
+    public void CreateEllipse(double widthMm, double heightMm)
+    {
+        var file = ShapeGenerator.CreateEllipse(widthMm, heightMm);
+        _projects.Mutate(p =>
+        {
+            p.Files.Add(file);
+            p.Parts.Add(PartPlacer.PlaceNew(p, file));
+        });
+        RefreshGeometry(file);
+        Refresh();
+        StatusText = "Ellipse created";
+    }
+
+    /// <summary>Create and place a polygon shape.</summary>
+    public void CreatePolygon(int sideCount, double radiusMm)
+    {
+        var file = ShapeGenerator.CreatePolygon(sideCount, radiusMm);
+        _projects.Mutate(p =>
+        {
+            p.Files.Add(file);
+            p.Parts.Add(PartPlacer.PlaceNew(p, file));
+        });
+        RefreshGeometry(file);
+        Refresh();
+        StatusText = $"{sideCount}-gon created";
+    }
+
+    /// <summary>Create and place a star shape.</summary>
+    public void CreateStar(int pointCount, double outerRadiusMm, double innerRadiusMm)
+    {
+        var file = ShapeGenerator.CreateStar(pointCount, outerRadiusMm, innerRadiusMm);
+        _projects.Mutate(p =>
+        {
+            p.Files.Add(file);
+            p.Parts.Add(PartPlacer.PlaceNew(p, file));
+        });
+        RefreshGeometry(file);
+        Refresh();
+        StatusText = $"{pointCount}-point star created";
+    }
+
+    /// <summary>Create and place a line shape.</summary>
+    public void CreateLine(double lengthMm)
+    {
+        var file = ShapeGenerator.CreateLine(lengthMm);
+        _projects.Mutate(p =>
+        {
+            p.Files.Add(file);
+            p.Parts.Add(PartPlacer.PlaceNew(p, file));
+        });
+        RefreshGeometry(file);
+        Refresh();
+        StatusText = "Line created";
+    }
 }

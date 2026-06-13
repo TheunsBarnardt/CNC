@@ -66,6 +66,38 @@ public partial class MainWindow : Window
         // Left tool-rail import
         BtnImport.Click += async (_, _) => await vm.ImportAsync(StorageProvider);
 
+        // Shape tools
+        BtnLine.Click += (_, _) =>
+        {
+            vm.CreateLine(100);  // 100mm line
+            Viewport.FitToView();
+        };
+        BtnRectangle.Click += (_, _) =>
+        {
+            vm.CreateRectangle(100, 60);  // 100×60mm rectangle
+            Viewport.FitToView();
+        };
+        BtnCircle.Click += (_, _) =>
+        {
+            vm.CreateCircle(50);  // 50mm radius circle
+            Viewport.FitToView();
+        };
+        BtnEllipse.Click += (_, _) =>
+        {
+            vm.CreateEllipse(100, 60);  // 100×60mm ellipse
+            Viewport.FitToView();
+        };
+        BtnPolygon.Click += (_, _) =>
+        {
+            vm.CreatePolygon(6, 50);  // Hexagon with 50mm radius
+            Viewport.FitToView();
+        };
+        BtnStar.Click += (_, _) =>
+        {
+            vm.CreateStar(5, 50, 20);  // 5-point star
+            Viewport.FitToView();
+        };
+
         // Tab switching
         TabFiles.Click  += (_, _) => ShowPanel(PnlFiles);
         TabLayers.Click += (_, _) => ShowPanel(PnlLayers);

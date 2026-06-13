@@ -68,12 +68,15 @@
                   Theme="{StaticResource Btn.ToolRail}"
                   ToolTip.Tip="Import file (SVG / DXF / PNG…)"/>
           <Separator Theme="{StaticResource Sep.Horizontal}"/>
-          <!-- Shape tools — stubs -->
-          <Button Content="╱" Theme="{StaticResource Btn.ToolRail}" IsEnabled="False" ToolTip.Tip="Line (coming soon)"/>
-          <Button Content="▭" Theme="{StaticResource Btn.ToolRail}" IsEnabled="False" ToolTip.Tip="Rectangle (coming soon)"/>
-          <Button Content="◯" Theme="{StaticResource Btn.ToolRail}" IsEnabled="False" ToolTip.Tip="Circle (coming soon)"/>
-          <Button Content="✏" Theme="{StaticResource Btn.ToolRail}" IsEnabled="False" ToolTip.Tip="Pen tool (coming soon)"/>
-          <Button Content="T"  Theme="{StaticResource Btn.ToolRail}" IsEnabled="False" ToolTip.Tip="Text (coming soon)"/>
+          <!-- Shape tools -->
+          <Button x:Name="BtnLine"      Content="╱" Theme="{StaticResource Btn.ToolRail}" ToolTip.Tip="Line"/>
+          <Button x:Name="BtnRectangle" Content="▭" Theme="{StaticResource Btn.ToolRail}" ToolTip.Tip="Rectangle"/>
+          <Button x:Name="BtnCircle"    Content="◯" Theme="{StaticResource Btn.ToolRail}" ToolTip.Tip="Circle"/>
+          <Button x:Name="BtnEllipse"   Content="⬭" Theme="{StaticResource Btn.ToolRail}" ToolTip.Tip="Ellipse"/>
+          <Button x:Name="BtnPolygon"   Content="⬟" Theme="{StaticResource Btn.ToolRail}" ToolTip.Tip="Polygon"/>
+          <Button x:Name="BtnStar"      Content="✦" Theme="{StaticResource Btn.ToolRail}" ToolTip.Tip="Star"/>
+          <Button x:Name="BtnPen"       Content="✏" Theme="{StaticResource Btn.ToolRail}" ToolTip.Tip="Pen tool (coming soon)" IsEnabled="False"/>
+          <Button x:Name="BtnText"      Content="T"  Theme="{StaticResource Btn.ToolRail}" ToolTip.Tip="Text (coming soon)" IsEnabled="False"/>
         </StackPanel>
       </Border>
 

@@ -417,9 +417,9 @@ Work top to bottom. **Each task is one session.** After completing each task:
 > - Commit: "Task 16: Node editing + booleans with cutout support"
 > - Deferred: symmetric handle constraint, multi-node selection. Continue to Task 17.
 
-### [ ] Task 17 — Arrays & material test grid
+### [~] Task 17 — Arrays & material test grid
 
-**Status:** ✅ Backend array generation + test grid complete. AvaloniaUI UI needed.
+**Status:** ⏳ IN PROGRESS. ArrayPanel dialog created with Grid/Circular/Test modes. Array button integrated to EditToolbar but may be off-screen due to toolbar width. Full array implementation (cloning parts, position updates) deferred.
 
 **Paste this:**
 > Read the plan and CLAUDE.md. **Backend arrays and test grid exist.** Add UI:

@@ -49,6 +49,9 @@ public sealed class ViewportControl : Control
     private float    _dragTx, _dragTy;
     private double   _partStartX, _partStartY;
 
+    // ── pen tool state ─────────────────────────────────────────────────────
+    private List<(double x, double y)> _penPoints = [];
+
     // ── events ────────────────────────────────────────────────────────────
     public event Action<Guid?    >? SelectionChanged;
     public event Action<Part     >? PartMoved;     // optimistic (during drag)
@@ -126,6 +129,19 @@ public sealed class ViewportControl : Control
         Focus();
         var pos = e.GetPosition(this);
         var props = e.GetCurrentPoint(this).Properties;
+
+        // Pen tool: left-click collects points
+        if (_vm?.PenToolActive == true && props.IsLeftButtonPressed)
+        {
+            if (pos.X >= RULER_PX && pos.Y >= RULER_PX)
+            {
+                var pwx = ToWX((float)pos.X);
+                var pwy = ToWY((float)pos.Y);
+                _penPoints.Add((pwx, pwy));
+                InvalidateVisual();
+            }
+            return;
+        }
 
         // Middle mouse or right-drag → pan
         if (props.IsMiddleButtonPressed || props.IsRightButtonPressed)
@@ -226,6 +242,40 @@ public sealed class ViewportControl : Control
     protected override void OnKeyDown(KeyEventArgs e)
     {
         base.OnKeyDown(e);
+
+        // Pen tool shortcuts
+        if (_vm?.PenToolActive == true)
+        {
+            switch (e.Key)
+            {
+                case Key.Return:
+                    // Enter = finish path (closed if Shift held)
+                    bool closed = e.KeyModifiers.HasFlag(KeyModifiers.Shift);
+                    _vm.CreatePathFromPoints(_penPoints, closed);
+                    _penPoints.Clear();
+                    InvalidateVisual();
+                    e.Handled = true;
+                    break;
+                case Key.Escape:
+                    // Escape = cancel
+                    _vm.CancelPenTool();
+                    _penPoints.Clear();
+                    InvalidateVisual();
+                    e.Handled = true;
+                    break;
+                case Key.Back: case Key.Delete:
+                    // Backspace = undo last point
+                    if (_penPoints.Count > 0)
+                    {
+                        _penPoints.RemoveAt(_penPoints.Count - 1);
+                        InvalidateVisual();
+                        e.Handled = true;
+                    }
+                    break;
+            }
+            if (e.Handled) return;
+        }
+
         var part = _selectedId.HasValue
             ? _parts.FirstOrDefault(p => p.Id == _selectedId.Value)
             : null;
@@ -420,6 +470,35 @@ public sealed class ViewportControl : Control
                 torchPaint.StrokeWidth = 1.5f;
                 canvas.DrawCircle(sx, sy, 5, torchPaint);
             }
+        }
+
+        // ── pen tool points ───────────────────────────────────────────────
+        if (_vm?.PenToolActive == true && _penPoints.Count > 0)
+        {
+            using var penPaint = new SKPaint { Color = colPrim, StrokeWidth = 2, IsStroke = false, IsAntialias = true };
+            using var linePaint = new SKPaint { Color = colPrim.WithAlpha(0x80), StrokeWidth = 1, IsStroke = true, IsAntialias = true };
+
+            // Draw lines connecting points
+            for (int i = 1; i < _penPoints.Count; i++)
+            {
+                float x0 = ToSX(_penPoints[i - 1].x);
+                float y0 = ToSY(_penPoints[i - 1].y);
+                float x1 = ToSX(_penPoints[i].x);
+                float y1 = ToSY(_penPoints[i].y);
+                canvas.DrawLine(x0, y0, x1, y1, linePaint);
+            }
+
+            // Draw points as circles
+            foreach (var pt in _penPoints)
+            {
+                float sx = ToSX(pt.x);
+                float sy = ToSY(pt.y);
+                canvas.DrawCircle(sx, sy, 4, penPaint);
+            }
+
+            // Draw status text
+            using var statusPaint = new SKPaint { Color = colPrim, TextSize = 12, IsAntialias = true };
+            canvas.DrawText($"Pen: {_penPoints.Count} points (Enter=finish, Shift+Enter=close, Esc=cancel)", 30, 45, statusPaint);
         }
 
         // ── rulers ────────────────────────────────────────────────────────

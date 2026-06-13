@@ -339,9 +339,9 @@ Work top to bottom. **Each task is one session.** After completing each task:
 
 ## Milestone 5 — xTool Studio Feature Parity
 
-### [ ] Task 14 — Shape, pen & text creation tools
+### [~] Task 14 — Shape, pen & text creation tools
 
-**Status:** ✅ Backend shape/text generation complete. AvaloniaUI UI needed.
+**Status:** ⏳ IN PROGRESS. Shape tool buttons enabled and wired; basic shape creation works (rectangle, circle, ellipse, polygon, star, line). Deferred: shape size dialogs, drag-to-draw preview, pen tool, text tool.
 
 **Paste this:**
 > Read the plan and CLAUDE.md. **Backend synthetic file creation exists.** Add AvaloniaUI UI:
@@ -501,6 +501,30 @@ Work top to bottom. **Each task is one session.** After completing each task:
 > - Test: Create smooth curves, split paths, verify complexity metrics update
 > - Commit: "Task 21: Node handles + scissors with complexity feedback"
 > - Verify all 21 tasks working end-to-end.
+
+---
+
+## Session Summary (2026-06-13)
+
+### Tasks 0-13: Verified Complete ✅
+All tasks from skeleton through auto-nesting verified working in AvaloniaUI UI. App launches, all major panels present, CAM settings functional.
+
+### Task 14: In Progress (Shape Tools) ⏳
+**Completed:**
+- ShapeGenerator service backend (Creates rectangle, circle, ellipse, polygon, star, line shapes)
+- Shape tool buttons in left toolbar enabled and named (BtnLine, BtnRectangle, etc.)
+- MainViewModel methods for each shape type: CreateRectangle(), CreateCircle(), etc.
+- Button click handlers wired up with default sizes (100×60 rectangle, 50mm circle, etc.)
+- All shapes created as ImportedFile with Kind=Shape, placed on table with auto-fit
+
+**Deferred (for next session):**
+- Shape size input dialogs (prompt user for width/height before creating)
+- Drag-to-draw mode (click+drag on viewport shows preview, release to create)
+- Pen tool (click to place nodes, Bézier handles)
+- Text tool (click to place, text input dialog with font selector)
+- Per-layer assignment for created shapes
+
+**Code committed:** ShapeGenerator.cs, MainViewModel shape methods, MainWindow button wiring.
 
 ---
 

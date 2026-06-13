@@ -341,12 +341,13 @@ public sealed class MainViewModel : ObservableObject
     }
 
     public void UpdateLayer(Layer layer, string? name = null, string? color = null,
-        bool? visible = null, bool? locked = null)
+        bool? visible = null, bool? locked = null, LayerOperationMode? operationMode = null)
     {
-        if (name    is not null) layer.Name    = name;
-        if (color   is not null) layer.Color   = color;
-        if (visible is not null) layer.Visible = visible.Value;
-        if (locked  is not null) layer.Locked  = locked.Value;
+        if (name           is not null) layer.Name           = name;
+        if (color          is not null) layer.Color          = color;
+        if (visible        is not null) layer.Visible        = visible.Value;
+        if (locked         is not null) layer.Locked         = locked.Value;
+        if (operationMode  is not null) layer.OperationMode  = operationMode.Value;
         NotifyPartChanged();
     }
 

@@ -32,16 +32,19 @@
                     BorderBrush="{StaticResource Brush.Border}"
                     BorderThickness="0,0,0,1"
                     Padding="8,5">
-              <Grid ColumnDefinitions="Auto,*,Auto,Auto">
-                <!-- colour swatch -->
-                <Border Grid.Column="0"
+              <Grid ColumnDefinitions="Auto,*,Auto,Auto,Auto">
+                <!-- colour swatch (click to change color) -->
+                <Button Grid.Column="0"
                         Width="14" Height="14"
-                        CornerRadius="{StaticResource Radius.Sm}"
+                        Padding="0"
                         Margin="0,0,6,0"
-                        VerticalAlignment="Center"
-                        Background="{Binding Color}"/>
+                        Background="{Binding Color}"
+                        CornerRadius="{StaticResource Radius.Sm}"
+                        ToolTip.Tip="Change layer color"
+                        Click="OnChangeColor"
+                        Tag="{Binding}"/>
 
-                <!-- layer name (double-click to rename) -->
+                <!-- layer name -->
                 <TextBox Grid.Column="1"
                          Text="{Binding Name}"
                          Background="Transparent"
@@ -51,8 +54,20 @@
                          FontSize="{StaticResource Font.Md}"
                          Foreground="{StaticResource Brush.Text}"/>
 
+                <!-- operation mode dropdown -->
+                <ComboBox Grid.Column="2"
+                          SelectedItem="{Binding OperationMode}"
+                          Width="90"
+                          ToolTip.Tip="Cut / Score / Engrave"
+                          SelectionChanged="OnOperationModeChanged"
+                          Tag="{Binding}">
+                  <ComboBoxItem>Cut</ComboBoxItem>
+                  <ComboBoxItem>Score</ComboBoxItem>
+                  <ComboBoxItem>Engrave</ComboBoxItem>
+                </ComboBox>
+
                 <!-- visibility -->
-                <Button Grid.Column="2"
+                <Button Grid.Column="3"
                         Content="{Binding Visible, Converter={x:Static conv:VisibilityIconConverter.Instance}}"
                         Theme="{StaticResource Btn.Icon}"
                         Width="22" Height="22"
@@ -61,7 +76,7 @@
                         Tag="{Binding}"/>
 
                 <!-- delete -->
-                <Button Grid.Column="3"
+                <Button Grid.Column="4"
                         Content="✕"
                         Theme="{StaticResource Btn.Icon}"
                         Width="22" Height="22"

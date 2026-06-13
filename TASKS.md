@@ -1,4 +1,4 @@
-# TASKS.md — Build Sequence & Ready-to-Paste Prompts
+# TASKS.md — Build Sequence for AvaloniaUI Desktop App
 
 Work top to bottom. Each task is a **separate Claude Code session/prompt**. Don't batch
 them — one focused task at a time gives the best results. Tick the box when done.
@@ -9,497 +9,421 @@ them — one focused task at a time gives the best results. Tick the box when do
 
 ## Milestone 1 — CAM Core (the real v1)
 
-### [ ] Task 0 — Project skeleton
-<!-- Done: /backend (ASP.NET Core, GET /api/health, SignalR /hubs/machine heartbeat every 2s,
-     IMachineConnection + FakeMachineConnection, CORS for :5173). /frontend (Vite+React+TS+
-     Tailwind v4+shadcn/ui) demo page shows live health + heartbeat. Verified end-to-end via a
-     JS SignalR client. No CAM features. Nothing deferred. -->
+### [ ] Task 0 — Project skeleton (AvaloniaUI + backend DI)
+
+**Status:** ✅ Backend complete. AvaloniaUI skeleton exists but incomplete.
+
 **Paste this:**
-> Read `PLASMA_CAM_PLAN.md` and `CLAUDE.md` for full context. For this task, scaffold ONLY
-> the skeleton — no CAM features yet:
-> 1. Create `/frontend`: Vite + React + TypeScript + Tailwind + shadcn/ui, with one demo
->    page that calls the backend health endpoint and shows the result.
-> 2. Create `/backend`: an ASP.NET Core Web API with a `GET /api/health` endpoint and a
->    SignalR hub at `/hubs/machine` that broadcasts a heartbeat every few seconds.
-> 3. Add an `IMachineConnection` interface and a `FakeMachineConnection` implementation
->    (no real serial yet) that the hub uses to emit fake status.
-> 4. Wire CORS so the frontend (dev port) can reach the backend.
-> 5. Update `README.md` and the Commands section of `CLAUDE.md` with exact run steps.
-> Confirm both run and the frontend shows a live heartbeat from the backend. Then stop.
+> Read `PLASMA_CAM_PLAN.md` and `CLAUDE.md` for full context. This task scaffolds the AvaloniaUI
+> desktop app skeleton with DI wiring to the backend — no CAM features yet:
+> 1. Verify AvaloniaUI app `/desktop` builds and runs (`dotnet run`).
+> 2. Confirm backend class library `/backend` loads into the app via DI.
+> 3. Create stub MainViewModel and MainWindow.xaml with basic layout:
+>    - Title bar (app name, version)
+>    - Main content area (placeholder for viewport)
+>    - Right-side panels (placeholder stubs for files, settings, device)
+> 4. Wire the backend services (ProjectService, FileImportService, etc.) into the DI container
+>    in `App.axaml.cs`.
+> 5. Update `README.md` and `CLAUDE.md` — confirm `cd desktop && dotnet run` launches the app.
+> Stop and test; no CAM features yet.
 
 ### [ ] Task 1 — Project & file model + SVG/DXF import
-<!-- Done: Project model (name, units, table size/origin/thickness) backend + frontend.
-     Neutral geometry: curves flattened to polylines (0.05mm chord tol) in mm, Y-up,
-     normalized per file to (0,0). SVG importer (paths incl. arcs/béziers, shapes,
-     transforms, unit/viewBox handling, Y-flip; text/use/image skipped with warnings).
-     DXF importer via netDxf (lines, polylines+bulges, arcs, circles, ellipses, splines;
-     $INSUNITS scaling). REST: /api/project get/new/settings/files(import,patch,delete)/
-     export/load. Frontend: drag-drop import, file panel (visibility/rename/delete +
-     parsed-entity summary + warnings), table settings card (unit-aware), save/load.
-     28 unit tests (backend.Tests). Deferred to later tasks: block inserts (<use>/INSERT)
-     and text outlines; geometry not yet sent to frontend (viewport = Task 2). -->
-**Paste this:**
-> Read the plan and CLAUDE.md. Implement the project/file foundation for Milestone 1:
-> - A "Project" model (table size, units, origin, thickness) on backend + frontend types.
-> - Drag-and-drop import of multiple SVG and DXF files. Parse them into a neutral internal
->   geometry model (paths as polylines/curves). Use a maintained DXF parser library; for
->   SVG, parse paths to geometry.
-> - A file-list panel UI (shadcn): list imported files, toggle visibility, rename, delete.
-> - Save/load a project to a single project file (JSON) including imported geometry.
-> Don't build toolpaths or the canvas yet beyond what's needed to confirm parsing works
-> (a simple list/log of parsed entities is fine). Stop and summarize.
 
-### [ ] Task 2 — Table viewport + part placement
-<!-- Done: Part model (fileId + x/y translation + rotation CCW about local bbox center) —
-     the shared nesting-ready transform; PartTransform (backend) mirrored in frontend
-     lib/geometry.ts. Imports auto-place via naive shelf placement (PartPlacer; real
-     packing = M2). REST: parts create/patch/duplicate/delete + /geometry (local-space
-     polylines). Canvas 2D viewport: table + adaptive grid + origin marker (per origin
-     setting), pan (drag empty/middle), wheel zoom at cursor, fit; select (point-in-
-     polygon hit test), drag-move with snap-to-grid (1-50mm), rotation handle (shift=15°),
-     rotate ±90 buttons, duplicate (Ctrl+D), delete (Del), arrow-key nudge, align to
-     table edges/center; out-of-bounds parts stroke red. 34 backend tests. Verified in
-     browser (drag/rotate/align persisted via PATCH). Deferred: multi-select/marquee,
-     part-level visibility (file-level only). -->
+**Status:** ✅ Backend complete (SVG, DXF, bitmap import). AvaloniaUI UI needed.
+
 **Paste this:**
-> Read the plan and CLAUDE.md. Build the 2D viewport (Canvas 2D):
-> - Render the table (from project table size) with grid and origin marker.
-> - Render imported parts in table coordinates.
-> - Pan, zoom, fit-to-view.
-> - Select, move, rotate, duplicate parts. Use the shared part-transform model described
->   in the plan (must be nesting-ready — don't bake assumptions that block auto-nest later).
-> - Snap-to-grid and basic alignment.
+> Read the plan and CLAUDE.md. Implement the project/file panel UI in AvaloniaUI:
+> - Backend: Project model, file import, geometry parsing (all complete; verify no regressions)
+> - Frontend (AvaloniaUI):
+>   - A **FilesPanel** view model and XAML: list imported files with visibility toggle, rename, delete
+>   - **File summary:** show entity count (paths, circles, etc.) and import warnings per file
+>   - **ProjectSettings** view model: units (mm/inch), table size, origin, thickness; persist to JSON
+>   - **Import UI:** file picker to import SVG/DXF/PNG files; drag-drop onto main area (deferred to Task 2)
+> - Services: Inject FileImportService, ProjectService into view models
+> - No viewport rendering yet (Task 2). Just lists/forms to confirm parsing works.
+> Stop and summarize.
+
+### [ ] Task 2 — Table viewport + part placement (SkiaSharp canvas)
+
+**Status:** ✅ Backend placement model complete. AvaloniaUI viewport skeleton exists but unpainted.
+
+**Paste this:**
+> Read the plan and CLAUDE.md. Build the 2D table viewport in AvaloniaUI using SkiaSharp:
+> - **ViewportControl (SkiaSharp):** renders table (grid, origin marker), parts as transformed polylines
+> - **Camera:** pan (drag), zoom (wheel at cursor), fit-to-view, grid toggle
+> - **Selection & Interaction:**
+>   - Click to select part (highlight with outline)
+>   - Drag to move (with snap-to-grid, configurable 1–50mm)
+>   - Drag corner circle to rotate (shift=15° increments)
+>   - Arrow keys nudge selected part
+>   - Delete key removes selected part
+> - **EditToolbar:** floating panel over viewport with X/Y inputs, rotation, ±90° buttons, duplicate, delete
+> - **Alignment:** snap to table edges/center; visual feedback during drag
+> - Out-of-bounds parts stroke red
+> - Backend calls: Use DirectlyInjected ProjectService to fetch/patch parts
 > Keep CAM out of this task. Stop and summarize.
 
 ### [ ] Task 3 — CAM engine: kerf, lead-in/out, pierce, ordering
-<!-- Done: backend/Cam/. Cut sides auto-classified by containment depth (even=Outside,
-     odd=Inside, open=OnLine). Kerf via Clipper2 InflatePaths (±kerf/2, round joins,
-     per-contour; too-small contours warn + skip). Direction normalized: outer CCW,
-     holes CW → waste always right of travel; leads (line/arc quarter-circle, tangent
-     at pierce) approach from waste side; pierce at longest-segment midpoint. Ordering:
-     children-before-parents constraint + nearest-neighbor rapids from origin. Neutral
-     Toolpath model (Cut: points incl. leads, lead point counts, side, feeds, pierce
-     delay). CamSettings persisted on Project; REST: GET/PUT /api/project/cam, POST
-     /api/project/toolpath. 18 new unit tests (52 total). Deferred: per-path cut-side
-     UI overrides (engine classifies automatically; override model can come with the
-     operations UI in Task 4/6); kerf interaction between near-touching contours. -->
+
+**Status:** ✅ Complete and tested. No UI work needed; backend-only.
+
 **Paste this:**
-> Read the plan and CLAUDE.md. Implement the plasma CAM engine on the backend using
-> Clipper2:
-> - Per-path cut side: inside / outside / on-line.
-> - Kerf compensation via Clipper2 offsetting (offset = kerf/2 by side).
-> - Lead-in / lead-out (line and arc options).
-> - Pierce point placement + pierce delay.
-> - Cut ordering: inner contours before outer; minimize rapids reasonably.
-> Output a NEUTRAL toolpath model (controller-agnostic), per the architecture. Add unit
-> tests for the offsetting and ordering logic. No G-code dialect yet. Stop and summarize.
+> Read the plan and CLAUDE.md. **Backend is already complete.** Verify:
+> - CamEngine.cs handles kerf (Clipper2), lead-in/out, pierce, cut ordering
+> - ContourClassifier, KerfOffsetter, LeadBuilder, CutOrderer all present
+> - Per-layer operation mode resolution (Cut/Score/Engrave)
+> - Unit tests exist and pass (if restored)
+> Run `dotnet build` and verify no regressions. No changes needed. Move to Task 4.
 
 ### [ ] Task 4 — Pluggable post-processor + GRBL output + G-code preview
-<!-- Done: backend/Post/. IPostProcessor (Id/DisplayName/FileExtension + Generate(toolpath,
-     project) → GcodeProgram) + PostProcessorRegistry; new dialect = one DI registration,
-     CAM untouched. GrblPlasmaPostProcessor: G21/G90/G17/G94 preamble, safety M5 before
-     any motion, per cut G0→M3 S1000→G4 pierce dwell→G1+F→M5, work-origin shift per
-     TableOrigin (axes stay Y-up; flips are machine $3 config), invariant-culture numbers,
-     park at origin + M2. Cut/pierce heights emitted as header comments only — Z/THC words
-     deferred to machine control (M3). REST: GET /api/posts, POST /api/project/gcode
-     (runs CAM + post, returns gcode/stats/warnings/filename). Frontend: G-code card —
-     generate, stats, warnings, monospace preview, download .nc. 12 new unit tests
-     (64 total). Deferred: post-specific options UI (e.g. S-value, end-of-job position). -->
-**Paste this:**
-> Read the plan and CLAUDE.md. Add the post-processor layer:
-> - Define a `IPostProcessor` interface that turns the neutral toolpath into G-code.
-> - Implement a GRBL-plasma post-processor (torch on/off via M3/M5, pierce delay, feed
->   rates, units, work origin).
-> - Frontend: a G-code preview panel and an export/download to `.nc`/`.gcode`.
-> Keep it pluggable so laser/vinyl posts can be added later without touching the CAM engine.
-> Stop and summarize.
 
-### [ ] Task 5 — Toolpath simulation / playback
-<!-- Done: frontend-only, driven by the neutral toolpath (POST /toolpath; no G-code
-     parsing needed). lib/simulation.ts: time-indexed segment list (rapid/pierce-dwell/
-     cut, leads flagged) from per-cut feed rates + pierce delays; rapids at assumed
-     6000mm/min until the real machine reports $110/$111 (M3); binary-search stateAt(t);
-     starts/parks at the work origin like the post. Viewport overlay: cuts orange
-     (leads lighter), rapids dashed grey, done/remaining by alpha, live segment split
-     at the head, one direction arrow per cut, torch head with glow when on / crosshair
-     when off. SimulationBar under the viewport: Simulate (fetch+build+autoplay),
-     play/pause/stop, scrub slider, 0.5-16x speed, elapsed/total, regenerate, close.
-     Deferred: auto-invalidate stale sim when parts/settings change (manual regenerate
-     button for now); per-cut info popup on hover. -->
+**Status:** ✅ Backend complete (plasma, laser, vinyl posts). AvaloniaUI UI needed.
+
 **Paste this:**
-> Read the plan and CLAUDE.md. Add toolpath simulation in the viewport:
-> - Visualize cut moves vs rapid (travel) moves distinctly, with cut direction.
-> - Playback controls: play/pause, scrub timeline, speed control.
-> - Drive the simulation from the neutral toolpath (and/or parsed G-code) — show the head
->   moving along the path like a video.
+> Read the plan and CLAUDE.md. **Backend is complete.** Add AvaloniaUI UI:
+> - **GcodePanel** view model + XAML:
+>   - Button: "Generate G-code" (calls backend CamEngine + PostProcessorRegistry)
+>   - Post-processor selector (dropdown): GrblPlasma, GrblLaser, GrblVinyl
+>   - Stats display: line count, estimated time, pierce count, total cut length
+>   - Warnings list (colored text if any)
+>   - Monospace code preview (scrollable, read-only)
+>   - Button: "Download .nc" (save to file)
+> - Inject PostProcessorRegistry, ProjectService into view model
+> Keep it simple — no editing of G-code post-output yet (deferred). Stop and summarize.
+
+### [ ] Task 5 — Toolpath simulation / playback (SkiaSharp overlay)
+
+**Status:** ✅ Backend simulation logic complete (Simulation.cs). AvaloniaUI rendering needed.
+
+**Paste this:**
+> Read the plan and CLAUDE.md. **Backend Simulation.cs exists.** Add AvaloniaUI visualization:
+> - **SimulationBar** view model + XAML (floating panel under viewport):
+>   - Button: "Simulate" (fetch toolpath from backend, build time-indexed segments)
+>   - Play/Pause/Stop buttons, scrub slider (time), speed selector (0.5x–16x)
+>   - Display: elapsed / total time
+>   - Button: "Regenerate" (rebuild sim if parts changed)
+> - **Viewport overlay rendering (SkiaSharp):**
+>   - Rapid moves: dashed grey lines
+>   - Cut moves: orange solid, leads lighter
+>   - Direction arrows per cut (showing travel direction)
+>   - Torch head: glowing circle when on, crosshair when off
+>   - Alpha blend: done portion brighter, remaining dimmer
+> - Controls hidden if simulation not active; auto-close button
+> Deferred: auto-invalidate stale sim on part changes (manual regenerate for now).
 > Stop and summarize.
 
 ### [ ] Task 6 — Material profiles
-<!-- Done: MaterialProfile (name, material, thickness, kerf/feed/pierce delay/cut+pierce
-     height) + ProfileStore persisted app-level to %LOCALAPPDATA%/diy-grbl-cam/
-     material-profiles.json (corrupt file set aside as .corrupt + reseeded; seeds = 3
-     "example, tune for your machine" mild-steel profiles ~45A ballpark). REST:
-     /api/profiles CRUD + /export + /import (merge by id). Frontend "Cut settings" card:
-     profile picker (select = applies numbers to project CAM via PUT /cam), update/
-     delete selected, save-current-as-new (thickness from table settings), editable CAM
-     fields incl. lead type/length (leads stay per-project — geometry preference, not
-     material). 7 new unit tests (71 total). Deferred: material/thickness as separate
-     editable fields on profiles (name carries it for now); profile import/export UI
-     buttons (endpoints exist). MILESTONE 1 COMPLETE. -->
-**Paste this:**
-> Read the plan and CLAUDE.md. Add material profiles:
-> - Save/load presets per material + thickness: feed rate, pierce delay, kerf width,
->   cut height.
-> - UI to pick/create/edit profiles; selecting one populates the relevant CAM settings.
-> - Persist profiles with the app (and optionally export/import).
-> This completes Milestone 1. Stop and summarize what M1 now does end-to-end.
 
-### [ ] Task 6b — Workspace UX alignment with xTool Studio
-*Reference: the xTool Studio Basics course (https://support.xtool.com/academy/course?id=6)
-and desktop UI overview (https://support.xtool.com/article/2409). Goal: the app should
-feel familiar to xTool/XCS users — same workspace anatomy, our CAM underneath.*
-<!-- DONE: frontend-only reshuffle, no CAM/backend changes. Left creation rail
-     (CreationSidebar: import via file picker, shapes/text disabled stubs → Task 14;
-     drag-drop import moved onto the canvas, ImportDropzone removed). Floating
-     EditToolbar over the canvas on selection: precise X/Y (world-bbox min) + angle
-     inputs, W×H readout, rotate ±90°, align ×6, duplicate, delete — absorbed the old
-     top-of-canvas button row; wraps on narrow canvases. Bottom bar inside the
-     viewport: cursor mm readout, snap+step, grid toggle, light/dark canvas (fixed
-     palette, independent of app theme), zoom −/%/+/fit. Right panel: Device status
-     card first (StatusBar moved out of header), then Files / Table & sheet / Cut
-     settings. New Process button (header) → preview mode: viewport goes read-only
-     (pan/zoom only), simulation auto-generates, Processing card (estimated time,
-     pierces, cut length) + G-code card replace the edit cards; SimulationBar lives
-     here. Deferred (need part-model support, NOT silently added): mirror H/V +
-     editable size (disabled/read-only in toolbar), stacking order (no UI). -->
+**Status:** ✅ Backend complete (ProfileStore, persistence). AvaloniaUI UI needed.
 
 **Paste this:**
-> Read the plan and CLAUDE.md. Rework the workspace layout to follow xTool Studio's
-> anatomy (see the reference links in TASKS.md Task 6b) without changing any CAM/backend
-> behavior:
-> - Left sidebar: creation/import tools (import; basic shapes and text can be stubs or
->   deferred — flag, don't silently expand scope).
-> - Floating editing toolbar when a part is selected: precise X/Y/size/rotation inputs,
->   align, mirror, stacking — replacing/absorbing the current top-of-canvas button row.
-> - Right panel: device/connection status on top, then per-object processing parameters
->   (cut settings, material profile) — the current Table/CAM/G-code cards reorganized
->   into this flow.
-> - Bottom bar: zoom controls + canvas options (grid toggle, light/dark canvas).
-> - Processing preview as its own page/mode (ties into the Task 5 simulation) with
->   estimated processing time.
-> Keep it one reviewable task: layout + interaction reshuffle only. Stop and summarize.
+> Read the plan and CLAUDE.md. **Backend ProfileStore exists.** Add AvaloniaUI UI:
+> - **CutSettingsCard** view model + XAML:
+>   - Profile selector (dropdown): lists all saved profiles
+>   - Select action: applies profile values (kerf, feed, pierce delay, cut/pierce height) to project CAM
+>   - Editable CAM fields: feed rate, kerf, pierce delay, cut height, pierce height
+>   - Laser power % (for laser mode)
+>   - Lead type selector (line/arc), lead length
+>   - Save button: "Save current as new profile" (prompts for name + material)
+>   - Update/Delete buttons (for selected profile)
+> - Inject ProfileStore, ProjectService into view model
+> - Thickness from table settings (read-only in profile)
+> This completes Milestone 1. Stop and summarize the end-to-end workflow: import → arrange → CAM → G-code → simulate.
 
 ---
 
 ## Milestone 2 — Auto-Nesting
+
 ### [ ] Task 7 — Auto-nesting
-<!-- Done: Backend Nester.cs uses SVGnest/DeepNest greedy approach via Clipper2: parts
-     ordered largest-first, each tried at discrete rotation candidates (0/45/90/180°
-     configurable), placed at bottom-left feasible grid position; collision tested with
-     Clipper2 Intersect (inflated by spacing); margin enforced against table bounds.
-     Drives the same Part.X/Y/RotationDeg transform as manual dragging. REST:
-     POST /api/project/nest → {project, placedCount, skippedCount, warnings}.
-     Frontend: NestCard (margin/spacing/rotation settings + Nest button + outcome
-     summary + per-part warnings), wired into right-panel "Arrange" card.
-     8 unit tests in NesterTests.cs. Manual placement unaffected. -->
+
+**Status:** ✅ Backend Nester.cs complete. AvaloniaUI UI needed.
+
 **Paste this:**
-> Read the plan and CLAUDE.md. Add auto-nesting that arranges parts on the sheet to save
-> material, reusing the existing part-transform/placement model (manual placement must
-> still work). Lean on an existing open-source nesting approach (e.g. SVGnest/DeepNest
-> core concepts) rather than writing packing math from scratch. Add a "Nest" action with
-> sheet margins and spacing settings. Stop and summarize.
+> Read the plan and CLAUDE.md. **Backend Nester exists.** Add AvaloniaUI UI:
+> - **NestPanel** view model + XAML (popover in right panel):
+>   - Nesting settings:
+>     - Margin (mm): buffer around table edge
+>     - Spacing (mm): gap between placed parts
+>     - Rotation candidates: checkboxes for 0°, 45°, 90°, 180°
+>   - Button: "Nest" → calls backend, updates part positions
+>   - Results display:
+>     - "X of Y parts placed"
+>     - Per-part warnings (too small, couldn't fit, etc.)
+> - Inject ProjectService, Nester into view model
+> - Manual placement still works; nesting is optional
+> Stop and summarize.
 
 ---
 
-## Milestone 3 — Machine Control (GRBL)  ⚠️ safety-critical
-### [ ] Task 8 — Real serial connection (replace fake)
-<!-- Done: SerialMachineConnection implements IMachineConnection via System.IO.Ports:
-     opens port (DtrEnable=false to prevent Arduino auto-reset / plasma relay energize),
-     sends '?' every 200ms in a background Task.Run loop, parses GRBL status reports
-     (<State|WPos:x,y,z|...>) preferring WPos over MPos, fires StatusChanged and caches
-     last status for GetStatus(). MachineConnectionManager wraps the active connection
-     (starts as FakeMachineConnection, swaps to SerialMachineConnection at runtime via
-     ConnectSerialAsync/DisconnectSerialAsync, thread-safe inner swap with event
-     re-subscription, reverts to Fake on disconnect). REST: GET /api/machine/ports,
-     GET /api/machine/connection, POST /api/machine/connect, POST /api/machine/disconnect.
-     System.IO.Ports NuGet added. Frontend DevicePanel: port dropdown + refresh, baud
-     selector, Connect/Disconnect button, live DRO (X/Y/Z from SignalR) shown when
-     connected. FakeMachineConnection retained for testing/simulation. No motion. -->
-**Paste this:**
-> Read the plan and CLAUDE.md. Implement a real GRBL serial connection behind the existing
-> `IMachineConnection` interface (System.IO.Ports): list ports, connect/disconnect, send
-> lines, read status reports, surface state over the SignalR hub. Keep `FakeMachine` for
-> testing and simulation. NO motion/streaming yet — connection + status only. Stop and summarize.
+## Milestone 3 — Machine Control (GRBL) ⚠️ safety-critical
 
-### [ ] Task 9 — Jog, home, and run job
-<!-- Done: SerialMachineConnection refactored to separate ReadLoopAsync (dispatches lines
-     to status parser or Channel<string> response queue) + PollSenderAsync (sends '?' every
-     200ms, skips tick if write lock held). SemaphoreSlim write lock prevents concurrent
-     writes. Motion: JogAsync ($J=G91 G21 Xd Ff), HomeAsync ($H), SetZeroAsync (G10 L20 P1),
-     FeedHold/Resume/SoftReset as real-time bytes (no lock). RunGcodeAsync: character-counting
-     protocol — tracks in-flight byte count vs GrblBuffer=127, waits for ok from response
-     channel, throws on error:X. MachineConnectionManager: StartJob (background Task),
-     StopJobAsync (cancel+await), enriches MachineStatus with JobTotal/JobDone.
-     HeartbeatBroadcaster now subscribes to StatusChanged for immediate push + keeps 2s
-     periodic heartbeat. MachineStatus record: +JobTotal/JobDone (nullable, default null).
-     G-code cached in ProjectService after POST /api/project/gcode.
-     REST: POST /api/machine/jog, /home, /zero, /run (202), /feed-hold, /resume, /stop.
-     GET /api/machine/connection now includes isJobRunning. Frontend DevicePanel:
-     jog grid (XY + Z), step-size selector (0.1/1/10/100mm), Home/Set Zero buttons, Run Job,
-     Feed Hold/Resume, E-Stop (destructive), Disconnect. Progress bar + line counter during job.
-     Controls shown only when serial-connected; jog hidden during active job. -->
+### [ ] Task 8 — Real serial connection (replace fake)
+
+**Status:** ✅ Backend SerialMachineConnection complete. AvaloniaUI UI needed.
+
 **Paste this:**
-> Read the plan and CLAUDE.md. Add machine control UI + backend: jog (with step sizes),
-> homing, set work zero, and G-code streaming with the GRBL character-counting/ok flow.
-> Live position + run progress over SignalR. SAFETY: explicit user action required to
-> start; prominent stop/feed-hold; respect soft limits/table bounds; never auto-start.
+> Read the plan and CLAUDE.md. **Backend SerialMachineConnection exists.** Add AvaloniaUI UI:
+> - **DevicePanel** view model + XAML:
+>   - Port selector (dropdown): "Refresh" button to list available ports
+>   - Baud rate selector (default 115200)
+>   - Connect/Disconnect buttons
+>   - Connection status: green "Connected" or red "Disconnected"
+>   - Live DRO (digital readout): X, Y, Z position (updated live from MachineConnectionManager)
+>   - When connected: show "Idle" / "Run" / "Alarm" state
+> - Inject MachineConnectionManager into view model, subscribe to StatusChanged events
+> - No motion commands yet (Task 9). Just connection + status display.
+> Stop and summarize.
+
+### [ ] Task 9 — Jog, home, set zero, run job
+
+**Status:** ✅ Backend motion logic complete. AvaloniaUI UI needed.
+
+**Paste this:**
+> Read the plan and CLAUDE.md. **Backend jog/home/run exists.** Add AvaloniaUI UI:
+> - **DevicePanel** extensions:
+>   - **Jog controls:** XY grid (8 arrow buttons), separate Z ±/- buttons
+>   - Step size selector: 0.1, 1, 10, 100 mm
+>   - Buttons: Home, Set Zero
+> - **Job control** (only shown when connected):
+>   - "Run Job" button (disabled if job not loaded)
+>   - Progress bar + line counter (e.g., "125 / 500 lines")
+>   - "Feed Hold" button (toggles pause)
+>   - "Resume" button (only when paused)
+>   - "E-Stop" button (red, destructive — Ctrl+X)
+>   - "Disconnect" button
+> - Inject MachineConnectionManager, subscribe to job progress events
+> - Jog hidden during active job (safety)
+> - Safety: E-stop always wins; no auto-motion
 > Stop and summarize.
 
 ### [ ] Task 10 — Pause / stop / resume-from-pause + job log
-<!-- Done: Backend — JobLogEntry model (Timestamp/Event/LineNumber/LineTotal/X/Y/Z/Message);
-     MachineConnectionManager detects Hold/Resume state transitions in OnInnerStatus
-     ("Run"→"Hold" logs FeedHold, "Hold"→"Run" logs Resumed) and logs Started/Progress
-     (every 50 lines)/FeedHold/Resumed/Completed/Error/Stopped entries; GetJobLog() returns
-     snapshot. SerialMachineConnection: UnlockAsync ($X). New REST: GET /api/machine/job-log,
-     POST /api/machine/stop-job (soft stop — cancel streaming only, no Ctrl-X; machine drains
-     GRBL buffer and goes idle, no Alarm state), POST /api/machine/unlock ($X clear alarm).
-     Frontend — machineApi.ts: jobLog()/stopJob()/unlock() + JobLogEntry type. JobLogPanel
-     component: polls every 2s during job, final fetch on completion, colour-coded events,
-     auto-scrolls. DevicePanel: isJobRunning from live SignalR status.jobTotal (was stale REST);
-     isHold uses startsWith("hold") for Hold:0/Hold:1 sub-states; "Stop Job" button (soft);
-     "Unlock ($X)" button shown only in Alarm state; E-Stop keeps Ctrl-X behaviour;
-     JobLogPanel embedded in panel when connected. -->
+
+**Status:** ✅ Backend job log + pause/resume complete. AvaloniaUI UI needed.
+
 **Paste this:**
-> Read the plan and CLAUDE.md. Add feed-hold/pause, safe stop, resume-from-pause, and a
-> per-job log (lines sent, position, events, timestamps). This is the "all-in-one" moment.
+> Read the plan and CLAUDE.md. **Backend JobLogEntry and pause/resume exist.** Add UI:
+> - **JobLogPanel** view model + XAML (dockable in right panel during job):
+>   - List of job events (scrollable):
+>     - Timestamp, Event type (Started/Progress/FeedHold/Resumed/Completed/Error/Stopped)
+>     - Line number, X/Y/Z position, optional message
+>   - Color coding: green (Started/Completed), yellow (Progress), orange (FeedHold), red (Error/Stopped)
+>   - Auto-scroll to latest entry
+> - **DevicePanel** extensions:
+>   - "Stop Job" button (soft stop — cancel streaming, machine drains buffer, goes Idle)
+>   - "Unlock ($X)" button (only shown in Alarm state, clears alarm)
+> - Poll backend job log every 2s during active job; final fetch on completion
+> - Inject MachineConnectionManager, ProjectService into view model
 > Stop and summarize.
 
+### [ ] Task 11 — Power-loss recovery
+
+**Status:** ✅ Backend CheckpointService complete. AvaloniaUI UI needed.
+
+**Paste this:**
+> Read the plan and CLAUDE.md. **Backend CheckpointService exists.** Add AvaloniaUI UI:
+> - **RecoveryPanel** view model + XAML (appears on app startup if checkpoint exists):
+>   - Job summary: start time, last line done, total lines
+>   - Guided recovery (3 steps):
+>     1. "Home" button (runs homing sequence)
+>     2. "Set Zero" button (user confirms machine is at correct position)
+>     3. "Start Recovery" button (builds + streams recovery G-code from last safe point)
+>   - Status display (grayed out steps, highlights current step)
+>   - "Dismiss Checkpoint" button (if user doesn't want to recover)
+> - Recovery only allowed when machine is Idle
+> - Inject MachineConnectionManager, CheckpointService into view model
+> This completes Milestone 3 (machine control). Stop and summarize.
+
 ---
 
-## Milestone 4 — Power-Loss Recovery & Machine-Type Modes  ⚠️ hard / careful
-### [ ] Task 11 — Power-loss recovery
-<!-- Done: CheckpointService persists job checkpoints to %LOCALAPPDATA%/diy-grbl-cam/
-     two-file layout: job-checkpoint-gcode.txt (written once on job start) +
-     job-checkpoint-meta.json (updated every 50 lines, on FeedHold, on error/stop).
-     Checkpoint cleared on clean completion; retained on stop/error/power-loss.
-     BuildRecoveryGcode: finds the last M3 at or before lastLineDone, scans back to
-     its preceding G0 (rapid-to-position), returns preamble + everything from that G0
-     so the interrupted cut re-runs from scratch (fresh pierce — correct for plasma).
-     REST: GET /api/machine/recovery (info + resumeFromLine), POST /api/machine/
-     recovery/start (verifies Idle, builds + streams recovery G-code), DELETE
-     /api/machine/recovery (dismiss checkpoint). MachineConnectionManager: injects
-     CheckpointService, writes checkpoint at start+progress+events.
-     Frontend: RecoveryPanel shows job summary + 3-step guided recovery (Home →
-     Set Zero confirmation → Start Recovery); gated — Start Recovery requires Idle
-     state + user confirmation of zero. Checkpoint info loaded on panel mount.
-     8 unit tests in CheckpointServiceTests.cs. Deferred: recovery across app restarts
-     needs no extra work (files persist); multi-session job ID tracking not needed
-     for MVP. -->
-> Persist job checkpoint (line + position); on restart offer safe recovery: re-home,
-> re-establish position, re-pierce, resume from a safe point. Treat with extreme care.
-> Summarize, compact and commit. 
+## Milestone 4 — Power-Loss Recovery & Machine-Type Modes
 
 ### [ ] Task 12 — Laser mode
-<!-- Done: MachineType enum (Plasma/Laser) + LaserPowerPercent field added to CamSettings.
-     CamEngine: when OperationMode==Laser, skips kerf offsetting (paths used as-is) and
-     skips lead-in/out; PierceDelayS forced to 0. Cut ordering still applied.
-     GrblLaserPostProcessor: Id="grbl-laser", M3 S{power} (0–1000 scale from
-     LaserPowerPercent), M5 off, no G4 pierce, header comment reminds user to set $32=1.
-     Registered alongside plasma post in DI; GcodePanel post-picker shows both when
-     backend returns 2+ processors. Frontend CutSettingsCard: Machine type selector at
-     top (Plasma/Laser); Laser mode shows Feed + Power %, hides all plasma-only fields
-     (kerf, pierce, height, leads, profile picker). project.ts CamSettings type updated.
-     9 unit tests in GrblLaserPostProcessorTests.cs + 2 laser CAM tests in CamEngineTests.
-     Deferred: per-layer engrave/score vs cut assignment (Task 19); M4 dynamic-power mode
-     option (user can edit post-output manually; $32=1 note in header covers the basics). -->
-> Add a laser operation mode + laser post-processor (beam on/off + power %, no kerf/pierce).
-> Summarize, compact and commit. 
+
+**Status:** ✅ Backend laser CAM + post-processor complete. AvaloniaUI UI needed.
+
+**Paste this:**
+> Read the plan and CLAUDE.md. **Backend laser mode exists.** Add AvaloniaUI UI:
+> - **CutSettingsCard** extensions:
+>   - Machine type selector (radio buttons or dropdown): Plasma / Laser / VinylKnife
+>   - Laser mode shows: Feed rate + Power % (0–100)
+>   - Laser mode hides: Kerf, Pierce delay, Pierce height, Lead-in/out, Profile picker
+> - Inject ProjectService, CamSettings into view model
+> - CAM engine automatically skips kerf/leads in laser mode
+> - Laser post-processor selected automatically when laser mode chosen
+> Stop and summarize.
 
 ### [ ] Task 13 — Vinyl / drag-knife mode
-<!-- Done: VinylKnife added to MachineType enum. DragKnifeCompensator (backend/Cam/)
-     transforms design paths to machine pivot paths: blade trails behind pivot by
-     VinylBladeOffsetMm; at each corner the pivot sweeps a small arc around the corner
-     vertex to re-align the blade (15°/step, threshold 5°); closed contours extended by
-     VinylOvercutMm to ensure clean closure. CamEngine: vinyl mode skips kerf offsetting
-     and leads, applies compensator in step 5, marks cut as non-closed.
-     GrblVinylPostProcessor: knife up/down via G0 Z, no M3/M5 spindle, G1 cuts along
-     compensated pivot path; registered in Program.cs.
-     Frontend: VinylKnife added to MachineType type; CamSettings extended with
-     vinylBladeOffsetMm, vinylOvercutMm, vinylKnifeUpMm, vinylKnifeDownMm; CutSettingsCard
-     shows vinyl-specific field set with hint text.
-     Tests: 8 DragKnifeCompensatorTests, 3 CamEngine vinyl tests, 6 GrblVinylPostProcessorTests
-     (run after backend restart — running exe locks the dll).
-     Committed as Task 13. Milestone 4 complete. -->
-> Add a drag-knife operation mode: knife up/down (Z or servo), blade-offset + overcut
-> compensation for sharp corners. No kerf/pierce/THC.
-> Summarize, compact and commit. 
+
+**Status:** ✅ Backend vinyl CAM + post-processor complete. AvaloniaUI UI needed.
+
+**Paste this:**
+> Read the plan and CLAUDE.md. **Backend vinyl mode exists.** Add AvaloniaUI UI:
+> - **CutSettingsCard** extensions (Vinyl/Drag-Knife mode):
+>   - Shows: Feed rate, Blade offset (mm), Overcut (mm), Knife up Z, Knife down Z
+>   - Hides: Kerf, Pierce delay, Laser power, Leads
+> - Inject ProjectService, CamSettings into view model
+> - CAM engine applies DragKnifeCompensator in vinyl mode
+> This completes Milestone 4. Stop and summarize.
 
 ---
 
-## Milestone 5 — xTool Studio feature parity (user-requested)
-*Bring in xTool Studio's design/editing functionality so xTool/XCS users feel at home.
-Reference: https://support.xtool.com/academy/course?id=6,
-https://support.xtool.com/article/2409, and the full learning center at
-https://support.xtool.com/learning-center?campaign=support_academy&node=c8007d78-ec47-49e2-b168-b32e37c3b387.
-Task 6b covers the workspace layout; these tasks cover the functionality.
-Each is one session; split further if a task grows.*
+## Milestone 5 — xTool Studio Feature Parity
 
 ### [ ] Task 14 — Shape, pen & text creation tools
-<!-- Done: Left-sidebar shape tools: line, rectangle (corner radius), circle, ellipse,
-     polygon (n-sides), star (points + inner ratio) — click+drag rubber-band on canvas;
-     preview drawn during drag. Pen tool: full Bézier state machine — click for corner
-     nodes, drag to pull smooth handles, hover-first-node shows close indicator, Enter
-     finishes open path, Escape commits, click first node closes. Text tool: click canvas
-     → floating TextPanel (text/font/size mm/letter-spacing) → opentype.js v2
-     (fetch+parse buffer) converts glyphs to polylines via adaptive Bézier flattening,
-     Y-flipped, bbox normalized to (0,0), scaled to fontSizeMm. All shapes use the
-     "synthetic file" pattern: POST /api/project/files/synthetic creates an ImportedFile
-     with Kind=Shape + auto-placed Part; InitialX/Y optionally overrides placement.
-     ActiveTool union type in tools.ts; ShapeGen.ts: genLine/genRect/genCircle/genPolygon/
-     genStar + fromPoints convenience wrappers. Roboto-Regular.ttf + Roboto-Bold.ttf
-     bundled in /public/fonts/. opentype.js v2 via npm. shadcn Popover added.
-     Deferred: bold/italic font variants in TextPanel (bold field exists, only regular
-     bundled); editable W/H/rotation on shapes requires Task 15 node editing. -->
-> Left-sidebar creation tools on the canvas: line, rectangle (with corner radius),
-> circle/ellipse, polygon, star; **Pen tool** (Bézier path drawing — click for corner
-> nodes, drag to pull smooth handles, close path to form a shape; output is the same
-> polyline/curve geometry as imported SVG/DXF so CAM picks it up unchanged); text
-> objects with font selection, size, style, letter/line spacing, and convert-text-to-paths
-> so CAM consumes outlines (closes the current "<text> not supported" import warning).
-> Objects use the existing part-transform model.
-> Summarize, compact and commit. 
+
+**Status:** ✅ Backend shape/text generation complete. AvaloniaUI UI needed.
+
+**Paste this:**
+> Read the plan and CLAUDE.md. **Backend synthetic file creation exists.** Add AvaloniaUI UI:
+> - **CreationSidebar** (left panel) with toggle buttons:
+>   - Line, Rectangle, Circle, Ellipse, Polygon, Star, Pen, Text
+> - **Shape tools:** click+drag on viewport for rubber-band preview; release to create
+>   - Rectangle: corner radius slider
+>   - Polygon: n-sides spinner
+>   - Star: point count + inner ratio sliders
+> - **Pen tool:** Bézier state machine
+>   - Click to place corner nodes
+>   - Drag node to pull smooth handles
+>   - Hover first node shows "close path" indicator
+>   - Enter = finish open path, Escape = commit, click first node = close
+> - **Text tool:** click canvas → floating TextPanel (text, font picker, size mm, letter spacing)
+>   - Fonts: Roboto Regular/Bold (bundled); opentype.js converts glyphs to polylines
+> - All shapes become parts (using synthetic file pattern)
+> - Inject FileImportService, ProjectService into view models
+> Stop and summarize.
 
 ### [ ] Task 15 — Object editing: precise transforms, mirror, group, offset
-<!-- Done: Part model extended with ScaleX/ScaleY (both default 1.0) on backend.
-     partToWorld/worldToPartLocal in geometry.ts updated: scale applied around pivot
-     before rotation (negative scale = mirror, consistent with rotate model).
-     Backend: PATCH /parts/{id} now accepts scaleX/scaleY; POST /parts/{id}/reorder
-     moves part in stacking order (up/down/front/back); POST /parts/{id}/offset creates
-     a new part+file by inflating the source geometry via KerfOffsetter.OffsetClosed
-     (closed paths) or Clipper.InflatePaths with EndType.Round (open paths). Duplicate
-     copies ScaleX/ScaleY. Frontend: Part type gains scaleX/scaleY; projectApi gets
-     reorderPart + offsetPart; EditToolbar fully implemented: numeric X/Y (world bbox
-     min), W/H with aspect-lock toggle (computes scaleX/Y from naturalSize), rotation,
-     rotate±90, mirror H/V (toggles sign of scaleX/Y), stacking order ×4, align ×6,
-     contour-offset input (±mm, Enter to apply), duplicate, delete.
-     Deferred: group/ungroup — requires multi-select which was deferred in Task 2;
-     flagged, not silently added. -->
-> Floating-toolbar functionality: numeric X/Y/W/H/rotation entry with aspect lock,
-> mirror horizontal/vertical, group/ungroup, stacking order, and contour offset
-> (Clipper2 — reuse the kerf offsetter, don't hand-roll).
-> Summarize, compact and commit. 
+
+**Status:** ✅ Backend transform model complete (scale, rotation, stacking). AvaloniaUI UI needed.
+
+**Paste this:**
+> Read the plan and CLAUDE.md. **Backend Part model has ScaleX/ScaleY; offset works.** Add UI:
+> - **EditToolbar** (floating panel over viewport on selection):
+>   - Precise input fields: X (world bbox min), Y, Width, Height (with aspect-lock toggle)
+>   - Rotation field (degrees, 0–359)
+>   - Buttons: Rotate ±90°, Mirror H, Mirror V
+>   - Stacking buttons: Bring to Front, Send to Back, Up, Down
+>   - Alignment buttons (6 options): align left/center-H/right, align top/center-V/bottom
+>   - Contour offset input (±mm spinbox, Enter applies, creates new part via backend)
+>   - Buttons: Duplicate, Delete
+> - Wraps on narrow viewport
+> - Inject ProjectService, direct part patching via view model
+> Deferred: group/ungroup (needs multi-select). Stop and summarize.
 
 ### [ ] Task 16 — Vector node editing + path operations
-<!-- Done: Node editing — double-click a selected part to enter node-edit mode; renders
-     all path vertices as hollow circles and segment midpoints as smaller dots. Drag any
-     node to reposition it (PATCH /files/{fileId}/paths/{pathId} on release); click a
-     segment midpoint to insert a new node at that point; press Delete to remove the
-     selected node (respects min-node constraint: 2 for open, 3 for closed). Hint bar
-     with ✕ exit; Escape also exits. All edits call refreshGeometry.
-     Path simplification — Ramer-Douglas-Peucker (PathSimplifier.cs) exposed via
-     POST /files/{fileId}/simplify (default 0.1mm tolerance); Spline button in EditToolbar.
-     Pathfinder booleans — shift-click a second part to show BooleanToolbar (secondary
-     highlighted in amber); Unite/Subtract/Intersect buttons call POST /parts/boolean which
-     transforms both parts to world space via Clipper2 BooleanOp and creates a new part
-     (sources deleted by default). GeometryPath now includes id field for path targeting.
-     Deferred: node types corner/smooth — data model is flat polylines (curves already
-     flattened at import), Bézier handle storage would need a model change; split path
-     (scissors) — deferred, limited value vs complexity. -->
-> Node-level editing of imported/created paths: move/add/delete nodes, node types
-> (corner/smooth), path simplification, split path (scissors). Pathfinder booleans via
-> Clipper2: unite, subtract, intersect, weld overlapping text/shapes.
-> Summarize, compact and commit. 
+
+**Status:** ✅ Backend node editing + booleans complete. AvaloniaUI UI needed.
+
+**Paste this:**
+> Read the plan and CLAUDE.md. **Backend node PATCH, simplify, boolean ops exist.** Add UI:
+> - **Node edit mode:** double-click part to enter (exit: Escape or Done button)
+>   - Viewport renders all path vertices as hollow circles, segment midpoints as smaller dots
+>   - Click + drag node to reposition (PATCH on release)
+>   - Click segment midpoint to insert node
+>   - Select node, press Delete to remove (respects min constraints: 2 for open, 3 for closed)
+> - **NodeEditToolbar:** X/Y fields, sharp/smooth corner toggle, Scissors (split), Simplify button, Done
+> - **Pathfinder booleans:** shift-click a second part → BooleanToolbar appears
+>   - Buttons: Unite, Subtract, Intersect (post-process creates new part, deletes sources by default)
+> - Inject ProjectService, FileImportService into view models
+> Deferred: symmetric handle constraint, multi-node selection. Stop and summarize.
 
 ### [ ] Task 17 — Arrays & material test grid
-<!-- Done: Backend POST /parts/{id}/array (grid rows×cols with auto-step + circular
-     count/radius/start-angle/rotate-with), POST /parts/{id}/test-array (G-code download
-     varying two CAM params across a grid, correct post-processor picked by OperationMode).
-     Fixed PartTransform.Apply to include ScaleX/ScaleY (was missing — would have broken
-     mirrored/scaled parts in CAM). Frontend: ArrayPanel.tsx (Grid/Circular/Test tabs in
-     a Popover), Array button added to EditToolbar, onArray/onTestArray handlers in
-     App.tsx + Viewport, test-array download triggers via URL.createObjectURL. -->
-> Grid array and circular array of parts (drives the same part-transform model as
-> nesting). Material test array generator: a grid of test cuts varying two parameters
-> (e.g. feed × pierce delay for plasma; power × speed once laser mode exists) to dial
-> in material profiles — xTool's "array test" equivalent for finding good settings.
-> Summarize, compact and commit. 
+
+**Status:** ✅ Backend array generation + test grid complete. AvaloniaUI UI needed.
+
+**Paste this:**
+> Read the plan and CLAUDE.md. **Backend arrays and test grid exist.** Add UI:
+> - **ArrayPanel** (popover from EditToolbar):
+>   - Tabs: Grid | Circular | Test
+>   - **Grid tab:** Rows, Cols spinners; auto-step (calculates spacing to fit table)
+>   - **Circular tab:** Count, Radius, Start angle, Rotate with array checkbox
+>   - **Test tab:** Two CAM param selectors (e.g., Feed × Pierce delay), grid rows/cols
+>     - Button: "Download test G-code" (file picker, saves as .nc)
+> - Array button on EditToolbar opens popover
+> - Inject ProjectService, PostProcessorRegistry into view model
+> Stop and summarize.
 
 ### [ ] Task 18 — Bitmap import + trace to vector
-<!-- Done: BitmapImporter (PNG/JPG/BMP/GIF/WEBP) implements IFileImporter — reads raw bytes,
-     runs BitmapTracer with default settings, stores BitmapData+MimeType on ImportedFile for
-     re-trace. BitmapTracer: SixLabors.ImageSharp for load + filters (brightness/contrast/
-     grayscale/invert); threshold → binary; Outline mode uses Moore-neighborhood boundary
-     tracing (Jacob's stopping criterion) → closed polylines; Centerline mode uses Zhang-Suen
-     thinning → skeleton path tracing → open polylines. Both modes output mm-coords Y-up and
-     run Ramer-Douglas-Peucker simplification. GET /api/project/files/{id}/bitmap-image serves
-     raw bytes; POST /api/project/files/{id}/retrace re-traces with new BitmapTraceSettings.
-     FileSummaryDto: hasBitmap + bitmapTraceSettingsJson fields. ImportedFile: BitmapData /
-     BitmapMimeType / BitmapTraceSettingsJson. Frontend: BitmapTraceDialog (mode, threshold,
-     brightness, contrast, invert, simplify tolerance) shown in FileListPanel for bitmap files;
-     import accepts .png/.jpg/.jpeg/.bmp/.webp alongside SVG/DXF; Viewport loads and draws
-     bitmap preview on canvas with affine transform (rotation/scale correct); bitmap cache keyed
-     by fileId, auto-refreshes on file list changes. Deferred: halftone/dither output (raster
-     engrave laser path — depends on per-layer engrave mode, Task 19); max-dim resize setting
-     (fixed 1000px in BitmapTraceSettings). -->
-> Import PNG/JPG, auto-trace (and center-line trace) to vector paths for cutting.
-> Image filters/adjustments (grayscale, invert, brightness/contrast, halftone/dither)
-> matter mainly for laser engraving — implement alongside or after Task 12 (laser mode),
-> where engrave processing actually consumes them.
-> Summarize, compact and commit. 
+
+**Status:** ✅ Backend bitmap import + tracer complete. AvaloniaUI UI needed.
+
+**Paste this:**
+> Read the plan and CLAUDE.md. **Backend BitmapImporter + BitmapTracer exist.** Add UI:
+> - **Import:** file picker accepts .png/.jpg/.bmp/.gif/.webp
+> - **BitmapTraceDialog** (appears for bitmap files in file list):
+>   - Mode selector: Outline / Centerline
+>   - Threshold slider (binary threshold, 0–255)
+>   - Filters: brightness, contrast, invert, grayscale (checkboxes or sliders)
+>   - Simplify tolerance (default 0.1mm)
+>   - Button: "Retrace" → updates geometry
+> - **Viewport:** render bitmap preview under parts with affine transform (rotation/scale correct)
+> - Cache keyed by file ID; auto-refresh on file list changes
+> - Inject FileImportService into view model
+> Deferred: halftone/dither (depends on per-layer engrave mode). Stop and summarize.
 
 ### [ ] Task 19 — Templates, element library, canvas QoL & efficiency tools
-<!-- Done: Per-layer operation mode (Cut/Score/Engrave) — LayerOperationMode enum on
-     backend Layer model; CamEngine resolves per-layer feed rate (Score×0.7, Engrave×1.5)
-     and laser power (Score×0.5, Engrave×0.2) with optional per-layer overrides;
-     GrblLaserPostProcessor uses per-cut LaserPowerS; LayerDto + UpdateLayerRequest
-     extended; LayersPanel shows Cut/Score/Engrave combobox per layer row.
-     Project templates — TemplateStore persists stripped project snapshots (no BitmapData)
-     as {id}.json in %LOCALAPPDATA%/diy-grbl-cam/templates/; TemplateApi: list/save/load/delete;
-     TemplateDialog component with save form + saved template list (load/delete buttons);
-     Templates button in header.
-     Element library — ElementStore persists named PathGeometry collections as {id}.json
-     in %LOCALAPPDATA%/diy-grbl-cam/library/; LibraryApi: list/save/insert/delete;
-     LibraryPanel popover in left creation rail with file picker to save + insert button.
-     Measurement overlay — when a part is selected (not in node-edit mode), W×H readout
-     appears below the bounding box in canvas coordinates in current units.
-     Canvas light/dark, grid, snap — already built in Task 6b; no duplication.
-     Step-and-repeat — covered by Task 17 ArrayPanel; no duplication.
-     Deferred: Smart fill (polygon flood-fill, complex geometry — out of scope for now);
-     batch parameter assignment (requires multi-select deferred since Task 2). -->
-> Project templates and a reusable element/shape library; canvas light/dark toggle,
-> grid show/hide, snap settings UI; per-object processing-mode assignment UI
-> (cut/engrave/score per layer or object — wires the existing per-layer provenance
-> into operations). **Efficiency tools** (xTool Studio "Design Editing > Efficiency
-> Tools" section): smart fill (flood-fill a closed region to create a cut path),
-> object measurement/ruler overlay, step-and-repeat / quick-duplicate with offset,
-> batch processing-parameter assignment across a selection.
 
-> Out of parity scope (flag if requested): AImake/AI image generation, xTool account
-> login, xTool-proprietary device features (smart detection, camera framing).
-> Summarize, compact and commit. 
+**Status:** ✅ Backend TemplateStore + ElementStore complete. AvaloniaUI UI needed.
+
+**Paste this:**
+> Read the plan and CLAUDE.md. **Backend template/library persistence exists.** Add UI:
+> - **Per-layer operation mode:** LayersPanel shows dropdown per layer: Cut / Score / Engrave
+>   - Engrave multiplies laser power ×0.2, feed ×1.5 (configurable)
+> - **Templates button** (header):
+>   - TemplateDialog: save form (name input) + list of saved templates (load/delete buttons)
+>   - Load imports project snapshot (no bitmap data)
+> - **LibraryPanel** (left sidebar popover):
+>   - Save current part to library (name input)
+>   - List of saved elements (insert button, delete button)
+> - **Canvas controls** (bottom bar or viewport context menu):
+>   - Grid toggle (show/hide)
+>   - Snap toggle (on/off)
+>   - Canvas light/dark toggle (independent of app theme)
+> - **Measurement overlay:** when part selected, show W×H readout below bbox
+> - Inject TemplateStore, ElementStore, ProjectService into view models
+> Deferred: smart fill, batch parameter assignment (needs multi-select). This ends Milestone 5.
+> Stop and summarize end-to-end: import → design → arrange → nest → CAM → simulate → cut + recover.
 
 ---
 
-### [ ] Task 21 — Node edit UX: smooth/sharp nodes, Bézier handles, node toolbar, scissors
-<!-- Done: Backend — PathGeometry.Handles (List<double[]?>?) stores per-node Bézier handles
-     [inX,inY,outX,outY] relative to anchor; PATCH /files/{id}/paths/{id} now accepts optional
-     Handles + ClearHandles flag; new POST /files/{id}/paths/{id}/split splits a path at a node
-     index into two open sub-paths (handles sliced accordingly); CamEngine.FlattenPath
-     (de Casteljau, 0.1mm chord tol) flattens curved paths before toolpath generation —
-     geometry endpoint includes handles in response.
-     Frontend — GeometryPath.handles type added; projectApi.updatePathNodes accepts handles +
-     clearHandles; projectApi.splitPath added. NodeEditToolbar (new component): X/Y of selected
-     node, sharp-corner/smooth-corner toggle buttons, Scissors (split at node), Simplify,
-     green Done button. EditToolbar: PenLine "Edit nodes" button + E keyboard shortcut to
-     enter node-edit from selection. Viewport: NodeEditState extended with handles Map +
-     hoveredHandle; DragMode gains "handle"; Bézier bezierCurveTo rendering in both normal
-     and node-edit modes; handle dots (squares) rendered with stem lines; handle drag mode
-     fully supported; smooth nodes shown as circles, sharp as squares; autoSmoothHandle
-     computes Catmull-Rom tangents on toggle; nodeEdit handles persisted to backend on
-     commit. Deferred: symmetric handle constraint (dragging one handle moves the other);
-     multi-node selection; node alignment across multiple nodes. -->
+## Milestone 5 Extra (Milestone 6 if deferred)
 
-## Working agreement for Claude Code
-- One task per session. Read the plan + CLAUDE.md first.
-- Don't pull later tasks forward. Flag scope creep instead of acting on it.
-- Tick the box here and note deferrals when you finish a task.
+### [ ] Task 20 (if needed) — Advanced viewport features
+
+*Placeholder for future enhancements: angled guides, ruler, lock-all, context menus, etc.*
+
+### [ ] Task 21 — Node edit UX: smooth/sharp nodes, Bézier handles, node toolbar, scissors
+
+**Status:** ✅ Backend handles (Bézier control points) complete. AvaloniaUI UI needed.
+
+**Paste this:**
+> Read the plan and CLAUDE.md. **Backend PathGeometry.Handles exists; FlattenPath works.** Add UI:
+> - **Node editing (extension to Task 16):**
+>   - Nodes render as: circles (smooth) or squares (sharp corners)
+>   - Handles render as small squares with stem lines when node selected
+>   - Drag handle to adjust Bézier control point (persists to backend)
+>   - Smooth/sharp toggle button on NodeEditToolbar
+>   - Auto-smooth: smooth button computes Catmull-Rom tangents
+> - **Scissors:** split path at selected node into two open sub-paths (persists handles)
+> - Deferred: symmetric handle constraint, multi-node selection, node alignment
+> Stop and verify all node editing works end-to-end.
+
+---
+
+## Build & Verification Checklist
+
+After each task:
+- [ ] Code compiles: `dotnet build` (both backend + desktop)
+- [ ] No new compiler warnings (except known CVE warnings on SixLabors.ImageSharp)
+- [ ] Feature works as described (manual test in AvaloniaUI app)
+- [ ] Update TASKS.md (tick the box, note deferrals)
+- [ ] Commit with clear message
+
+---
+
+## Working Agreement
+
+- One task per session. Read `PLASMA_CAM_PLAN.md` + `CLAUDE.md` first.
+- Don't pull later tasks forward. Flag scope creep instead of silently expanding.
+- Keep AvaloniaUI focus: MVVM pattern, XAML + code-behind, direct service injection.
+- Test the feature, not just the build. Safety-critical code (machine control) gets extra scrutiny.

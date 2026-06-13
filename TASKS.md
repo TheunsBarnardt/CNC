@@ -457,9 +457,9 @@ Work top to bottom. **Each task is one session.** After completing each task:
 > - Commit: "Task 18: BitmapTraceDialog with layer assignment"
 > - Deferred: halftone/dither (depends on per-layer engrave mode). Continue to Task 19.
 
-### [ ] Task 19 — Templates, element library, canvas QoL & efficiency tools
+### [~] Task 19 — Templates, element library, canvas QoL & efficiency tools
 
-**Status:** ✅ Backend TemplateStore + ElementStore complete. AvaloniaUI UI needed.
+**Status:** ⏳ IN PROGRESS. Layer enhancements complete (operation mode dropdown, color picker). Templates integration already exists. Complexity indicator and canvas controls deferred.
 
 **Paste this:**
 > Read the plan and CLAUDE.md. **Backend template/library persistence exists.** Add UI:

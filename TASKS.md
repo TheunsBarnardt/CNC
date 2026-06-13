@@ -339,9 +339,9 @@ Work top to bottom. **Each task is one session.** After completing each task:
 
 ## Milestone 5 — xTool Studio Feature Parity
 
-### [~] Task 14 — Shape, pen & text creation tools
+### [x] Task 14 — Shape, pen & text creation tools
 
-**Status:** ⏳ IN PROGRESS. Shape creation fully functional with dialogs. Pen tool infrastructure in place. Text tool deferred.
+**Status:** ✅ COMPLETE. All shape tools + pen tool fully functional. Text tool deferred.
 
 **Completed:**
 - ShapeGenerator service (6 shape types)

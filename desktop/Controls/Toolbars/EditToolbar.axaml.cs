@@ -24,8 +24,21 @@ public partial class EditToolbar : UserControl
         {
             if (e.PropertyName == nameof(MainViewModel.SelectedPart))
                 LoadFromPart(Vm.SelectedPart);
+            if (e.PropertyName == nameof(MainViewModel.Layers))
+                RefreshLayers();
         };
+        RefreshLayers();
         LoadFromPart(Vm?.SelectedPart);
+    }
+
+    private void RefreshLayers()
+    {
+        if (Vm is null) return;
+        CbLayer.Items?.Clear();
+        foreach (var lyr in Vm.AllLayers)
+            CbLayer.Items?.Add(lyr);
+        if (Vm.SelectedPart is { } part && Vm.AllLayers.FirstOrDefault(l => l.Id == part.LayerId) is { } selectedLayer)
+            CbLayer.SelectedItem = selectedLayer;
     }
 
     private void LoadFromPart(Part? part)
@@ -128,6 +141,50 @@ public partial class EditToolbar : UserControl
         };
         Vm.CommitPartTransform(part, nx, ny, part.RotationDeg, part.ScaleX, part.ScaleY);
         LoadFromPart(part);
+    }
+
+    private void OnRotate90CW(object? s, RoutedEventArgs e)
+    {
+        if (Vm?.SelectedPart is not { } p) return;
+        double newRot = (p.RotationDeg + 90) % 360;
+        Vm.CommitPartTransform(p, p.X, p.Y, newRot, p.ScaleX, p.ScaleY);
+        TbRot.Text = newRot.ToString("F1");
+    }
+
+    private void OnRotate90CCW(object? s, RoutedEventArgs e)
+    {
+        if (Vm?.SelectedPart is not { } p) return;
+        double newRot = (p.RotationDeg - 90 + 360) % 360;
+        Vm.CommitPartTransform(p, p.X, p.Y, newRot, p.ScaleX, p.ScaleY);
+        TbRot.Text = newRot.ToString("F1");
+    }
+
+    private void OnBringToFront(object? s, RoutedEventArgs e)
+    {
+        if (Vm?.SelectedPart is not { } part) return;
+        // Stacking order feature deferred - requires part reordering implementation
+        Vm.StatusText = "Stacking order not yet implemented";
+    }
+
+    private void OnSendToBack(object? s, RoutedEventArgs e)
+    {
+        if (Vm?.SelectedPart is not { } part) return;
+        // Stacking order feature deferred - requires part reordering implementation
+        Vm.StatusText = "Stacking order not yet implemented";
+    }
+
+    private void OnLayerChanged(object? s, RoutedEventArgs e)
+    {
+        if (_loading || Vm?.SelectedPart is not { } part || CbLayer.SelectedItem is not Layer layer) return;
+        part.LayerId = layer.Id;
+    }
+
+    private void OnApplyOffset(object? s, RoutedEventArgs e)
+    {
+        if (Vm?.SelectedPart is not { } part) return;
+        if (!double.TryParse(TbOffset.Text, out var offsetMm)) return;
+        // Note: full offset implementation requires Clipper2; deferred for now
+        Vm.StatusText = $"Contour offset not yet implemented (requested: {offsetMm:F2}mm)";
     }
 
     private void OnDuplicate(object? s, RoutedEventArgs e) => Vm?.DuplicateSelected();

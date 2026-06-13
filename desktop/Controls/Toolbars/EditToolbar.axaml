@@ -51,6 +51,32 @@
 
         <Separator Theme="{StaticResource Sep.Vertical}"/>
 
+        <!-- Rotate quick -->
+        <Button Content="↻90" Theme="{StaticResource Btn.Icon}" Click="OnRotate90CW" ToolTip.Tip="Rotate 90°"/>
+        <Button Content="↻-90" Theme="{StaticResource Btn.Icon}" Click="OnRotate90CCW" ToolTip.Tip="Rotate -90°"/>
+
+        <Separator Theme="{StaticResource Sep.Vertical}"/>
+
+        <!-- Stacking -->
+        <Button Content="⬆" Theme="{StaticResource Btn.Icon}" Click="OnBringToFront" ToolTip.Tip="Bring to front"/>
+        <Button Content="⬇" Theme="{StaticResource Btn.Icon}" Click="OnSendToBack" ToolTip.Tip="Send to back"/>
+
+        <Separator Theme="{StaticResource Sep.Vertical}"/>
+
+        <!-- Layer -->
+        <TextBlock Text="Layer" Classes="muted" VerticalAlignment="Center" Margin="4,0,2,0"/>
+        <ComboBox x:Name="CbLayer" Width="100" SelectionChanged="OnLayerChanged"
+                  HorizontalAlignment="Stretch"/>
+
+        <Separator Theme="{StaticResource Sep.Vertical}"/>
+
+        <!-- Contour offset -->
+        <TextBlock Text="Offset" Classes="muted" VerticalAlignment="Center" Margin="4,0,2,0"/>
+        <TextBox x:Name="TbOffset" Width="50" Watermark="mm" ToolTip.Tip="Offset contour (±mm)"/>
+        <Button Content="✓" Theme="{StaticResource Btn.Icon}" Click="OnApplyOffset" ToolTip.Tip="Apply offset"/>
+
+        <Separator Theme="{StaticResource Sep.Vertical}"/>
+
         <!-- Duplicate / Delete -->
         <Button Content="⧉" Theme="{StaticResource Btn.Icon}" Click="OnDuplicate" ToolTip.Tip="Duplicate"/>
         <Button Content="✕" Theme="{StaticResource Btn.Icon}" Click="OnDelete"

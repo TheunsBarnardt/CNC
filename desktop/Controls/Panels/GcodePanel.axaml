@@ -1,0 +1,60 @@
+<UserControl xmlns="https://github.com/avaloniaui"
+             xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+             x:Class="Desktop.Controls.Panels.GcodePanel"
+             x:CompileBindings="False">
+
+  <DockPanel>
+    <!-- header -->
+    <Border DockPanel.Dock="Top"
+            Background="{StaticResource Brush.Bg2}"
+            BorderBrush="{StaticResource Brush.Border}"
+            BorderThickness="0,0,0,1"
+            Padding="10,6">
+      <TextBlock Text="G-CODE"
+                 Classes="section"
+                 Margin="0"
+                 VerticalAlignment="Center"/>
+    </Border>
+
+    <!-- controls -->
+    <StackPanel DockPanel.Dock="Top" Spacing="8" Margin="10,10,10,0">
+
+      <TextBlock Text="Post-processor" Classes="muted"/>
+      <ComboBox x:Name="CbPost" HorizontalAlignment="Stretch"/>
+
+      <StackPanel Orientation="Horizontal" Spacing="6">
+        <Button x:Name="BtnGenerate"
+                Content="Generate G-code"
+                Theme="{StaticResource Btn.Primary}"
+                Click="OnGenerate"
+                Padding="10,5"/>
+        <Button x:Name="BtnSave"
+                Content="Save file…"
+                Theme="{StaticResource Btn.Ghost}"
+                Click="OnSaveFile"
+                Padding="10,5"/>
+      </StackPanel>
+
+      <TextBlock x:Name="TbStats"
+                 Text="{Binding GcodeStats}"
+                 Classes="muted"
+                 IsVisible="{Binding GcodeStats.Length}"/>
+    </StackPanel>
+
+    <!-- G-code preview -->
+    <ScrollViewer Margin="0,8,0,0">
+      <TextBox x:Name="TbPreview"
+               Text="{Binding GcodeText}"
+               IsReadOnly="True"
+               AcceptsReturn="True"
+               Background="{StaticResource Brush.Bg3}"
+               BorderThickness="0"
+               FontFamily="Courier New, Consolas, monospace"
+               FontSize="{StaticResource Font.Sm}"
+               Foreground="{StaticResource Brush.Text}"
+               Padding="8"/>
+    </ScrollViewer>
+
+  </DockPanel>
+
+</UserControl>

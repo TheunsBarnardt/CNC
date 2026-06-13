@@ -1,0 +1,227 @@
+<UserControl xmlns="https://github.com/avaloniaui"
+             xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+             xmlns:conv="using:Desktop.Converters"
+             x:Class="Desktop.Controls.Panels.DevicePanel"
+             x:CompileBindings="False">
+
+  <ScrollViewer>
+    <StackPanel Spacing="0" Margin="0,0,0,12">
+
+      <!-- ── Connection ──────────────────────────────────────── -->
+      <Expander Header="Connection"
+                Theme="{StaticResource Card.Expander}"
+                IsExpanded="True"
+                Margin="8,8,8,0">
+        <StackPanel Spacing="6">
+          <!-- port + baud row -->
+          <Grid ColumnDefinitions="*,90,Auto">
+            <ComboBox Grid.Column="0" x:Name="CbPort"
+                      HorizontalAlignment="Stretch"
+                      DropDownOpened="OnPortDropDown"/>
+            <ComboBox Grid.Column="1" x:Name="CbBaud"
+                      Margin="6,0,0,0">
+              <ComboBoxItem Content="9600"   Tag="9600"/>
+              <ComboBoxItem Content="115200" Tag="115200" IsSelected="True"/>
+              <ComboBoxItem Content="230400" Tag="230400"/>
+            </ComboBox>
+            <Button Grid.Column="2"
+                    x:Name="BtnConnect"
+                    Content="{Binding Machine.IsConnected, Converter={x:Static conv:ConnectLabelConverter.Instance}}"
+                    Theme="{StaticResource Btn.Primary}"
+                    Margin="6,0,0,0"
+                    Padding="10,4"
+                    Click="OnConnectToggle"/>
+          </Grid>
+
+          <!-- status bar -->
+          <Border Background="{StaticResource Brush.Bg3}"
+                  CornerRadius="{StaticResource Radius.Sm}"
+                  Padding="8,4">
+            <StackPanel Orientation="Horizontal" Spacing="8">
+              <Ellipse Width="8" Height="8"
+                       Fill="{Binding Machine.IsConnected, Converter={x:Static conv:ConnectedColorConverter.Instance}}"/>
+              <TextBlock Text="{Binding Machine.MachineState}"
+                         Foreground="{StaticResource Brush.Text}"
+                         FontSize="{StaticResource Font.Md}"
+                         VerticalAlignment="Center"/>
+              <TextBlock Text="{Binding Machine.ErrorText}"
+                         Foreground="{StaticResource Brush.Danger}"
+                         FontSize="{StaticResource Font.Sm}"
+                         TextTrimming="CharacterEllipsis"
+                         VerticalAlignment="Center"
+                         IsVisible="{Binding Machine.ErrorText.Length}"/>
+            </StackPanel>
+          </Border>
+        </StackPanel>
+      </Expander>
+
+      <!-- ── DRO ────────────────────────────────────────────── -->
+      <Expander Header="Position (DRO)"
+                Theme="{StaticResource Card.Expander}"
+                IsExpanded="True"
+                IsVisible="{Binding Machine.IsConnected}"
+                Margin="8,6,8,0">
+        <Grid ColumnDefinitions="Auto,*,Auto,*,Auto,*" RowDefinitions="Auto">
+          <TextBlock Grid.Column="0" Text="X" Foreground="{StaticResource Brush.Info}"
+                     FontWeight="Bold" VerticalAlignment="Center" Margin="0,0,4,0"/>
+          <TextBlock Grid.Column="1" Text="{Binding Machine.X, StringFormat=F3}"
+                     Foreground="{StaticResource Brush.Text}" VerticalAlignment="Center"/>
+          <TextBlock Grid.Column="2" Text="Y" Foreground="{StaticResource Brush.Success}"
+                     FontWeight="Bold" VerticalAlignment="Center" Margin="12,0,4,0"/>
+          <TextBlock Grid.Column="3" Text="{Binding Machine.Y, StringFormat=F3}"
+                     Foreground="{StaticResource Brush.Text}" VerticalAlignment="Center"/>
+          <TextBlock Grid.Column="4" Text="Z" Foreground="{StaticResource Brush.Warning}"
+                     FontWeight="Bold" VerticalAlignment="Center" Margin="12,0,4,0"/>
+          <TextBlock Grid.Column="5" Text="{Binding Machine.Z, StringFormat=F3}"
+                     Foreground="{StaticResource Brush.Text}" VerticalAlignment="Center"/>
+        </Grid>
+      </Expander>
+
+      <!-- ── Jog ────────────────────────────────────────────── -->
+      <Expander Header="Jog"
+                Theme="{StaticResource Card.Expander}"
+                IsExpanded="True"
+                IsVisible="{Binding Machine.IsConnected}"
+                Margin="8,6,8,0">
+        <StackPanel Spacing="6">
+          <!-- step size -->
+          <StackPanel Orientation="Horizontal" Spacing="6">
+            <TextBlock Text="Step (mm)" Classes="muted" VerticalAlignment="Center"/>
+            <ComboBox x:Name="CbJogStep" SelectedIndex="2" MinWidth="80">
+              <ComboBoxItem Content="0.01" Tag="0.01"/>
+              <ComboBoxItem Content="0.1"  Tag="0.1"/>
+              <ComboBoxItem Content="1"    Tag="1"/>
+              <ComboBoxItem Content="10"   Tag="10"/>
+              <ComboBoxItem Content="100"  Tag="100"/>
+            </ComboBox>
+            <TextBlock Text="Feed" Classes="muted" VerticalAlignment="Center" Margin="8,0,0,0"/>
+            <ComboBox x:Name="CbJogFeed" SelectedIndex="1" MinWidth="80">
+              <ComboBoxItem Content="100"  Tag="100"/>
+              <ComboBoxItem Content="1000" Tag="1000"/>
+              <ComboBoxItem Content="3000" Tag="3000"/>
+            </ComboBox>
+          </StackPanel>
+
+          <!-- X/Y jog grid -->
+          <Grid ColumnDefinitions="36,36,36" RowDefinitions="36,36,36" HorizontalAlignment="Center">
+            <Button Grid.Row="0" Grid.Column="1" Content="▲" Theme="{StaticResource Btn.Ghost}"
+                    Click="OnJog" Tag="Y+"/>
+            <Button Grid.Row="1" Grid.Column="0" Content="◀" Theme="{StaticResource Btn.Ghost}"
+                    Click="OnJog" Tag="X-"/>
+            <Button Grid.Row="1" Grid.Column="1" Content="⌂" Theme="{StaticResource Btn.Icon}"
+                    Click="OnHome" ToolTip.Tip="Go home"/>
+            <Button Grid.Row="1" Grid.Column="2" Content="▶" Theme="{StaticResource Btn.Ghost}"
+                    Click="OnJog" Tag="X+"/>
+            <Button Grid.Row="2" Grid.Column="1" Content="▼" Theme="{StaticResource Btn.Ghost}"
+                    Click="OnJog" Tag="Y-"/>
+          </Grid>
+
+          <!-- Z jog -->
+          <StackPanel Orientation="Horizontal" HorizontalAlignment="Center" Spacing="6">
+            <Button Content="Z▲" Theme="{StaticResource Btn.Ghost}" Click="OnJog" Tag="Z+" Width="48"/>
+            <Button Content="Z▼" Theme="{StaticResource Btn.Ghost}" Click="OnJog" Tag="Z-" Width="48"/>
+          </StackPanel>
+
+          <!-- Home / Set Zero -->
+          <StackPanel Orientation="Horizontal" Spacing="6">
+            <Button Content="Home all" Theme="{StaticResource Btn.Ghost}"
+                    Click="OnHome" Padding="8,4" HorizontalAlignment="Stretch"/>
+            <Button Content="Set Zero" Theme="{StaticResource Btn.Ghost}"
+                    Click="OnSetZero" Padding="8,4"/>
+            <Button Content="Unlock" Theme="{StaticResource Btn.Ghost}"
+                    Click="OnUnlock" Padding="8,4"/>
+          </StackPanel>
+        </StackPanel>
+      </Expander>
+
+      <!-- ── Run / Control ──────────────────────────────────── -->
+      <Expander Header="Run"
+                Theme="{StaticResource Card.Expander}"
+                IsExpanded="True"
+                IsVisible="{Binding Machine.IsConnected}"
+                Margin="8,6,8,0">
+        <StackPanel Spacing="8">
+          <!-- run + feed hold + resume -->
+          <StackPanel Orientation="Horizontal" Spacing="6">
+            <Button x:Name="BtnRun"
+                    Content="▶ Run"
+                    Theme="{StaticResource Btn.Primary}"
+                    Click="OnRun"
+                    Padding="10,5"
+                    IsEnabled="{Binding !Machine.IsJobRunning}"/>
+            <Button Content="⏸ Hold"
+                    Theme="{StaticResource Btn.Ghost}"
+                    Click="OnFeedHold"
+                    Padding="10,5"/>
+            <Button Content="▷ Resume"
+                    Theme="{StaticResource Btn.Ghost}"
+                    Click="OnResume"
+                    Padding="10,5"/>
+            <Button Content="■ Stop"
+                    Theme="{StaticResource Btn.Danger}"
+                    Click="OnStop"
+                    Padding="10,5"
+                    IsEnabled="{Binding Machine.IsJobRunning}"/>
+          </StackPanel>
+
+          <!-- progress -->
+          <ProgressBar Value="{Binding Machine.JobProgressPct}"
+                       Minimum="0" Maximum="100"
+                       Height="6"
+                       Foreground="{StaticResource Brush.Accent}"
+                       IsVisible="{Binding Machine.IsJobRunning}"/>
+
+          <TextBlock Classes="muted"
+                     IsVisible="{Binding Machine.IsJobRunning}">
+            <Run Text="{Binding Machine.JobDone}"/>
+            <Run Text=" / "/>
+            <Run Text="{Binding Machine.JobTotal}"/>
+            <Run Text=" lines"/>
+          </TextBlock>
+
+          <!-- E-STOP -->
+          <Button Content="⚡ E-STOP"
+                  Background="{StaticResource Brush.Danger}"
+                  Foreground="White"
+                  FontWeight="Bold"
+                  HorizontalAlignment="Stretch"
+                  HorizontalContentAlignment="Center"
+                  Height="40"
+                  Theme="{StaticResource Btn.Danger}"
+                  Click="OnEStop"/>
+        </StackPanel>
+      </Expander>
+
+      <!-- ── Job log ────────────────────────────────────────── -->
+      <Expander Header="Job log"
+                Theme="{StaticResource Card.Expander}"
+                IsVisible="{Binding Machine.IsConnected}"
+                Margin="8,6,8,0">
+        <DockPanel LastChildFill="True">
+          <Button DockPanel.Dock="Top"
+                  Content="Refresh"
+                  Theme="{StaticResource Btn.Ghost}"
+                  HorizontalAlignment="Left"
+                  Padding="8,3"
+                  Margin="0,0,0,4"
+                  Click="OnRefreshLog"/>
+          <ScrollViewer MaxHeight="200">
+            <ItemsControl ItemsSource="{Binding Machine.JobLog}">
+              <ItemsControl.ItemTemplate>
+                <DataTemplate>
+                  <TextBlock Text="{Binding Message}"
+                             FontFamily="Courier New, Consolas, monospace"
+                             FontSize="{StaticResource Font.Xs}"
+                             Foreground="{Binding Event, Converter={x:Static conv:LogColorConverter.Instance}}"
+                             Margin="0,1"/>
+                </DataTemplate>
+              </ItemsControl.ItemTemplate>
+            </ItemsControl>
+          </ScrollViewer>
+        </DockPanel>
+      </Expander>
+
+    </StackPanel>
+  </ScrollViewer>
+
+</UserControl>

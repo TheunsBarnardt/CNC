@@ -1,0 +1,24 @@
+<Window xmlns="https://github.com/avaloniaui"
+        xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+        x:Class="Desktop.Views.TemplateDialog"
+        Title="Templates (Coming Soon)"
+        Width="400" Height="300"
+        Background="{StaticResource Brush.Bg1}">
+
+  <Border Padding="20" BorderBrush="{StaticResource Brush.Border}" BorderThickness="1">
+    <StackPanel Spacing="12">
+      <TextBlock Text="Template Library"
+                 FontSize="18" FontWeight="SemiBold"
+                 Foreground="{StaticResource Brush.Text}"/>
+      <TextBlock Text="Template management is coming in a future release."
+                 TextWrapping="Wrap"
+                 Foreground="{StaticResource Brush.TextMuted}"/>
+      <Button Content="Close"
+              Theme="{StaticResource Btn.Primary}"
+              HorizontalAlignment="Right"
+              Click="OnClose"
+              Padding="20,8"/>
+    </StackPanel>
+  </Border>
+
+</Window>

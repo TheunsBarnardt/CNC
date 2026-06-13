@@ -1,0 +1,63 @@
+<UserControl xmlns="https://github.com/avaloniaui"
+             xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+             x:Class="Desktop.Controls.Toolbars.EditToolbar"
+             x:CompileBindings="False"
+             IsVisible="{Binding SelectedPart, Converter={x:Static ObjectConverters.IsNotNull}}">
+
+  <Border Background="{StaticResource Brush.Bg2}"
+          BorderBrush="{StaticResource Brush.Border}"
+          BorderThickness="0,1,0,0"
+          Padding="8,4">
+    <ScrollViewer HorizontalScrollBarVisibility="Auto"
+                  VerticalScrollBarVisibility="Disabled">
+      <StackPanel Orientation="Horizontal" Spacing="4">
+
+        <!-- X / Y coordinates -->
+        <TextBlock Text="X" Classes="muted" VerticalAlignment="Center" Margin="4,0,2,0"/>
+        <TextBox x:Name="TbX" Width="60" LostFocus="OnTransformChanged"/>
+        <TextBlock Text="Y" Classes="muted" VerticalAlignment="Center" Margin="8,0,2,0"/>
+        <TextBox x:Name="TbY" Width="60" LostFocus="OnTransformChanged"/>
+
+        <Separator Theme="{StaticResource Sep.Vertical}"/>
+
+        <!-- Width / Height -->
+        <TextBlock Text="W" Classes="muted" VerticalAlignment="Center" Margin="4,0,2,0"/>
+        <TextBox x:Name="TbW" Width="60" LostFocus="OnSizeChanged"/>
+        <Button Content="🔒" Theme="{StaticResource Btn.Icon}" Width="24" Height="24"
+                x:Name="BtnLock" Click="OnToggleLock" ToolTip.Tip="Lock aspect ratio"/>
+        <TextBlock Text="H" Classes="muted" VerticalAlignment="Center" Margin="2,0,2,0"/>
+        <TextBox x:Name="TbH" Width="60" LostFocus="OnSizeChanged"/>
+
+        <Separator Theme="{StaticResource Sep.Vertical}"/>
+
+        <!-- Rotation -->
+        <TextBlock Text="°" Classes="muted" VerticalAlignment="Center"/>
+        <TextBox x:Name="TbRot" Width="50" LostFocus="OnRotChanged"/>
+
+        <Separator Theme="{StaticResource Sep.Vertical}"/>
+
+        <!-- Mirror -->
+        <Button Content="⇆" Theme="{StaticResource Btn.Icon}" Click="OnMirrorH" ToolTip.Tip="Mirror horizontal"/>
+        <Button Content="⇅" Theme="{StaticResource Btn.Icon}" Click="OnMirrorV" ToolTip.Tip="Mirror vertical"/>
+
+        <Separator Theme="{StaticResource Sep.Vertical}"/>
+
+        <!-- Align -->
+        <Button Content="⊢" Theme="{StaticResource Btn.Icon}" Click="OnAlignLeft"   ToolTip.Tip="Align left"/>
+        <Button Content="⊣" Theme="{StaticResource Btn.Icon}" Click="OnAlignRight"  ToolTip.Tip="Align right"/>
+        <Button Content="⊤" Theme="{StaticResource Btn.Icon}" Click="OnAlignTop"    ToolTip.Tip="Align top"/>
+        <Button Content="⊥" Theme="{StaticResource Btn.Icon}" Click="OnAlignBottom" ToolTip.Tip="Align bottom"/>
+        <Button Content="⊞" Theme="{StaticResource Btn.Icon}" Click="OnCenter"      ToolTip.Tip="Center on sheet"/>
+
+        <Separator Theme="{StaticResource Sep.Vertical}"/>
+
+        <!-- Duplicate / Delete -->
+        <Button Content="⧉" Theme="{StaticResource Btn.Icon}" Click="OnDuplicate" ToolTip.Tip="Duplicate"/>
+        <Button Content="✕" Theme="{StaticResource Btn.Icon}" Click="OnDelete"
+                Foreground="{StaticResource Brush.Danger}" ToolTip.Tip="Delete"/>
+
+      </StackPanel>
+    </ScrollViewer>
+  </Border>
+
+</UserControl>

@@ -9,7 +9,7 @@ them — one focused task at a time gives the best results. Tick the box when do
 
 ## Milestone 1 — CAM Core (the real v1)
 
-### [x] Task 0 — Project skeleton
+### [ ] Task 0 — Project skeleton
 <!-- Done: /backend (ASP.NET Core, GET /api/health, SignalR /hubs/machine heartbeat every 2s,
      IMachineConnection + FakeMachineConnection, CORS for :5173). /frontend (Vite+React+TS+
      Tailwind v4+shadcn/ui) demo page shows live health + heartbeat. Verified end-to-end via a
@@ -27,7 +27,7 @@ them — one focused task at a time gives the best results. Tick the box when do
 > 5. Update `README.md` and the Commands section of `CLAUDE.md` with exact run steps.
 > Confirm both run and the frontend shows a live heartbeat from the backend. Then stop.
 
-### [x] Task 1 — Project & file model + SVG/DXF import
+### [ ] Task 1 — Project & file model + SVG/DXF import
 <!-- Done: Project model (name, units, table size/origin/thickness) backend + frontend.
      Neutral geometry: curves flattened to polylines (0.05mm chord tol) in mm, Y-up,
      normalized per file to (0,0). SVG importer (paths incl. arcs/béziers, shapes,
@@ -49,7 +49,7 @@ them — one focused task at a time gives the best results. Tick the box when do
 > Don't build toolpaths or the canvas yet beyond what's needed to confirm parsing works
 > (a simple list/log of parsed entities is fine). Stop and summarize.
 
-### [x] Task 2 — Table viewport + part placement
+### [ ] Task 2 — Table viewport + part placement
 <!-- Done: Part model (fileId + x/y translation + rotation CCW about local bbox center) —
      the shared nesting-ready transform; PartTransform (backend) mirrored in frontend
      lib/geometry.ts. Imports auto-place via naive shelf placement (PartPlacer; real
@@ -71,7 +71,7 @@ them — one focused task at a time gives the best results. Tick the box when do
 > - Snap-to-grid and basic alignment.
 > Keep CAM out of this task. Stop and summarize.
 
-### [x] Task 3 — CAM engine: kerf, lead-in/out, pierce, ordering
+### [ ] Task 3 — CAM engine: kerf, lead-in/out, pierce, ordering
 <!-- Done: backend/Cam/. Cut sides auto-classified by containment depth (even=Outside,
      odd=Inside, open=OnLine). Kerf via Clipper2 InflatePaths (±kerf/2, round joins,
      per-contour; too-small contours warn + skip). Direction normalized: outer CCW,
@@ -94,7 +94,7 @@ them — one focused task at a time gives the best results. Tick the box when do
 > Output a NEUTRAL toolpath model (controller-agnostic), per the architecture. Add unit
 > tests for the offsetting and ordering logic. No G-code dialect yet. Stop and summarize.
 
-### [x] Task 4 — Pluggable post-processor + GRBL output + G-code preview
+### [ ] Task 4 — Pluggable post-processor + GRBL output + G-code preview
 <!-- Done: backend/Post/. IPostProcessor (Id/DisplayName/FileExtension + Generate(toolpath,
      project) → GcodeProgram) + PostProcessorRegistry; new dialect = one DI registration,
      CAM untouched. GrblPlasmaPostProcessor: G21/G90/G17/G94 preamble, safety M5 before
@@ -114,7 +114,7 @@ them — one focused task at a time gives the best results. Tick the box when do
 > Keep it pluggable so laser/vinyl posts can be added later without touching the CAM engine.
 > Stop and summarize.
 
-### [x] Task 5 — Toolpath simulation / playback
+### [ ] Task 5 — Toolpath simulation / playback
 <!-- Done: frontend-only, driven by the neutral toolpath (POST /toolpath; no G-code
      parsing needed). lib/simulation.ts: time-indexed segment list (rapid/pierce-dwell/
      cut, leads flagged) from per-cut feed rates + pierce delays; rapids at assumed
@@ -134,7 +134,7 @@ them — one focused task at a time gives the best results. Tick the box when do
 >   moving along the path like a video.
 > Stop and summarize.
 
-### [x] Task 6 — Material profiles
+### [ ] Task 6 — Material profiles
 <!-- Done: MaterialProfile (name, material, thickness, kerf/feed/pierce delay/cut+pierce
      height) + ProfileStore persisted app-level to %LOCALAPPDATA%/diy-grbl-cam/
      material-profiles.json (corrupt file set aside as .corrupt + reseeded; seeds = 3
@@ -154,7 +154,7 @@ them — one focused task at a time gives the best results. Tick the box when do
 > - Persist profiles with the app (and optionally export/import).
 > This completes Milestone 1. Stop and summarize what M1 now does end-to-end.
 
-### [x] Task 6b — Workspace UX alignment with xTool Studio
+### [ ] Task 6b — Workspace UX alignment with xTool Studio
 *Reference: the xTool Studio Basics course (https://support.xtool.com/academy/course?id=6)
 and desktop UI overview (https://support.xtool.com/article/2409). Goal: the app should
 feel familiar to xTool/XCS users — same workspace anatomy, our CAM underneath.*
@@ -192,7 +192,7 @@ feel familiar to xTool/XCS users — same workspace anatomy, our CAM underneath.
 ---
 
 ## Milestone 2 — Auto-Nesting
-### [x] Task 7 — Auto-nesting
+### [ ] Task 7 — Auto-nesting
 <!-- Done: Backend Nester.cs uses SVGnest/DeepNest greedy approach via Clipper2: parts
      ordered largest-first, each tried at discrete rotation candidates (0/45/90/180°
      configurable), placed at bottom-left feasible grid position; collision tested with
@@ -212,7 +212,7 @@ feel familiar to xTool/XCS users — same workspace anatomy, our CAM underneath.
 ---
 
 ## Milestone 3 — Machine Control (GRBL)  ⚠️ safety-critical
-### [x] Task 8 — Real serial connection (replace fake)
+### [ ] Task 8 — Real serial connection (replace fake)
 <!-- Done: SerialMachineConnection implements IMachineConnection via System.IO.Ports:
      opens port (DtrEnable=false to prevent Arduino auto-reset / plasma relay energize),
      sends '?' every 200ms in a background Task.Run loop, parses GRBL status reports
@@ -231,7 +231,7 @@ feel familiar to xTool/XCS users — same workspace anatomy, our CAM underneath.
 > lines, read status reports, surface state over the SignalR hub. Keep `FakeMachine` for
 > testing and simulation. NO motion/streaming yet — connection + status only. Stop and summarize.
 
-### [x] Task 9 — Jog, home, and run job
+### [ ] Task 9 — Jog, home, and run job
 <!-- Done: SerialMachineConnection refactored to separate ReadLoopAsync (dispatches lines
      to status parser or Channel<string> response queue) + PollSenderAsync (sends '?' every
      200ms, skips tick if write lock held). SemaphoreSlim write lock prevents concurrent
@@ -255,7 +255,7 @@ feel familiar to xTool/XCS users — same workspace anatomy, our CAM underneath.
 > start; prominent stop/feed-hold; respect soft limits/table bounds; never auto-start.
 > Stop and summarize.
 
-### [x] Task 10 — Pause / stop / resume-from-pause + job log
+### [ ] Task 10 — Pause / stop / resume-from-pause + job log
 <!-- Done: Backend — JobLogEntry model (Timestamp/Event/LineNumber/LineTotal/X/Y/Z/Message);
      MachineConnectionManager detects Hold/Resume state transitions in OnInnerStatus
      ("Run"→"Hold" logs FeedHold, "Hold"→"Run" logs Resumed) and logs Started/Progress
@@ -277,7 +277,7 @@ feel familiar to xTool/XCS users — same workspace anatomy, our CAM underneath.
 ---
 
 ## Milestone 4 — Power-Loss Recovery & Machine-Type Modes  ⚠️ hard / careful
-### [x] Task 11 — Power-loss recovery
+### [ ] Task 11 — Power-loss recovery
 <!-- Done: CheckpointService persists job checkpoints to %LOCALAPPDATA%/diy-grbl-cam/
      two-file layout: job-checkpoint-gcode.txt (written once on job start) +
      job-checkpoint-meta.json (updated every 50 lines, on FeedHold, on error/stop).
@@ -299,7 +299,7 @@ feel familiar to xTool/XCS users — same workspace anatomy, our CAM underneath.
 > re-establish position, re-pierce, resume from a safe point. Treat with extreme care.
 > Summarize, compact and commit. 
 
-### [x] Task 12 — Laser mode
+### [ ] Task 12 — Laser mode
 <!-- Done: MachineType enum (Plasma/Laser) + LaserPowerPercent field added to CamSettings.
      CamEngine: when OperationMode==Laser, skips kerf offsetting (paths used as-is) and
      skips lead-in/out; PierceDelayS forced to 0. Cut ordering still applied.
@@ -315,7 +315,7 @@ feel familiar to xTool/XCS users — same workspace anatomy, our CAM underneath.
 > Add a laser operation mode + laser post-processor (beam on/off + power %, no kerf/pierce).
 > Summarize, compact and commit. 
 
-### [x] Task 13 — Vinyl / drag-knife mode
+### [ ] Task 13 — Vinyl / drag-knife mode
 <!-- Done: VinylKnife added to MachineType enum. DragKnifeCompensator (backend/Cam/)
      transforms design paths to machine pivot paths: blade trails behind pivot by
      VinylBladeOffsetMm; at each corner the pivot sweeps a small arc around the corner
@@ -344,7 +344,7 @@ https://support.xtool.com/learning-center?campaign=support_academy&node=c8007d78
 Task 6b covers the workspace layout; these tasks cover the functionality.
 Each is one session; split further if a task grows.*
 
-### [x] Task 14 — Shape, pen & text creation tools
+### [ ] Task 14 — Shape, pen & text creation tools
 <!-- Done: Left-sidebar shape tools: line, rectangle (corner radius), circle, ellipse,
      polygon (n-sides), star (points + inner ratio) — click+drag rubber-band on canvas;
      preview drawn during drag. Pen tool: full Bézier state machine — click for corner
@@ -369,7 +369,7 @@ Each is one session; split further if a task grows.*
 > Objects use the existing part-transform model.
 > Summarize, compact and commit. 
 
-### [x] Task 15 — Object editing: precise transforms, mirror, group, offset
+### [ ] Task 15 — Object editing: precise transforms, mirror, group, offset
 <!-- Done: Part model extended with ScaleX/ScaleY (both default 1.0) on backend.
      partToWorld/worldToPartLocal in geometry.ts updated: scale applied around pivot
      before rotation (negative scale = mirror, consistent with rotate model).
@@ -389,7 +389,7 @@ Each is one session; split further if a task grows.*
 > (Clipper2 — reuse the kerf offsetter, don't hand-roll).
 > Summarize, compact and commit. 
 
-### [x] Task 16 — Vector node editing + path operations
+### [ ] Task 16 — Vector node editing + path operations
 <!-- Done: Node editing — double-click a selected part to enter node-edit mode; renders
      all path vertices as hollow circles and segment midpoints as smaller dots. Drag any
      node to reposition it (PATCH /files/{fileId}/paths/{pathId} on release); click a
@@ -410,7 +410,7 @@ Each is one session; split further if a task grows.*
 > Clipper2: unite, subtract, intersect, weld overlapping text/shapes.
 > Summarize, compact and commit. 
 
-### [x] Task 17 — Arrays & material test grid
+### [ ] Task 17 — Arrays & material test grid
 <!-- Done: Backend POST /parts/{id}/array (grid rows×cols with auto-step + circular
      count/radius/start-angle/rotate-with), POST /parts/{id}/test-array (G-code download
      varying two CAM params across a grid, correct post-processor picked by OperationMode).
@@ -424,7 +424,7 @@ Each is one session; split further if a task grows.*
 > in material profiles — xTool's "array test" equivalent for finding good settings.
 > Summarize, compact and commit. 
 
-### [x] Task 18 — Bitmap import + trace to vector
+### [ ] Task 18 — Bitmap import + trace to vector
 <!-- Done: BitmapImporter (PNG/JPG/BMP/GIF/WEBP) implements IFileImporter — reads raw bytes,
      runs BitmapTracer with default settings, stores BitmapData+MimeType on ImportedFile for
      re-trace. BitmapTracer: SixLabors.ImageSharp for load + filters (brightness/contrast/
@@ -447,7 +447,7 @@ Each is one session; split further if a task grows.*
 > where engrave processing actually consumes them.
 > Summarize, compact and commit. 
 
-### [x] Task 19 — Templates, element library, canvas QoL & efficiency tools
+### [ ] Task 19 — Templates, element library, canvas QoL & efficiency tools
 <!-- Done: Per-layer operation mode (Cut/Score/Engrave) — LayerOperationMode enum on
      backend Layer model; CamEngine resolves per-layer feed rate (Score×0.7, Engrave×1.5)
      and laser power (Score×0.5, Engrave×0.2) with optional per-layer overrides;
@@ -480,7 +480,7 @@ Each is one session; split further if a task grows.*
 
 ---
 
-### [x] Task 21 — Node edit UX: smooth/sharp nodes, Bézier handles, node toolbar, scissors
+### [ ] Task 21 — Node edit UX: smooth/sharp nodes, Bézier handles, node toolbar, scissors
 <!-- Done: Backend — PathGeometry.Handles (List<double[]?>?) stores per-node Bézier handles
      [inX,inY,outX,outY] relative to anchor; PATCH /files/{id}/paths/{id} now accepts optional
      Handles + ClearHandles flag; new POST /files/{id}/paths/{id}/split splits a path at a node

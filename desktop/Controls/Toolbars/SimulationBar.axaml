@@ -1,0 +1,63 @@
+<UserControl xmlns="https://github.com/avaloniaui"
+             xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+             x:Class="Desktop.Controls.Toolbars.SimulationBar"
+             x:CompileBindings="False"
+             IsVisible="{Binding InSimMode}">
+
+  <Border Background="{StaticResource Brush.Bg2}"
+          BorderBrush="{StaticResource Brush.Border}"
+          BorderThickness="0,1,0,0"
+          Padding="8,6">
+    <Grid ColumnDefinitions="Auto,*,Auto,Auto">
+
+      <!-- play / pause / stop -->
+      <StackPanel Grid.Column="0" Orientation="Horizontal" Spacing="4">
+        <Button x:Name="BtnBack"
+                Content="← Edit"
+                Theme="{StaticResource Btn.Ghost}"
+                Click="OnBack"
+                Padding="8,4"/>
+        <Separator Theme="{StaticResource Sep.Vertical}"/>
+        <Button x:Name="BtnPlay"
+                Content="▶"
+                Theme="{StaticResource Btn.Primary}"
+                Click="OnPlayPause"
+                Width="32" Height="28"/>
+        <Button Content="■"
+                Theme="{StaticResource Btn.Ghost}"
+                Click="OnStop"
+                Width="32" Height="28"/>
+      </StackPanel>
+
+      <!-- scrub slider -->
+      <Slider Grid.Column="1"
+              x:Name="Scrub"
+              Minimum="0" Maximum="1" Value="0"
+              Margin="12,0"
+              ValueChanged="OnScrub"/>
+
+      <!-- speed selector -->
+      <ComboBox Grid.Column="2"
+                x:Name="CbSpeed"
+                MinWidth="70"
+                SelectedIndex="2"
+                Margin="0,0,8,0">
+        <ComboBoxItem Content="0.5×" Tag="0.5"/>
+        <ComboBoxItem Content="1×"   Tag="1"/>
+        <ComboBoxItem Content="2×"   Tag="2"/>
+        <ComboBoxItem Content="4×"   Tag="4"/>
+        <ComboBoxItem Content="8×"   Tag="8"/>
+        <ComboBoxItem Content="16×"  Tag="16"/>
+      </ComboBox>
+
+      <!-- stats -->
+      <TextBlock Grid.Column="3"
+                 x:Name="TbStats"
+                 Text=""
+                 Classes="muted"
+                 VerticalAlignment="Center"/>
+
+    </Grid>
+  </Border>
+
+</UserControl>

@@ -23,16 +23,13 @@ of truth for scope, stack, milestones, and architecture.
 5. **Update `TASKS.md`** — tick off the item you completed and note anything deferred.
 
 ## Tech stack (do not substitute without asking)
-- **Frontend:** React + TypeScript + Vite + shadcn/ui (Tailwind). State: keep it simple
-  (React state / context first; only add a store if a task calls for it).
-- **Backend:** C# / ASP.NET Core (Web API). Real-time: SignalR.
-- **Frontend ↔ Backend:** REST for normal calls, SignalR hub for live machine status.
+- **Frontend:** AvaloniaUI (native .NET desktop, Fluent theme, MVVM, compiled bindings)
+- **Backend:** C# class library (no HTTP/Web APIs — services accessed directly via DI)
+- **Frontend ↔ Backend:** Direct DI injection (in-process, single executable)
+- **Rendering:** SkiaSharp for viewport/graphics
 - **Geometry:** Clipper2 (C#) for offsetting/kerf. Don't hand-roll polygon offsetting.
-- **Serial:** System.IO.Ports, behind an interface with a fake implementation until M3.
-- **Viewport:** Canvas 2D or Three.js in React (pick per task; default Canvas 2D for the
-  flat table view).
-- **Packaging:** desktop shell bundling frontend + backend (decided later; keep both
-  independently runnable for now).
+- **Serial:** System.IO.Ports, behind an interface with a fake implementation for testing
+- **Packaging:** Single self-contained `.exe` or platform-specific bundle
 
 ## Architecture conventions
 - **Neutral toolpath model.** CAM produces controller-agnostic geometry; post-processors
@@ -45,36 +42,54 @@ of truth for scope, stack, milestones, and architecture.
 - **Serial behind an interface.** `IMachineConnection` (or similar) with a `FakeMachine`
   implementation so the whole app is testable without hardware.
 
-## Repo layout (target)
+## Repo layout
 ```
 /                     repo root
   PLASMA_CAM_PLAN.md  full design doc (source of truth)
   CLAUDE.md           this file
   TASKS.md            milestone task checklist
   README.md           how to run
-  /frontend           Vite + React + shadcn/ui
-  /backend            ASP.NET Core Web API + SignalR
+  /backend            C# class library (CAM engine, machine control, I/O)
+  /desktop            AvaloniaUI frontend (native .NET desktop app)
 ```
 
 ## Commands
-> Keep these current as the project grows.
-- Backend dev: `cd backend && dotnet run --launch-profile http` → http://localhost:5100
-  - Health: `GET http://localhost:5100/api/health`
-  - SignalR hub: `http://localhost:5100/hubs/machine` (broadcasts `machineStatus` every 2s)
-- Frontend dev: `cd frontend && npm install && npm run dev` → http://localhost:5173
-  - Backend URL is read from `frontend/.env` (`VITE_BACKEND_URL`, defaults to :5100)
-- Backend build: `cd backend && dotnet build`
-- Backend tests: `cd backend.Tests && dotnet test`
-- Frontend build/typecheck: `cd frontend && npm run build`
-- Heartbeat smoke test (backend must be running): `cd frontend && node scripts/heartbeat-check.mjs`
-- (Later) full app / packaging: TBD
+
+**Run the app (dev):**
+```bash
+cd desktop
+dotnet run
+```
+
+**Build for release:**
+```bash
+cd desktop
+dotnet publish -c Release -o bin/Release
+```
+
+**Build backend only (class library):**
+```bash
+cd backend
+dotnet build
+```
+
+**Restore tests (when re-added):**
+```bash
+dotnet test
+```
+
+**Notes:**
+- No separate terminal for backend — it runs in-process with AvaloniaUI
+- No web browser needed — native desktop only
+- No HTTP/REST endpoints — services consumed directly via DI
 
 ## Coding standards
-- TypeScript strict mode on. No `any` unless justified in a comment.
-- C#: nullable reference types on, async where I/O is involved.
-- Keep components small; colocate UI state; lift only when shared.
-- Comment the *why* for any non-obvious geometry/serial logic.
-- Prefer clarity over cleverness — this is a community tool others will read.
+- **C# (backend + AvaloniaUI):** nullable reference types on, async where I/O is involved
+- **AvaloniaUI:** MVVM pattern; view models inherit from `ReactiveObject` or similar; use compiled bindings
+- **XAML:** keep simple; complex logic belongs in code-behind or view model
+- Keep components/controls small; group related state; lift only when shared
+- Comment the *why* for any non-obvious geometry/serial logic or machine-control behavior
+- Prefer clarity over cleverness — this is a community tool others will read
 
 ## When unsure
 Ask, or leave a clearly-marked `// TODO(plan):` and mention it in your summary. Do not

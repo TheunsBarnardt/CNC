@@ -1,0 +1,266 @@
+<ResourceDictionary xmlns="https://github.com/avaloniaui"
+                    xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml">
+
+  <!-- ═══════════════════════════════════════════════════════════════
+       DIY GRBL CAM — Centralized Dark Theme
+       All colours, brushes, sizes and ControlThemes live here.
+       Reference these from AXAML via {StaticResource Key}.
+  ═══════════════════════════════════════════════════════════════ -->
+
+  <!-- ── Colour palette ─────────────────────────────────────────── -->
+  <Color x:Key="Col.Bg0">#0d0d0d</Color>          <!-- deepest background    -->
+  <Color x:Key="Col.Bg1">#111111</Color>          <!-- window background     -->
+  <Color x:Key="Col.Bg2">#1a1a1a</Color>          <!-- panel background      -->
+  <Color x:Key="Col.Bg3">#222222</Color>          <!-- input / card          -->
+  <Color x:Key="Col.Surface">#2a2a2a</Color>      <!-- elevated surface      -->
+  <Color x:Key="Col.SurfaceHover">#333333</Color> <!-- hover state           -->
+  <Color x:Key="Col.Border">#2a2a2a</Color>       <!-- subtle border         -->
+  <Color x:Key="Col.BorderFocus">#555555</Color>  <!-- focused border        -->
+
+  <Color x:Key="Col.Text">#e0e0e0</Color>         <!-- primary text          -->
+  <Color x:Key="Col.TextMuted">#888888</Color>    <!-- secondary/label text  -->
+  <Color x:Key="Col.TextFaint">#555555</Color>    <!-- placeholder text      -->
+
+  <Color x:Key="Col.Accent">#3b82f6</Color>       <!-- blue accent           -->
+  <Color x:Key="Col.AccentHover">#2563eb</Color>
+  <Color x:Key="Col.AccentFg">#ffffff</Color>
+
+  <Color x:Key="Col.Success">#10b981</Color>      <!-- green                 -->
+  <Color x:Key="Col.Warning">#f59e0b</Color>      <!-- amber                 -->
+  <Color x:Key="Col.Danger">#ef4444</Color>       <!-- red                   -->
+  <Color x:Key="Col.DangerHover">#dc2626</Color>
+  <Color x:Key="Col.Info">#06b6d4</Color>         <!-- cyan                  -->
+
+  <Color x:Key="Col.Layer0">#3b82f6</Color>       <!-- layer colour defaults -->
+  <Color x:Key="Col.Layer1">#10b981</Color>
+  <Color x:Key="Col.Layer2">#f59e0b</Color>
+  <Color x:Key="Col.Layer3">#ef4444</Color>
+  <Color x:Key="Col.Layer4">#8b5cf6</Color>
+
+  <!-- ── Brushes ────────────────────────────────────────────────── -->
+  <SolidColorBrush x:Key="Brush.Bg0"           Color="{StaticResource Col.Bg0}"/>
+  <SolidColorBrush x:Key="Brush.Bg1"           Color="{StaticResource Col.Bg1}"/>
+  <SolidColorBrush x:Key="Brush.Bg2"           Color="{StaticResource Col.Bg2}"/>
+  <SolidColorBrush x:Key="Brush.Bg3"           Color="{StaticResource Col.Bg3}"/>
+  <SolidColorBrush x:Key="Brush.Surface"       Color="{StaticResource Col.Surface}"/>
+  <SolidColorBrush x:Key="Brush.SurfaceHover"  Color="{StaticResource Col.SurfaceHover}"/>
+  <SolidColorBrush x:Key="Brush.Border"        Color="{StaticResource Col.Border}"/>
+  <SolidColorBrush x:Key="Brush.BorderFocus"   Color="{StaticResource Col.BorderFocus}"/>
+
+  <SolidColorBrush x:Key="Brush.Text"          Color="{StaticResource Col.Text}"/>
+  <SolidColorBrush x:Key="Brush.TextMuted"     Color="{StaticResource Col.TextMuted}"/>
+  <SolidColorBrush x:Key="Brush.TextFaint"     Color="{StaticResource Col.TextFaint}"/>
+
+  <SolidColorBrush x:Key="Brush.Accent"        Color="{StaticResource Col.Accent}"/>
+  <SolidColorBrush x:Key="Brush.AccentHover"   Color="{StaticResource Col.AccentHover}"/>
+  <SolidColorBrush x:Key="Brush.AccentFg"      Color="{StaticResource Col.AccentFg}"/>
+
+  <SolidColorBrush x:Key="Brush.Success"       Color="{StaticResource Col.Success}"/>
+  <SolidColorBrush x:Key="Brush.Warning"       Color="{StaticResource Col.Warning}"/>
+  <SolidColorBrush x:Key="Brush.Danger"        Color="{StaticResource Col.Danger}"/>
+  <SolidColorBrush x:Key="Brush.DangerHover"   Color="{StaticResource Col.DangerHover}"/>
+  <SolidColorBrush x:Key="Brush.Info"          Color="{StaticResource Col.Info}"/>
+  <SolidColorBrush x:Key="Brush.Transparent"   Color="Transparent"/>
+
+  <!-- ── Spacing / sizing constants ─────────────────────────────── -->
+  <Thickness x:Key="Pad.Xs">4</Thickness>
+  <Thickness x:Key="Pad.Sm">6</Thickness>
+  <Thickness x:Key="Pad.Md">8</Thickness>
+  <Thickness x:Key="Pad.Lg">12</Thickness>
+  <Thickness x:Key="Pad.Xl">16</Thickness>
+  <Thickness x:Key="Pad.Input">6,3</Thickness>
+  <Thickness x:Key="Pad.Card">10,8</Thickness>
+  <CornerRadius x:Key="Radius.Sm">3</CornerRadius>
+  <CornerRadius x:Key="Radius.Md">6</CornerRadius>
+  <CornerRadius x:Key="Radius.Lg">8</CornerRadius>
+  <x:Double x:Key="Font.Xs">10</x:Double>
+  <x:Double x:Key="Font.Sm">11</x:Double>
+  <x:Double x:Key="Font.Md">12</x:Double>
+  <x:Double x:Key="Font.Lg">13</x:Double>
+  <x:Double x:Key="Font.Xl">15</x:Double>
+
+  <!-- ── ControlTheme: Button (default ghost style) ─────────────── -->
+  <ControlTheme x:Key="Btn.Ghost" TargetType="Button">
+    <Setter Property="Background"   Value="{StaticResource Brush.Transparent}"/>
+    <Setter Property="Foreground"   Value="{StaticResource Brush.Text}"/>
+    <Setter Property="BorderBrush"  Value="{StaticResource Brush.Border}"/>
+    <Setter Property="BorderThickness" Value="1"/>
+    <Setter Property="CornerRadius" Value="{StaticResource Radius.Sm}"/>
+    <Setter Property="Padding"      Value="{StaticResource Pad.Input}"/>
+    <Setter Property="FontSize"     Value="{StaticResource Font.Md}"/>
+    <Setter Property="Cursor"       Value="Hand"/>
+    <Setter Property="Template">
+      <ControlTemplate>
+        <Border Name="PART_Border"
+                Background="{TemplateBinding Background}"
+                BorderBrush="{TemplateBinding BorderBrush}"
+                BorderThickness="{TemplateBinding BorderThickness}"
+                CornerRadius="{TemplateBinding CornerRadius}"
+                Padding="{TemplateBinding Padding}">
+          <ContentPresenter HorizontalContentAlignment="{TemplateBinding HorizontalContentAlignment}"
+                            VerticalContentAlignment="{TemplateBinding VerticalContentAlignment}"
+                            Content="{TemplateBinding Content}"/>
+        </Border>
+      </ControlTemplate>
+    </Setter>
+    <Style Selector="^:pointerover /template/ Border#PART_Border">
+      <Setter Property="Background" Value="{StaticResource Brush.Surface}"/>
+    </Style>
+    <Style Selector="^:pressed /template/ Border#PART_Border">
+      <Setter Property="Background" Value="{StaticResource Brush.SurfaceHover}"/>
+    </Style>
+    <Style Selector="^:disabled">
+      <Setter Property="Opacity" Value="0.4"/>
+    </Style>
+  </ControlTheme>
+
+  <ControlTheme x:Key="Btn.Primary" TargetType="Button" BasedOn="{StaticResource Btn.Ghost}">
+    <Setter Property="Background"  Value="{StaticResource Brush.Accent}"/>
+    <Setter Property="Foreground"  Value="{StaticResource Brush.AccentFg}"/>
+    <Setter Property="BorderBrush" Value="{StaticResource Brush.Accent}"/>
+    <Style Selector="^:pointerover /template/ Border#PART_Border">
+      <Setter Property="Background" Value="{StaticResource Brush.AccentHover}"/>
+    </Style>
+  </ControlTheme>
+
+  <ControlTheme x:Key="Btn.Danger" TargetType="Button" BasedOn="{StaticResource Btn.Ghost}">
+    <Setter Property="Foreground"  Value="{StaticResource Brush.Danger}"/>
+    <Setter Property="BorderBrush" Value="{StaticResource Brush.Danger}"/>
+    <Style Selector="^:pointerover /template/ Border#PART_Border">
+      <Setter Property="Background" Value="{StaticResource Brush.Danger}"/>
+    </Style>
+    <Style Selector="^:pointerover">
+      <Setter Property="Foreground" Value="White"/>
+    </Style>
+  </ControlTheme>
+
+  <ControlTheme x:Key="Btn.Icon" TargetType="Button" BasedOn="{StaticResource Btn.Ghost}">
+    <Setter Property="Width"        Value="28"/>
+    <Setter Property="Height"       Value="28"/>
+    <Setter Property="Padding"      Value="0"/>
+    <Setter Property="BorderThickness" Value="0"/>
+    <Setter Property="HorizontalContentAlignment" Value="Center"/>
+    <Setter Property="VerticalContentAlignment"   Value="Center"/>
+    <Setter Property="FontSize"     Value="{StaticResource Font.Md}"/>
+  </ControlTheme>
+
+  <ControlTheme x:Key="Btn.ToolRail" TargetType="Button" BasedOn="{StaticResource Btn.Ghost}">
+    <Setter Property="Width"       Value="34"/>
+    <Setter Property="Height"      Value="34"/>
+    <Setter Property="Padding"     Value="0"/>
+    <Setter Property="BorderThickness" Value="0"/>
+    <Setter Property="HorizontalContentAlignment" Value="Center"/>
+    <Setter Property="VerticalContentAlignment"   Value="Center"/>
+    <Setter Property="FontSize"    Value="{StaticResource Font.Xl}"/>
+    <Setter Property="Foreground"  Value="{StaticResource Brush.TextMuted}"/>
+  </ControlTheme>
+
+  <!-- ── ControlTheme: TextBox ──────────────────────────────────── -->
+  <ControlTheme x:Key="{x:Type TextBox}" TargetType="TextBox">
+    <Setter Property="Background"        Value="{StaticResource Brush.Bg3}"/>
+    <Setter Property="Foreground"        Value="{StaticResource Brush.Text}"/>
+    <Setter Property="BorderBrush"       Value="{StaticResource Brush.Border}"/>
+    <Setter Property="BorderThickness"   Value="1"/>
+    <Setter Property="CornerRadius"      Value="{StaticResource Radius.Sm}"/>
+    <Setter Property="Padding"           Value="{StaticResource Pad.Input}"/>
+    <Setter Property="FontSize"          Value="{StaticResource Font.Md}"/>
+    <Setter Property="CaretBrush"        Value="{StaticResource Brush.TextMuted}"/>
+    <Setter Property="SelectionBrush"    Value="{StaticResource Brush.Accent}"/>
+    <Setter Property="MinHeight"         Value="26"/>
+    <Setter Property="Template">
+      <ControlTemplate>
+        <Border Name="PART_BorderElement"
+                Background="{TemplateBinding Background}"
+                BorderBrush="{TemplateBinding BorderBrush}"
+                BorderThickness="{TemplateBinding BorderThickness}"
+                CornerRadius="{TemplateBinding CornerRadius}"
+                MinWidth="{TemplateBinding MinWidth}"
+                MinHeight="{TemplateBinding MinHeight}">
+          <ScrollViewer IsScrollChainingEnabled="False"
+                        Padding="{TemplateBinding Padding}"
+                        HorizontalScrollBarVisibility="Hidden"
+                        VerticalScrollBarVisibility="Hidden">
+            <TextPresenter Name="PART_TextPresenter"
+                           Text="{TemplateBinding Text, Mode=TwoWay}"
+                           CaretBrush="{TemplateBinding CaretBrush}"
+                           SelectionBrush="{TemplateBinding SelectionBrush}"
+                           SelectionForegroundBrush="{TemplateBinding SelectionForegroundBrush}"
+                           TextAlignment="{TemplateBinding TextAlignment}"
+                           TextWrapping="{TemplateBinding TextWrapping}"
+                           LineHeight="{TemplateBinding LineHeight}"
+                           LetterSpacing="{TemplateBinding LetterSpacing}"
+                           PasswordChar="{TemplateBinding PasswordChar}"
+                           RevealPassword="{TemplateBinding RevealPassword}"
+                           HorizontalAlignment="{TemplateBinding HorizontalContentAlignment}"
+                           VerticalAlignment="{TemplateBinding VerticalContentAlignment}"/>
+          </ScrollViewer>
+        </Border>
+      </ControlTemplate>
+    </Setter>
+    <Style Selector="^:focus /template/ Border#PART_BorderElement">
+      <Setter Property="BorderBrush" Value="{StaticResource Brush.BorderFocus}"/>
+    </Style>
+    <Style Selector="^:disabled">
+      <Setter Property="Opacity" Value="0.5"/>
+    </Style>
+  </ControlTheme>
+
+  <!-- ── ControlTheme: ComboBox ─────────────────────────────────── -->
+  <ControlTheme x:Key="{x:Type ComboBox}" TargetType="ComboBox">
+    <Setter Property="Background"      Value="{StaticResource Brush.Bg3}"/>
+    <Setter Property="Foreground"      Value="{StaticResource Brush.Text}"/>
+    <Setter Property="BorderBrush"     Value="{StaticResource Brush.Border}"/>
+    <Setter Property="BorderThickness" Value="1"/>
+    <Setter Property="CornerRadius"    Value="{StaticResource Radius.Sm}"/>
+    <Setter Property="Padding"         Value="{StaticResource Pad.Input}"/>
+    <Setter Property="FontSize"        Value="{StaticResource Font.Md}"/>
+    <Setter Property="MinHeight"       Value="26"/>
+  </ControlTheme>
+
+  <!-- ── ControlTheme: CheckBox ─────────────────────────────────── -->
+  <ControlTheme x:Key="{x:Type CheckBox}" TargetType="CheckBox">
+    <Setter Property="Foreground" Value="{StaticResource Brush.Text}"/>
+    <Setter Property="FontSize"   Value="{StaticResource Font.Md}"/>
+  </ControlTheme>
+
+  <!-- ── ControlTheme: Slider ───────────────────────────────────── -->
+  <ControlTheme x:Key="{x:Type Slider}" TargetType="Slider">
+    <Setter Property="Foreground" Value="{StaticResource Brush.Accent}"/>
+  </ControlTheme>
+
+  <!-- ── ControlTheme: Expander ─────────────────────────────────── -->
+  <ControlTheme x:Key="Card.Expander" TargetType="Expander">
+    <Setter Property="Background"       Value="{StaticResource Brush.Bg2}"/>
+    <Setter Property="BorderBrush"      Value="{StaticResource Brush.Border}"/>
+    <Setter Property="BorderThickness"  Value="1"/>
+    <Setter Property="CornerRadius"     Value="{StaticResource Radius.Md}"/>
+    <Setter Property="Padding"          Value="{StaticResource Pad.Card}"/>
+    <Setter Property="Foreground"       Value="{StaticResource Brush.Text}"/>
+    <Setter Property="FontSize"         Value="{StaticResource Font.Md}"/>
+  </ControlTheme>
+
+  <!-- ── ControlTheme: ScrollViewer (thin dark scrollbars) ─────── -->
+  <ControlTheme x:Key="{x:Type ScrollViewer}" TargetType="ScrollViewer">
+    <Setter Property="Background" Value="Transparent"/>
+  </ControlTheme>
+
+  <!-- TextBlock helper styles — applied via Classes="muted" or Classes="section" -->
+  <!-- These are defined in Application.Styles (App.axaml) since Style.TargetType
+       is not supported inside ResourceDictionary; they are listed here only as
+       documentation of the available class names. -->
+
+  <!-- ── Separator ──────────────────────────────────────────────── -->
+  <ControlTheme x:Key="Sep.Vertical" TargetType="Separator">
+    <Setter Property="Width"       Value="1"/>
+    <Setter Property="Height"      Value="18"/>
+    <Setter Property="Background"  Value="{StaticResource Brush.Border}"/>
+    <Setter Property="Margin"      Value="4,0"/>
+  </ControlTheme>
+
+  <ControlTheme x:Key="Sep.Horizontal" TargetType="Separator">
+    <Setter Property="Height"      Value="1"/>
+    <Setter Property="Background"  Value="{StaticResource Brush.Border}"/>
+    <Setter Property="Margin"      Value="0,4"/>
+  </ControlTheme>
+
+</ResourceDictionary>

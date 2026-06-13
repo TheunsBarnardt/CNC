@@ -1,0 +1,102 @@
+<UserControl xmlns="https://github.com/avaloniaui"
+             xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+             xmlns:vm="using:Desktop.ViewModels"
+             xmlns:conv="using:Desktop.Converters"
+             x:Class="Desktop.Controls.Panels.FilesPanel"
+             x:CompileBindings="False">
+
+  <DockPanel>
+    <!-- header -->
+    <Border DockPanel.Dock="Top"
+            Background="{StaticResource Brush.Bg2}"
+            BorderBrush="{StaticResource Brush.Border}"
+            BorderThickness="0,0,0,1"
+            Padding="10,6">
+      <Grid ColumnDefinitions="*,Auto">
+        <TextBlock Text="FILES"
+                   Classes="section"
+                   Margin="0"
+                   VerticalAlignment="Center"/>
+        <Button Grid.Column="1"
+                Content="＋"
+                Theme="{StaticResource Btn.Icon}"
+                ToolTip.Tip="Import file"
+                Click="OnImportClick"/>
+      </Grid>
+    </Border>
+
+    <!-- empty hint -->
+    <TextBlock DockPanel.Dock="Bottom"
+               Text="Drop SVG / DXF / image here"
+               Classes="muted"
+               HorizontalAlignment="Center"
+               Margin="0,12"
+               IsVisible="{Binding !Files.Count}"/>
+
+    <!-- file list -->
+    <ScrollViewer>
+      <ItemsControl ItemsSource="{Binding Files}">
+        <ItemsControl.ItemTemplate>
+          <DataTemplate>
+            <Border Background="Transparent"
+                    BorderBrush="{StaticResource Brush.Border}"
+                    BorderThickness="0,0,0,1"
+                    Padding="8,5">
+              <Grid ColumnDefinitions="Auto,*,Auto,Auto,Auto">
+                <!-- visibility eye -->
+                <Button Grid.Column="0"
+                        Content="{Binding Visible, Converter={x:Static conv:VisibilityIconConverter.Instance}}"
+                        Theme="{StaticResource Btn.Icon}"
+                        Width="22" Height="22"
+                        ToolTip.Tip="Toggle visibility"
+                        Click="OnToggleVisible"
+                        Tag="{Binding}"/>
+
+                <!-- file name -->
+                <TextBlock Grid.Column="1"
+                           Text="{Binding Name}"
+                           VerticalAlignment="Center"
+                           Margin="4,0"
+                           FontSize="{StaticResource Font.Md}"
+                           Foreground="{StaticResource Brush.Text}"
+                           TextTrimming="CharacterEllipsis"/>
+
+                <!-- kind badge -->
+                <Border Grid.Column="2"
+                        Background="{StaticResource Brush.Bg3}"
+                        CornerRadius="{StaticResource Radius.Sm}"
+                        Padding="4,1"
+                        Margin="4,0"
+                        VerticalAlignment="Center">
+                  <TextBlock Text="{Binding KindLabel}"
+                             FontSize="{StaticResource Font.Xs}"
+                             Foreground="{StaticResource Brush.TextMuted}"/>
+                </Border>
+
+                <!-- add to table -->
+                <Button Grid.Column="3"
+                        Content="⊕"
+                        Theme="{StaticResource Btn.Icon}"
+                        Width="22" Height="22"
+                        ToolTip.Tip="Add copy to table"
+                        Click="OnAddToTable"
+                        Tag="{Binding}"/>
+
+                <!-- delete -->
+                <Button Grid.Column="4"
+                        Content="✕"
+                        Theme="{StaticResource Btn.Icon}"
+                        Width="22" Height="22"
+                        Foreground="{StaticResource Brush.Danger}"
+                        ToolTip.Tip="Remove file"
+                        Click="OnRemoveFile"
+                        Tag="{Binding}"/>
+              </Grid>
+            </Border>
+          </DataTemplate>
+        </ItemsControl.ItemTemplate>
+      </ItemsControl>
+    </ScrollViewer>
+  </DockPanel>
+
+</UserControl>

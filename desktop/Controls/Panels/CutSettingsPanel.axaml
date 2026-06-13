@@ -1,0 +1,169 @@
+<UserControl xmlns="https://github.com/avaloniaui"
+             xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+             x:Class="Desktop.Controls.Panels.CutSettingsPanel"
+             x:CompileBindings="False">
+
+  <ScrollViewer>
+    <StackPanel Spacing="0" Margin="0,0,0,12">
+
+      <!-- ── Machine type ─────────────────────────────────────── -->
+      <Expander Header="Machine type"
+                Theme="{StaticResource Card.Expander}"
+                IsExpanded="True"
+                Margin="8,8,8,0">
+        <StackPanel Spacing="6">
+          <RadioButton x:Name="RbPlasma" GroupName="MachineType" Content="Plasma"
+                       IsChecked="{Binding CutSettings.IsPlasma}"
+                       Click="OnModeChanged"/>
+          <RadioButton x:Name="RbLaser"  GroupName="MachineType" Content="Laser"
+                       IsChecked="{Binding CutSettings.IsLaser}"
+                       Click="OnModeChanged"/>
+          <RadioButton x:Name="RbVinyl"  GroupName="MachineType" Content="Vinyl/Drag-knife"
+                       IsChecked="{Binding CutSettings.IsVinyl}"
+                       Click="OnModeChanged"/>
+        </StackPanel>
+      </Expander>
+
+      <!-- ── Common cut params ────────────────────────────────── -->
+      <Expander Header="Cut parameters"
+                Theme="{StaticResource Card.Expander}"
+                IsExpanded="True"
+                Margin="8,6,8,0">
+        <Grid ColumnDefinitions="*,90" RowDefinitions="Auto,Auto,Auto,Auto,Auto,Auto">
+
+          <TextBlock Grid.Row="0" Grid.Column="0" Text="Feed rate (mm/min)"
+                     Classes="muted" VerticalAlignment="Center"/>
+          <TextBox Grid.Row="0" Grid.Column="1" x:Name="TbFeed"
+                   Margin="0,2" LostFocus="OnParamChanged"/>
+
+          <TextBlock Grid.Row="1" Grid.Column="0" Text="Kerf width (mm)"
+                     Classes="muted" VerticalAlignment="Center" Margin="0,6,0,0"/>
+          <TextBox Grid.Row="1" Grid.Column="1" x:Name="TbKerf"
+                   Margin="0,8,0,2" LostFocus="OnParamChanged"/>
+
+          <!-- plasma only -->
+          <TextBlock Grid.Row="2" Grid.Column="0" Text="Pierce delay (s)"
+                     Classes="muted" VerticalAlignment="Center" Margin="0,6,0,0"
+                     IsVisible="{Binding CutSettings.IsPlasma}"/>
+          <TextBox Grid.Row="2" Grid.Column="1" x:Name="TbPierceDelay"
+                   Margin="0,8,0,2" LostFocus="OnParamChanged"
+                   IsVisible="{Binding CutSettings.IsPlasma}"/>
+
+          <TextBlock Grid.Row="3" Grid.Column="0" Text="Cut height (mm)"
+                     Classes="muted" VerticalAlignment="Center" Margin="0,6,0,0"
+                     IsVisible="{Binding CutSettings.IsPlasma}"/>
+          <TextBox Grid.Row="3" Grid.Column="1" x:Name="TbCutHeight"
+                   Margin="0,8,0,2" LostFocus="OnParamChanged"
+                   IsVisible="{Binding CutSettings.IsPlasma}"/>
+
+          <TextBlock Grid.Row="4" Grid.Column="0" Text="Pierce height (mm)"
+                     Classes="muted" VerticalAlignment="Center" Margin="0,6,0,0"
+                     IsVisible="{Binding CutSettings.IsPlasma}"/>
+          <TextBox Grid.Row="4" Grid.Column="1" x:Name="TbPierceHeight"
+                   Margin="0,8,0,2" LostFocus="OnParamChanged"
+                   IsVisible="{Binding CutSettings.IsPlasma}"/>
+
+          <!-- laser only -->
+          <TextBlock Grid.Row="5" Grid.Column="0" Text="Laser power (%)"
+                     Classes="muted" VerticalAlignment="Center" Margin="0,6,0,0"
+                     IsVisible="{Binding CutSettings.IsLaser}"/>
+          <TextBox Grid.Row="5" Grid.Column="1" x:Name="TbLaserPower"
+                   Margin="0,8,0,2" LostFocus="OnParamChanged"
+                   IsVisible="{Binding CutSettings.IsLaser}"/>
+        </Grid>
+      </Expander>
+
+      <!-- ── Lead-in / Lead-out ──────────────────────────────── -->
+      <Expander Header="Lead-in / Lead-out"
+                Theme="{StaticResource Card.Expander}"
+                Margin="8,6,8,0">
+        <Grid ColumnDefinitions="*,90" RowDefinitions="Auto,Auto,Auto,Auto,Auto">
+
+          <TextBlock Grid.Row="0" Grid.Column="0" Text="Lead-in type"
+                     Classes="muted" VerticalAlignment="Center"/>
+          <ComboBox Grid.Row="0" Grid.Column="1" x:Name="CbLeadIn" Margin="0,2"
+                    SelectionChanged="OnParamChanged">
+            <ComboBoxItem Content="None"  Tag="None"/>
+            <ComboBoxItem Content="Arc"   Tag="Arc"/>
+            <ComboBoxItem Content="Line"  Tag="Line"/>
+          </ComboBox>
+
+          <TextBlock Grid.Row="1" Grid.Column="0" Text="Lead-in length (mm)"
+                     Classes="muted" VerticalAlignment="Center" Margin="0,6,0,0"/>
+          <TextBox Grid.Row="1" Grid.Column="1" x:Name="TbLeadInLen"
+                   Margin="0,8,0,2" LostFocus="OnParamChanged"/>
+
+          <TextBlock Grid.Row="2" Grid.Column="0" Text="Lead-out type"
+                     Classes="muted" VerticalAlignment="Center" Margin="0,6,0,0"/>
+          <ComboBox Grid.Row="2" Grid.Column="1" x:Name="CbLeadOut" Margin="0,8,0,2"
+                    SelectionChanged="OnParamChanged">
+            <ComboBoxItem Content="None"  Tag="None"/>
+            <ComboBoxItem Content="Arc"   Tag="Arc"/>
+            <ComboBoxItem Content="Line"  Tag="Line"/>
+          </ComboBox>
+
+          <TextBlock Grid.Row="3" Grid.Column="0" Text="Lead-out length (mm)"
+                     Classes="muted" VerticalAlignment="Center" Margin="0,6,0,0"/>
+          <TextBox Grid.Row="3" Grid.Column="1" x:Name="TbLeadOutLen"
+                   Margin="0,8,0,2" LostFocus="OnParamChanged"/>
+        </Grid>
+      </Expander>
+
+      <!-- ── Vinyl params ─────────────────────────────────────── -->
+      <Expander Header="Vinyl knife"
+                Theme="{StaticResource Card.Expander}"
+                IsVisible="{Binding CutSettings.IsVinyl}"
+                Margin="8,6,8,0">
+        <Grid ColumnDefinitions="*,90" RowDefinitions="Auto,Auto,Auto,Auto">
+          <TextBlock Grid.Row="0" Grid.Column="0" Text="Blade offset (mm)"
+                     Classes="muted" VerticalAlignment="Center"/>
+          <TextBox Grid.Row="0" Grid.Column="1" x:Name="TbBladeOffset" Margin="0,2" LostFocus="OnParamChanged"/>
+
+          <TextBlock Grid.Row="1" Grid.Column="0" Text="Overcut (mm)"
+                     Classes="muted" VerticalAlignment="Center" Margin="0,6,0,0"/>
+          <TextBox Grid.Row="1" Grid.Column="1" x:Name="TbOvercut" Margin="0,8,0,2" LostFocus="OnParamChanged"/>
+
+          <TextBlock Grid.Row="2" Grid.Column="0" Text="Knife up Z (mm)"
+                     Classes="muted" VerticalAlignment="Center" Margin="0,6,0,0"/>
+          <TextBox Grid.Row="2" Grid.Column="1" x:Name="TbKnifeUp" Margin="0,8,0,2" LostFocus="OnParamChanged"/>
+
+          <TextBlock Grid.Row="3" Grid.Column="0" Text="Knife down Z (mm)"
+                     Classes="muted" VerticalAlignment="Center" Margin="0,6,0,0"/>
+          <TextBox Grid.Row="3" Grid.Column="1" x:Name="TbKnifeDown" Margin="0,8,0,2" LostFocus="OnParamChanged"/>
+        </Grid>
+      </Expander>
+
+      <!-- ── Material profiles ───────────────────────────────── -->
+      <Expander Header="Material profiles"
+                Theme="{StaticResource Card.Expander}"
+                Margin="8,6,8,0">
+        <StackPanel Spacing="6">
+          <ComboBox x:Name="CbProfile"
+                    ItemsSource="{Binding CutSettings.Profiles}"
+                    SelectedItem="{Binding CutSettings.SelectedProfileId}"
+                    DisplayMemberBinding="{Binding Name}"
+                    HorizontalAlignment="Stretch"
+                    SelectionChanged="OnProfileSelected"/>
+
+          <StackPanel Orientation="Horizontal" Spacing="6">
+            <Button Content="Apply" Theme="{StaticResource Btn.Ghost}"
+                    Click="OnApplyProfile" Padding="8,4"/>
+            <Button Content="Update" Theme="{StaticResource Btn.Ghost}"
+                    Click="OnUpdateProfile" Padding="8,4"/>
+            <Button Content="Delete" Theme="{StaticResource Btn.Danger}"
+                    Click="OnDeleteProfile" Padding="8,4"/>
+          </StackPanel>
+
+          <StackPanel Orientation="Horizontal" Spacing="6">
+            <TextBox x:Name="TbNewProfileName" Watermark="New profile name…"
+                     Width="160"/>
+            <Button Content="Save as…" Theme="{StaticResource Btn.Primary}"
+                    Click="OnSaveAsProfile" Padding="8,4"/>
+          </StackPanel>
+        </StackPanel>
+      </Expander>
+
+    </StackPanel>
+  </ScrollViewer>
+
+</UserControl>

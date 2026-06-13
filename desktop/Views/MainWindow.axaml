@@ -1,0 +1,157 @@
+<Window xmlns="https://github.com/avaloniaui"
+        xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+        xmlns:d="http://schemas.microsoft.com/expression/blend/2008"
+        xmlns:mc="http://schemas.openxmlformats.org/markup-compatibility/2006"
+        xmlns:ctrl="using:Desktop.Controls"
+        xmlns:panels="using:Desktop.Controls.Panels"
+        xmlns:toolbars="using:Desktop.Controls.Toolbars"
+        mc:Ignorable="d"
+        x:Class="Desktop.Views.MainWindow"
+        x:CompileBindings="False"
+        d:DesignWidth="1400" d:DesignHeight="900"
+        Width="1400" Height="900" MinWidth="900" MinHeight="600"
+        Title="DIY GRBL Cutting CAM"
+        Background="{StaticResource Brush.Bg1}">
+
+  <Grid RowDefinitions="Auto,*">
+
+    <!-- ═══ HEADER ══════════════════════════════════════════════════ -->
+    <Border Grid.Row="0"
+            Background="{StaticResource Brush.Bg2}"
+            BorderBrush="{StaticResource Brush.Border}"
+            BorderThickness="0,0,0,1"
+            Padding="12,6">
+      <DockPanel>
+        <!-- Logo + project name -->
+        <StackPanel DockPanel.Dock="Left"
+                    Orientation="Horizontal" Spacing="10" VerticalAlignment="Center">
+          <TextBlock Text="✂ DIY GRBL Cutting CAM"
+                     FontSize="{StaticResource Font.Xl}"
+                     FontWeight="SemiBold"
+                     Foreground="{StaticResource Brush.Text}"/>
+          <TextBlock Text="{Binding ProjectName}"
+                     FontSize="{StaticResource Font.Lg}"
+                     Foreground="{StaticResource Brush.TextMuted}"
+                     VerticalAlignment="Center"/>
+        </StackPanel>
+
+        <!-- Right: action buttons -->
+        <StackPanel DockPanel.Dock="Right"
+                    Orientation="Horizontal" Spacing="4"
+                    HorizontalAlignment="Right" VerticalAlignment="Center">
+          <Button x:Name="BtnNew"   Content="New"    Theme="{StaticResource Btn.Ghost}" Padding="10,4"/>
+          <Button x:Name="BtnOpen"  Content="Open"   Theme="{StaticResource Btn.Ghost}" Padding="10,4"/>
+          <Button x:Name="BtnSave"  Content="Save"   Theme="{StaticResource Btn.Ghost}" Padding="10,4"/>
+          <Button x:Name="BtnTemplates" Content="Templates" Theme="{StaticResource Btn.Ghost}" Padding="10,4"/>
+          <Button x:Name="BtnSettings"  Content="Settings"  Theme="{StaticResource Btn.Ghost}" Padding="10,4"/>
+          <Separator Theme="{StaticResource Sep.Vertical}"/>
+          <Button x:Name="BtnSimMode" Content="Simulate"
+                  Theme="{StaticResource Btn.Ghost}"  Padding="10,4"
+                  IsEnabled="{Binding HasParts}"/>
+          <Button x:Name="BtnGcode"   Content="Generate G-code"
+                  Theme="{StaticResource Btn.Primary}" Padding="10,4"/>
+        </StackPanel>
+      </DockPanel>
+    </Border>
+
+    <!-- ═══ MAIN ════════════════════════════════════════════════════ -->
+    <Grid Grid.Row="1" ColumnDefinitions="48,*,300">
+
+      <!-- ── LEFT TOOL RAIL ─────────────────────────────────────── -->
+      <Border Grid.Column="0"
+              Background="{StaticResource Brush.Bg2}"
+              BorderBrush="{StaticResource Brush.Border}"
+              BorderThickness="0,0,1,0">
+        <StackPanel Spacing="2" Margin="6,8">
+          <Button x:Name="BtnImport"
+                  Content="📂"
+                  Theme="{StaticResource Btn.ToolRail}"
+                  ToolTip.Tip="Import file (SVG / DXF / PNG…)"/>
+          <Separator Theme="{StaticResource Sep.Horizontal}"/>
+          <!-- Shape tools — stubs -->
+          <Button Content="╱" Theme="{StaticResource Btn.ToolRail}" IsEnabled="False" ToolTip.Tip="Line (coming soon)"/>
+          <Button Content="▭" Theme="{StaticResource Btn.ToolRail}" IsEnabled="False" ToolTip.Tip="Rectangle (coming soon)"/>
+          <Button Content="◯" Theme="{StaticResource Btn.ToolRail}" IsEnabled="False" ToolTip.Tip="Circle (coming soon)"/>
+          <Button Content="✏" Theme="{StaticResource Btn.ToolRail}" IsEnabled="False" ToolTip.Tip="Pen tool (coming soon)"/>
+          <Button Content="T"  Theme="{StaticResource Btn.ToolRail}" IsEnabled="False" ToolTip.Tip="Text (coming soon)"/>
+        </StackPanel>
+      </Border>
+
+      <!-- ── VIEWPORT + TOOLBARS ────────────────────────────────── -->
+      <DockPanel Grid.Column="1">
+
+        <!-- simulation bar at bottom (visible only in sim mode) -->
+        <toolbars:SimulationBar x:Name="SimBar" DockPanel.Dock="Bottom"/>
+
+        <!-- edit toolbar at bottom (visible only when part selected + edit mode) -->
+        <toolbars:EditToolbar x:Name="EditBar" DockPanel.Dock="Bottom"/>
+
+        <!-- canvas fills remaining space -->
+        <Panel>
+          <ctrl:ViewportControl x:Name="Viewport"/>
+
+          <!-- status bar overlay -->
+          <Border VerticalAlignment="Bottom" HorizontalAlignment="Left"
+                  Margin="24,0,0,8" Padding="8,3"
+                  Background="#AA1a1a1a"
+                  CornerRadius="{StaticResource Radius.Sm}">
+            <TextBlock Text="{Binding StatusText}"
+                       FontSize="{StaticResource Font.Sm}"
+                       Foreground="{StaticResource Brush.TextMuted}"/>
+          </Border>
+        </Panel>
+      </DockPanel>
+
+      <!-- ── RIGHT PANEL ────────────────────────────────────────── -->
+      <Border Grid.Column="2"
+              Background="{StaticResource Brush.Bg1}"
+              BorderBrush="{StaticResource Brush.Border}"
+              BorderThickness="1,0,0,0">
+        <DockPanel>
+
+          <!-- Tab strip at top -->
+          <Border DockPanel.Dock="Top"
+                  Background="{StaticResource Brush.Bg2}"
+                  BorderBrush="{StaticResource Brush.Border}"
+                  BorderThickness="0,0,0,1">
+            <StackPanel Orientation="Horizontal">
+              <Button x:Name="TabFiles"     Content="Files"    Theme="{StaticResource Btn.Ghost}" Padding="10,6"/>
+              <Button x:Name="TabLayers"    Content="Layers"   Theme="{StaticResource Btn.Ghost}" Padding="10,6"/>
+              <Button x:Name="TabCut"       Content="Cut"      Theme="{StaticResource Btn.Ghost}" Padding="10,6"/>
+              <Button x:Name="TabNest"      Content="Nest"     Theme="{StaticResource Btn.Ghost}" Padding="10,6"/>
+              <Button x:Name="TabGcode"     Content="G-code"   Theme="{StaticResource Btn.Ghost}" Padding="10,6"/>
+              <Button x:Name="TabDevice"    Content="Device"   Theme="{StaticResource Btn.Ghost}" Padding="10,6"/>
+            </StackPanel>
+          </Border>
+
+          <!-- Canvas options (always visible thin strip) -->
+          <Border DockPanel.Dock="Top"
+                  Background="{StaticResource Brush.Bg2}"
+                  BorderBrush="{StaticResource Brush.Border}"
+                  BorderThickness="0,0,0,1"
+                  Padding="10,4">
+            <StackPanel Orientation="Horizontal" Spacing="12">
+              <CheckBox x:Name="CbDarkCanvas" Content="Dark" IsChecked="True"/>
+              <CheckBox x:Name="CbShowGrid"   Content="Grid" IsChecked="True"/>
+              <Button   x:Name="BtnFit"       Content="Fit (F)"
+                        Theme="{StaticResource Btn.Ghost}" Padding="6,3"/>
+            </StackPanel>
+          </Border>
+
+          <!-- Panel switcher — panels share the DataContext from MainWindow -->
+          <Panel x:Name="PanelHost">
+            <panels:FilesPanel    x:Name="PnlFiles"   IsVisible="True"/>
+            <panels:LayersPanel   x:Name="PnlLayers"  IsVisible="False"/>
+            <panels:CutSettingsPanel x:Name="PnlCut"  IsVisible="False"/>
+            <panels:NestPanel     x:Name="PnlNest"    IsVisible="False"/>
+            <panels:GcodePanel    x:Name="PnlGcode"   IsVisible="False"/>
+            <panels:DevicePanel   x:Name="PnlDevice"  IsVisible="False"/>
+          </Panel>
+
+        </DockPanel>
+      </Border>
+
+    </Grid><!-- /main Grid -->
+  </Grid><!-- /root Grid -->
+
+</Window>

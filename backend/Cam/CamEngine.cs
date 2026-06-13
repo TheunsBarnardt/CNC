@@ -82,6 +82,13 @@ public static class CamEngine
         // 2. Cut sides from containment (outer ↔ hole alternation).
         ContourClassifier.Classify(worldPaths);
 
+        // Override: parts explicitly marked as cutouts always get Inside side.
+        var cutoutIds = new HashSet<Guid>(project.Parts.Where(p => p.IsCutout).Select(p => p.Id));
+        if (cutoutIds.Count > 0)
+            foreach (var wp in worldPaths)
+                if (cutoutIds.Contains(wp.PartId) && wp.Polyline.IsClosed)
+                    wp.Side = CutSide.Inside;
+
         bool isLaser  = settings.OperationMode == MachineType.Laser;
         bool isVinyl  = settings.OperationMode == MachineType.VinylKnife;
         bool skipKerf = isLaser || isVinyl;

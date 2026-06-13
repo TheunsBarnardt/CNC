@@ -72,12 +72,42 @@ public sealed class ImportedFile
     public required string FileName { get; init; }
     /// <summary>User-editable display name.</summary>
     public required string DisplayName { get; set; }
+    /// <summary>Alias for DisplayName — used by UI bindings.</summary>
+    public string Name { get => DisplayName; set => DisplayName = value; }
     public ImportedFileKind Kind { get; init; }
+    /// <summary>Short string label for UI badge.</summary>
+    public string KindLabel => Kind switch
+    {
+        ImportedFileKind.Svg    => "SVG",
+        ImportedFileKind.Dxf    => "DXF",
+        ImportedFileKind.Bitmap => "IMG",
+        ImportedFileKind.Shape  => "SHP",
+        _                       => "?",
+    };
     public bool Visible { get; set; } = true;
     public List<PathGeometry> Paths { get; init; } = [];
 
     /// <summary>Warnings produced during import (unsupported entities etc.).</summary>
     public List<string> Warnings { get; init; } = [];
+
+    /// <summary>Axis-aligned bounding box of all paths in local file coordinates (mm).</summary>
+    public (double X, double Y, double Width, double Height) BoundingBox
+    {
+        get
+        {
+            double minX = double.MaxValue, minY = double.MaxValue;
+            double maxX = double.MinValue, maxY = double.MinValue;
+            foreach (var pg in Paths)
+            foreach (var pt in pg.Polyline.Points)
+            {
+                if (pt.X < minX) minX = pt.X;
+                if (pt.Y < minY) minY = pt.Y;
+                if (pt.X > maxX) maxX = pt.X;
+                if (pt.Y > maxY) maxY = pt.Y;
+            }
+            return minX > maxX ? (0, 0, 0, 0) : (minX, minY, maxX - minX, maxY - minY);
+        }
+    }
 
     // ---- Bitmap-only fields (null for vector files) ----
     /// <summary>Original raster bytes, served by GET /api/project/files/{id}/bitmap-image.</summary>
@@ -110,6 +140,11 @@ public sealed class Part
     public double ScaleY { get; set; } = 1.0;
     /// <summary>Layer this part belongs to. Null = default (first) layer.</summary>
     public Guid? LayerId { get; set; }
+    /// <summary>
+    /// When true, CAM treats all paths of this part as inside cuts (holes),
+    /// overriding the automatic containment-depth classification.
+    /// </summary>
+    public bool IsCutout { get; set; }
 }
 
 /// <summary>
@@ -155,4 +190,8 @@ public sealed class Project
     public List<ImportedFile> Files { get; init; } = [];
     public List<Part> Parts { get; init; } = [];
     public List<Layer> Layers { get; init; } = [new Layer()];
+
+    // Convenience shortcuts used by desktop code
+    public double TableWidthMm  => Table.WidthMm;
+    public double TableHeightMm => Table.HeightMm;
 }

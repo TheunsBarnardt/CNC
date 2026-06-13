@@ -1,0 +1,66 @@
+<UserControl xmlns="https://github.com/avaloniaui"
+             xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+             x:Class="Desktop.Controls.Panels.NestPanel"
+             x:CompileBindings="False">
+
+  <StackPanel Spacing="8" Margin="10">
+
+    <TextBlock Text="AUTO-NEST"
+               Classes="section"
+               Margin="0,0,0,4"/>
+
+    <Grid ColumnDefinitions="*,*" RowDefinitions="Auto,Auto,Auto" >
+      <!-- margin -->
+      <TextBlock Grid.Row="0" Grid.Column="0"
+                 Text="Sheet margin (mm)"
+                 Classes="muted"
+                 VerticalAlignment="Center"/>
+      <TextBox Grid.Row="0" Grid.Column="1"
+               x:Name="TbMargin"
+               Text="5"
+               Margin="6,2"/>
+
+      <!-- spacing -->
+      <TextBlock Grid.Row="1" Grid.Column="0"
+                 Text="Part spacing (mm)"
+                 Classes="muted"
+                 VerticalAlignment="Center"
+                 Margin="0,6,0,0"/>
+      <TextBox Grid.Row="1" Grid.Column="1"
+               x:Name="TbSpacing"
+               Text="2"
+               Margin="6,8,6,2"/>
+
+      <!-- rotation step -->
+      <TextBlock Grid.Row="2" Grid.Column="0"
+                 Text="Rotation step (°)"
+                 Classes="muted"
+                 VerticalAlignment="Center"
+                 Margin="0,6,0,0"/>
+      <ComboBox Grid.Row="2" Grid.Column="1"
+                x:Name="CbRotStep"
+                SelectedIndex="2"
+                Margin="6,8,6,2">
+        <ComboBoxItem Content="No rotation (0°)" Tag="0"/>
+        <ComboBoxItem Content="45°" Tag="45"/>
+        <ComboBoxItem Content="90°" Tag="90"/>
+        <ComboBoxItem Content="180°" Tag="180"/>
+      </ComboBox>
+    </Grid>
+
+    <Button Content="Nest parts"
+            Theme="{StaticResource Btn.Primary}"
+            HorizontalAlignment="Stretch"
+            HorizontalContentAlignment="Center"
+            Margin="0,8,0,0"
+            Click="OnNestClick"/>
+
+    <TextBlock x:Name="TbNestResult"
+               Classes="muted"
+               TextWrapping="Wrap"
+               Text=""
+               IsVisible="False"/>
+
+  </StackPanel>
+
+</UserControl>

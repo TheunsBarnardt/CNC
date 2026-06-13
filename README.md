@@ -1,98 +1,102 @@
-# DIY GRBL Cutting CAM — All-in-One
+# DIY GRBL Cutting CAM — All-in-One Desktop App
 
-A free, modern, all-in-one desktop app for **DIY GRBL-based 2D cutting machines** —
-plasma (primary), with laser, vinyl/drag-knife, and router support planned. Import vector
-art (SVG/DXF) → arrange & nest → generate toolpaths → simulate → cut directly via a GRBL
-serial connection.
+A free, modern, all-in-one **native desktop app** for **DIY GRBL-based 2D cutting machines** —
+plasma (primary), laser, vinyl/drag-knife, and router support. Import vector art (SVG, DXF) →
+arrange & nest → generate toolpaths → simulate → cut directly via GRBL serial connection.
 
-> Think "the free xTool for DIY CNC builders." What matters is the **controller, not the
-> machine**: any machine running GRBL/grblHAL is a target.
+> Think "the free xTool for DIY CNC builders." Native desktop. No web dependency. Works offline.
 
 ## Status
-**Milestone 1 (CAM core) complete — Tasks 0–6, plus the Task 6b workspace rework.**
-The app covers the full CAM workflow: import vector art, arrange it on the table,
-generate kerf-compensated plasma toolpaths, simulate the cut, and export GRBL G-code:
-- xTool Studio–style workspace (Task 6b): left creation rail (import; shape/text tools
-  arrive in Milestone 5), floating edit toolbar on selection (precise X/Y/angle, align,
-  duplicate/delete), right panel with device status + processing parameters, bottom bar
-  (zoom, snap, grid, light/dark canvas), and a Process button that switches to a
-  read-only processing preview with time estimate, simulation playback, and G-code export.
-- Material profiles: app-level presets (per material + thickness) for kerf, feed,
-  pierce delay, and cut/pierce heights — pick one and it populates the CAM settings;
-  save, update, delete, and share them (export/import endpoints).
-- Toolpath simulation in the viewport: cuts vs rapids drawn distinctly with direction
-  arrows, a glowing torch head, and play/pause/scrub/speed controls with a time estimate
-  — driven by the neutral toolpath, exactly what the post-processor emits.
-- Pluggable post-processor layer: `IPostProcessor` turns the neutral toolpath into a
-  controller dialect. GRBL plasma post included (M3/M5 torch, G4 pierce dwell, work-origin
-  aware, mm absolute). Frontend G-code panel: generate, preview, download `.nc`.
-- Plasma CAM engine (backend, Clipper2): cut-side classification (outer/hole/on-line),
-  kerf compensation, line/arc lead-in/out with waste-side pierces on longest segments,
-  inner-before-outer cut ordering with nearest-neighbor rapids — emitted as a neutral,
-  controller-agnostic toolpath (G-code dialects arrive with the post-processor task).
-- 2D table viewport (Canvas 2D): grid, origin marker, pan/zoom/fit; select, drag-move
-  with snap-to-grid, rotate (handle or ±90°), duplicate, delete, align-to-table; parts
-  out of bounds highlight red. Placement uses the shared nesting-ready part transform
-  (translation + rotation), so Milestone 2 auto-nesting drives the same model.
-- Drag-and-drop import of multiple **SVG** and **DXF** files, parsed on the backend into
-  a neutral geometry model (curves flattened to mm polylines, per-file warnings for
-  unsupported entities like text).
-- File panel: visibility toggle, rename, delete, parsed-entity summary per file.
-- Table & sheet settings (size, origin, units mm/inch, material thickness).
-- Save/load the whole project (settings + geometry) as a single JSON file.
-- Live backend health + machine heartbeat (fake connection) in the header.
 
-Next up: Task 6b (xTool-style workspace), then Milestone 2 (auto-nesting) — see
-`TASKS.md` for the build sequence. Planning docs:
-- **`PLASMA_CAM_PLAN.md`** — full design doc (vision, scope, stack, milestones, architecture). Source of truth.
-- **`CLAUDE.md`** — conventions and guardrails for Claude Code.
-- **`TASKS.md`** — the build sequence with ready-to-paste prompts.
+**Backend (CAM + machine control):** ✅ **Complete** — Milestones 1–4 implemented.
+**Frontend (AvaloniaUI):** 🏗 **In progress** — native desktop app replacing web UI.
 
-## Tech stack
-- Frontend: React + TypeScript + Vite + shadcn/ui (Tailwind)
-- Backend: C# / ASP.NET Core + SignalR
-- Geometry: Clipper2 (C#)
-- Serial: System.IO.Ports (behind an interface; fake impl until machine-control milestone)
+Fully functional features (backend ready):
+- **Plasma CAM engine** (Clipper2): kerf compensation, lead-in/out, pierce, cut ordering
+- **Machine control (GRBL):** jog, home, run, pause/resume, soft stop, E-stop, power-loss recovery
+- **Post-processors:** plasma, laser, vinyl/drag-knife (pluggable architecture)
+- **Geometry tools:** SVG/DXF import, bitmap trace, shape/pen/text creation, node editing, boolean operations
+- **Nesting:** auto-arrange parts on sheet, manual placement with snap/grid/align
+- **Material profiles:** save/share presets per material + thickness
+- **Templates & library:** reusable project templates and element collections
+- **Per-layer modes:** Cut/Score/Engrave with feed and laser power overrides
+- **xTool-style workspace:** left creation rail, floating edit toolbar, right panels, canvas controls
 
-## How to build it with Claude Code
-1. Open this folder in Claude Code.
-2. It will auto-read `CLAUDE.md`. Tell it to also read `PLASMA_CAM_PLAN.md`.
-3. Open `TASKS.md` and paste **Task 0** as your first prompt. Do one task per session,
-   top to bottom. Don't batch tasks.
-4. Review each result, commit, then move to the next task.
+## Tech Stack
 
-## Running
-Start the backend, then the frontend (two terminals):
+- **Frontend:** AvaloniaUI (native .NET desktop, Fluent design)
+- **Backend:** C# class library (no HTTP — services accessed directly via DI)
+- **Geometry:** Clipper2 (C#), SkiaSharp (rendering)
+- **Serial I/O:** System.IO.Ports
+- **Data persistence:** JSON to `%LOCALAPPDATA%/diy-grbl-cam/`
 
-```sh
-# 1. Backend — ASP.NET Core API + SignalR  → http://localhost:5100
-cd backend
-dotnet run --launch-profile http
+## Quick Start
 
-# 2. Frontend — Vite dev server            → http://localhost:5173
-cd frontend
-npm install
-npm run dev
+### Running (Development)
+
+```bash
+cd desktop
+dotnet run
 ```
 
-Open http://localhost:5173. The page should show the backend health as **online** and
-the machine heartbeat as **live**, with the heartbeat number ticking up every ~2s.
+Launches the AvaloniaUI app with full CAM and machine control features.
 
-- Health endpoint: `GET http://localhost:5100/api/health`
-- SignalR hub: `http://localhost:5100/hubs/machine` (event `machineStatus`)
-- The frontend reads the backend URL from `frontend/.env` (`VITE_BACKEND_URL`).
-- Headless heartbeat check (backend running): `cd frontend && node scripts/heartbeat-check.mjs`
+**Single executable — backend and frontend run in one process. No web browser needed.**
 
-## Supported hardware (target)
-- **Full (design → cut):** GRBL boards (e.g. Arduino Uno + CNC Shield V3) and grblHAL
-  32-bit boards (ESP32/Teensy/STM32) with THC for plasma.
-- **CAM-only:** Mach3 USB boards and turnkey/proprietary machines (design + export G-code,
-  cut in their own software). Reflashing such a board to grblHAL moves it into full support.
+### Building Release
+
+```bash
+cd desktop
+dotnet publish -c Release -o bin/Release
+```
+
+Creates a self-contained executable ready for distribution.
+
+## Supported Hardware
+
+**Full support (design → cut):**
+- GRBL boards (e.g. Arduino Uno + CNC Shield V3 + A4988/DRV8825)
+- grblHAL 32-bit boards (ESP32/Teensy/STM32) with THC for plasma
+
+Any machine running GRBL/grblHAL over USB serial is fully supported.
+
+**CAM-only (design + export G-code):**
+- Mach3 USB motion-control boards (proprietary protocol; use this app as CAM, run cuts in Mach3)
+- Proprietary turnkey machines (export `.nc` or `.gcode` for their control software)
 
 ## Safety
-This software eventually drives torches and lasers. Machine control is conservative by
-design: explicit user action to start, E-stop always wins, bounds-checked motion, never
-auto-run. See the safety notes in `PLASMA_CAM_PLAN.md`.
+
+This software controls plasma torches and lasers. Machine control is conservative by design:
+- Explicit user action required to start any motion
+- E-stop always wins
+- Bounds checking and soft limits enforced
+- Never auto-runs a cut
+- Power-loss recovery safely re-homes and re-establishes position before resuming
+
+See full safety notes in `PLASMA_CAM_PLAN.md`.
+
+## Architecture
+
+- **Neutral toolpath model:** CAM engine produces controller-agnostic geometry; post-processors translate to G-code dialects
+- **Pluggable machine modes:** Plasma/Laser/Vinyl are swappable operation modes; add a new one = new CAM logic + new post-processor
+- **Persistent state:** Projects, materials, templates, job checkpoints all saved to disk
+- **Direct DI:** AvaloniaUI accesses backend services directly (no network overhead)
+
+## Development Workflow
+
+For Claude Code users working on this project:
+1. Read `PLASMA_CAM_PLAN.md` for full vision, scope, architecture
+2. Read `CLAUDE.md` for conventions and guardrails
+3. Check `TASKS.md` for the feature build sequence
+4. One focused task per session, top to bottom
+
+## Next Steps
+
+- Complete AvaloniaUI viewport painting and interaction (in progress)
+- Restore unit tests for CAM engine and machine control
+- Create installer/packaging (NSIS or WiX)
+- Expand xTool Studio parity (efficiency tools, smart fill, etc.)
 
 ## License
-TBD (intended to be free/open for the DIY community).
+
+TBD (intended to be free and open for the DIY community).

@@ -1,0 +1,80 @@
+<UserControl xmlns="https://github.com/avaloniaui"
+             xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+             xmlns:conv="using:Desktop.Converters"
+             x:Class="Desktop.Controls.Panels.LayersPanel"
+             x:CompileBindings="False">
+
+  <DockPanel>
+    <!-- header -->
+    <Border DockPanel.Dock="Top"
+            Background="{StaticResource Brush.Bg2}"
+            BorderBrush="{StaticResource Brush.Border}"
+            BorderThickness="0,0,0,1"
+            Padding="10,6">
+      <Grid ColumnDefinitions="*,Auto">
+        <TextBlock Text="LAYERS"
+                   Classes="section"
+                   Margin="0"
+                   VerticalAlignment="Center"/>
+        <Button Grid.Column="1"
+                Content="＋"
+                Theme="{StaticResource Btn.Icon}"
+                ToolTip.Tip="Add layer"
+                Click="OnAddLayer"/>
+      </Grid>
+    </Border>
+
+    <ScrollViewer>
+      <ItemsControl ItemsSource="{Binding Layers}">
+        <ItemsControl.ItemTemplate>
+          <DataTemplate>
+            <Border Background="Transparent"
+                    BorderBrush="{StaticResource Brush.Border}"
+                    BorderThickness="0,0,0,1"
+                    Padding="8,5">
+              <Grid ColumnDefinitions="Auto,*,Auto,Auto">
+                <!-- colour swatch -->
+                <Border Grid.Column="0"
+                        Width="14" Height="14"
+                        CornerRadius="{StaticResource Radius.Sm}"
+                        Margin="0,0,6,0"
+                        VerticalAlignment="Center"
+                        Background="{Binding Color}"/>
+
+                <!-- layer name (double-click to rename) -->
+                <TextBox Grid.Column="1"
+                         Text="{Binding Name}"
+                         Background="Transparent"
+                         BorderThickness="0"
+                         Padding="0"
+                         VerticalAlignment="Center"
+                         FontSize="{StaticResource Font.Md}"
+                         Foreground="{StaticResource Brush.Text}"/>
+
+                <!-- visibility -->
+                <Button Grid.Column="2"
+                        Content="{Binding Visible, Converter={x:Static conv:VisibilityIconConverter.Instance}}"
+                        Theme="{StaticResource Btn.Icon}"
+                        Width="22" Height="22"
+                        ToolTip.Tip="Toggle visibility"
+                        Click="OnToggleVisible"
+                        Tag="{Binding}"/>
+
+                <!-- delete -->
+                <Button Grid.Column="3"
+                        Content="✕"
+                        Theme="{StaticResource Btn.Icon}"
+                        Width="22" Height="22"
+                        Foreground="{StaticResource Brush.Danger}"
+                        ToolTip.Tip="Delete layer"
+                        Click="OnDeleteLayer"
+                        Tag="{Binding}"/>
+              </Grid>
+            </Border>
+          </DataTemplate>
+        </ItemsControl.ItemTemplate>
+      </ItemsControl>
+    </ScrollViewer>
+  </DockPanel>
+
+</UserControl>

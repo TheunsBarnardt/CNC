@@ -1,0 +1,29 @@
+<Application xmlns="https://github.com/avaloniaui"
+             xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+             x:Class="Desktop.App"
+             RequestedThemeVariant="Dark">
+
+    <Application.Styles>
+        <FluentTheme />
+        <!-- TextBlock class helpers (Tailwind-equivalent for text nodes) -->
+        <Style Selector="TextBlock.muted">
+            <Setter Property="Foreground" Value="#888888"/>
+            <Setter Property="FontSize"   Value="11"/>
+        </Style>
+        <Style Selector="TextBlock.section">
+            <Setter Property="Foreground" Value="#888888"/>
+            <Setter Property="FontSize"   Value="10"/>
+            <Setter Property="FontWeight" Value="SemiBold"/>
+            <Setter Property="Margin"     Value="0,8,0,4"/>
+        </Style>
+    </Application.Styles>
+
+    <Application.Resources>
+      <ResourceDictionary>
+        <ResourceDictionary.MergedDictionaries>
+          <ResourceInclude Source="/Themes/AppTheme.axaml"/>
+        </ResourceDictionary.MergedDictionaries>
+      </ResourceDictionary>
+    </Application.Resources>
+
+</Application>

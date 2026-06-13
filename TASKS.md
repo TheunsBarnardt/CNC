@@ -1,7 +1,32 @@
 # TASKS.md — Build Sequence for AvaloniaUI Desktop App
 
-Work top to bottom. Each task is a **separate Claude Code session/prompt**. Don't batch
-them — one focused task at a time gives the best results. Tick the box when done.
+## Vision & Requirements
+
+This is a **2D CAM + CNC control app** that competes with SolidWorks/Fusion 360 (for 2D/2.5D)
+while replacing Mach3/Mach4 as the control interface. It must be the **world standard for DIY CNC systems**.
+
+**Key Requirements (Verified in All Tasks):**
+
+1. **2D Design Focus:** Full 2D vector design with layers, shapes, paths, node editing, booleans
+2. **Plate Thickness Support:** Settable default thickness; shown left/right margins in 2D; optional 3D side view
+3. **Full Layer Capability:** Per-layer operation modes (Cut/Score/Engrave), visibility, per-layer CAM settings
+4. **Cutout Support:** Boolean operations (unite, subtract, intersect), offset contours, hole detection
+5. **Complexity Metrics:** Reference: [Riegelnegg 2024 — Complexity extraction from CAD](https://repositum.tuwien.at/bitstream/20.500.12708/198102/1/Riegelnegg%20Martin%20-%202024%20-%20Automated%20extraction%20of%20complexity%20measures%20from...pdf)
+   - Estimate cut complexity: path counts, contour nesting depth, segment counts
+   - Warn on high-complexity cuts (feature detection, time estimates)
+6. **Stunning AvaloniaUI Design:** Native desktop (Windows/Mac/Linux), Fluent theme, smooth interactions
+7. **DIY-Friendly:** Easy material profiles, one-click nesting, live simulation, safe machine control
+8. **Mach3/Mach4 Replacement:** Export G-code for any controller, or stream directly to GRBL/grblHAL
+
+---
+
+## Build Workflow
+
+Work top to bottom. **Each task is one session.** After completing each task:
+1. **Test:** Verify the feature works end-to-end in the running app
+2. **Verify:** Check no regressions in backend or other UI components
+3. **Commit:** Clear git commit with what was added/changed
+4. **Continue:** Move to next task (don't batch)
 
 > For every task, Claude Code should first read `PLASMA_CAM_PLAN.md` and `CLAUDE.md`.
 
@@ -19,13 +44,15 @@ them — one focused task at a time gives the best results. Tick the box when do
 > 1. Verify AvaloniaUI app `/desktop` builds and runs (`dotnet run`).
 > 2. Confirm backend class library `/backend` loads into the app via DI.
 > 3. Create stub MainViewModel and MainWindow.xaml with basic layout:
->    - Title bar (app name, version)
+>    - Title bar (app name, version, "DIY CNC CAM – AvaloniaUI")
 >    - Main content area (placeholder for viewport)
 >    - Right-side panels (placeholder stubs for files, settings, device)
 > 4. Wire the backend services (ProjectService, FileImportService, etc.) into the DI container
 >    in `App.axaml.cs`.
 > 5. Update `README.md` and `CLAUDE.md` — confirm `cd desktop && dotnet run` launches the app.
-> Stop and test; no CAM features yet.
+> 6. Test app launches, backend services injectable, no errors.
+> 7. Commit: "Task 0: AvaloniaUI skeleton with backend DI wiring"
+> 8. Continue to Task 1.
 
 ### [ ] Task 1 — Project & file model + SVG/DXF import
 
@@ -37,11 +64,14 @@ them — one focused task at a time gives the best results. Tick the box when do
 > - Frontend (AvaloniaUI):
 >   - A **FilesPanel** view model and XAML: list imported files with visibility toggle, rename, delete
 >   - **File summary:** show entity count (paths, circles, etc.) and import warnings per file
->   - **ProjectSettings** view model: units (mm/inch), table size, origin, thickness; persist to JSON
+>   - **ProjectSettings** view model: units (mm/inch), table size, origin, **plate thickness** (key requirement), persist to JSON
 >   - **Import UI:** file picker to import SVG/DXF/PNG files; drag-drop onto main area (deferred to Task 2)
 > - Services: Inject FileImportService, ProjectService into view models
+> - **Plate thickness:** Show in project settings card; used as default in all layer CAM calculations
 > - No viewport rendering yet (Task 2). Just lists/forms to confirm parsing works.
-> Stop and summarize.
+> - Test: Import an SVG, verify file list shows entities, edit project settings
+> - Commit: "Task 1: FilesPanel + ProjectSettings with plate thickness"
+> - Continue to Task 2.
 
 ### [ ] Task 2 — Table viewport + part placement (SkiaSharp canvas)
 
@@ -50,6 +80,7 @@ them — one focused task at a time gives the best results. Tick the box when do
 **Paste this:**
 > Read the plan and CLAUDE.md. Build the 2D table viewport in AvaloniaUI using SkiaSharp:
 > - **ViewportControl (SkiaSharp):** renders table (grid, origin marker), parts as transformed polylines
+> - **Plate thickness margin:** Show left/right gutters on viewport (visual safe area indicator)
 > - **Camera:** pan (drag), zoom (wheel at cursor), fit-to-view, grid toggle
 > - **Selection & Interaction:**
 >   - Click to select part (highlight with outline)
@@ -59,9 +90,13 @@ them — one focused task at a time gives the best results. Tick the box when do
 >   - Delete key removes selected part
 > - **EditToolbar:** floating panel over viewport with X/Y inputs, rotation, ±90° buttons, duplicate, delete
 > - **Alignment:** snap to table edges/center; visual feedback during drag
+> - **Layer visibility:** Show which layer each part belongs to; hide/show by layer
 > - Out-of-bounds parts stroke red
 > - Backend calls: Use DirectlyInjected ProjectService to fetch/patch parts
-> Keep CAM out of this task. Stop and summarize.
+> - Keep CAM out of this task. Just placement.
+> - Test: Import file, place parts, drag/rotate, layer visibility
+> - Commit: "Task 2: SkiaSharp viewport with part placement and layers"
+> - Continue to Task 3.
 
 ### [ ] Task 3 — CAM engine: kerf, lead-in/out, pierce, ordering
 
@@ -72,8 +107,12 @@ them — one focused task at a time gives the best results. Tick the box when do
 > - CamEngine.cs handles kerf (Clipper2), lead-in/out, pierce, cut ordering
 > - ContourClassifier, KerfOffsetter, LeadBuilder, CutOrderer all present
 > - Per-layer operation mode resolution (Cut/Score/Engrave)
+> - **Per-layer feed rate:** Score×0.7, Engrave×1.5 (plate thickness influences final cut height calc)
 > - Unit tests exist and pass (if restored)
-> Run `dotnet build` and verify no regressions. No changes needed. Move to Task 4.
+> - Run `dotnet build` and verify no regressions.
+> - Test: Use backend API to generate toolpath from test project
+> - Commit: "Task 3: Verify CAM engine, layer modes, plate thickness integration"
+> - Continue to Task 4.
 
 ### [ ] Task 4 — Pluggable post-processor + GRBL output + G-code preview
 
@@ -84,12 +123,18 @@ them — one focused task at a time gives the best results. Tick the box when do
 > - **GcodePanel** view model + XAML:
 >   - Button: "Generate G-code" (calls backend CamEngine + PostProcessorRegistry)
 >   - Post-processor selector (dropdown): GrblPlasma, GrblLaser, GrblVinyl
+>   - **Complexity metrics display:** feature extraction based on Riegelnegg paper
+>     - Path count, contour nesting depth, total segment count
+>     - Estimated cut time (derived from feed rate + path length)
+>     - Complexity score/warning (high-complexity cuts flagged for user review)
 >   - Stats display: line count, estimated time, pierce count, total cut length
 >   - Warnings list (colored text if any)
 >   - Monospace code preview (scrollable, read-only)
 >   - Button: "Download .nc" (save to file)
 > - Inject PostProcessorRegistry, ProjectService into view model
-> Keep it simple — no editing of G-code post-output yet (deferred). Stop and summarize.
+> - Test: Generate G-code, verify stats/warnings, download .nc file
+> - Commit: "Task 4: GcodePanel with complexity metrics"
+> - Continue to Task 5.
 
 ### [ ] Task 5 — Toolpath simulation / playback (SkiaSharp overlay)
 
@@ -100,17 +145,19 @@ them — one focused task at a time gives the best results. Tick the box when do
 > - **SimulationBar** view model + XAML (floating panel under viewport):
 >   - Button: "Simulate" (fetch toolpath from backend, build time-indexed segments)
 >   - Play/Pause/Stop buttons, scrub slider (time), speed selector (0.5x–16x)
->   - Display: elapsed / total time
+>   - Display: elapsed / total time, current layer being cut
 >   - Button: "Regenerate" (rebuild sim if parts changed)
 > - **Viewport overlay rendering (SkiaSharp):**
 >   - Rapid moves: dashed grey lines
->   - Cut moves: orange solid, leads lighter
+>   - Cut moves: colored by layer (layer colors configurable)
 >   - Direction arrows per cut (showing travel direction)
 >   - Torch head: glowing circle when on, crosshair when off
+>   - Layer label on current segment
 >   - Alpha blend: done portion brighter, remaining dimmer
 > - Controls hidden if simulation not active; auto-close button
-> Deferred: auto-invalidate stale sim on part changes (manual regenerate for now).
-> Stop and summarize.
+> - Test: Generate toolpath, play simulation, verify layer colors and timing
+> - Commit: "Task 5: SimulationBar with layer-aware visualization"
+> - Continue to Task 6.
 
 ### [ ] Task 6 — Material profiles
 
@@ -124,11 +171,15 @@ them — one focused task at a time gives the best results. Tick the box when do
 >   - Editable CAM fields: feed rate, kerf, pierce delay, cut height, pierce height
 >   - Laser power % (for laser mode)
 >   - Lead type selector (line/arc), lead length
+>   - **Per-layer feed/power overrides:** editable fields for Cut/Score/Engrave modes
 >   - Save button: "Save current as new profile" (prompts for name + material)
 >   - Update/Delete buttons (for selected profile)
 > - Inject ProfileStore, ProjectService into view model
-> - Thickness from table settings (read-only in profile)
-> This completes Milestone 1. Stop and summarize the end-to-end workflow: import → arrange → CAM → G-code → simulate.
+> - Thickness from table settings (read-only in profile, uses plate thickness from Task 1)
+> - Test: Save profile, load profile, edit per-layer settings, verify CAM reflects changes
+> - Commit: "Task 6: CutSettingsCard with per-layer profiles"
+> - This completes Milestone 1. Commit summary: "Milestone 1: Full CAM + design workflow (import → arrange → settings → simulate)"
+> - Continue to Task 7.
 
 ---
 
@@ -142,16 +193,19 @@ them — one focused task at a time gives the best results. Tick the box when do
 > Read the plan and CLAUDE.md. **Backend Nester exists.** Add AvaloniaUI UI:
 > - **NestPanel** view model + XAML (popover in right panel):
 >   - Nesting settings:
->     - Margin (mm): buffer around table edge
+>     - Margin (mm): buffer around table edge, **including plate thickness gutters** (from Task 1)
 >     - Spacing (mm): gap between placed parts
 >     - Rotation candidates: checkboxes for 0°, 45°, 90°, 180°
 >   - Button: "Nest" → calls backend, updates part positions
 >   - Results display:
 >     - "X of Y parts placed"
 >     - Per-part warnings (too small, couldn't fit, etc.)
+>     - Material utilization % (area used / table area)
 > - Inject ProjectService, Nester into view model
 > - Manual placement still works; nesting is optional
-> Stop and summarize.
+> - Test: Nest a multi-part design, verify plate thickness margins respected
+> - Commit: "Task 7: NestPanel with plate thickness integration"
+> - Continue to Task 8.
 
 ---
 
@@ -171,8 +225,10 @@ them — one focused task at a time gives the best results. Tick the box when do
 >   - Live DRO (digital readout): X, Y, Z position (updated live from MachineConnectionManager)
 >   - When connected: show "Idle" / "Run" / "Alarm" state
 > - Inject MachineConnectionManager into view model, subscribe to StatusChanged events
-> - No motion commands yet (Task 9). Just connection + status display.
-> Stop and summarize.
+> - Safety: No motion commands yet (Task 9). Just connection + status display.
+> - Test: Connect to fake machine, verify DRO updates
+> - Commit: "Task 8: DevicePanel with serial connection + DRO"
+> - Continue to Task 9.
 
 ### [ ] Task 9 — Jog, home, set zero, run job
 
@@ -191,10 +247,13 @@ them — one focused task at a time gives the best results. Tick the box when do
 >   - "Resume" button (only when paused)
 >   - "E-Stop" button (red, destructive — Ctrl+X)
 >   - "Disconnect" button
+>   - **Layer indicator:** show current layer being cut (from simulation)
 > - Inject MachineConnectionManager, subscribe to job progress events
 > - Jog hidden during active job (safety)
 > - Safety: E-stop always wins; no auto-motion
-> Stop and summarize.
+> - Test: Jog machine, run a job, feed-hold and resume
+> - Commit: "Task 9: Jog + run job controls with layer tracking"
+> - Continue to Task 10.
 
 ### [ ] Task 10 — Pause / stop / resume-from-pause + job log
 
@@ -205,7 +264,7 @@ them — one focused task at a time gives the best results. Tick the box when do
 > - **JobLogPanel** view model + XAML (dockable in right panel during job):
 >   - List of job events (scrollable):
 >     - Timestamp, Event type (Started/Progress/FeedHold/Resumed/Completed/Error/Stopped)
->     - Line number, X/Y/Z position, optional message
+>     - Line number, X/Y/Z position, current layer, optional message
 >   - Color coding: green (Started/Completed), yellow (Progress), orange (FeedHold), red (Error/Stopped)
 >   - Auto-scroll to latest entry
 > - **DevicePanel** extensions:
@@ -213,7 +272,9 @@ them — one focused task at a time gives the best results. Tick the box when do
 >   - "Unlock ($X)" button (only shown in Alarm state, clears alarm)
 > - Poll backend job log every 2s during active job; final fetch on completion
 > - Inject MachineConnectionManager, ProjectService into view model
-> Stop and summarize.
+> - Test: Run job, pause, resume, stop, check job log
+> - Commit: "Task 10: JobLogPanel with layer tracking"
+> - Continue to Task 11.
 
 ### [ ] Task 11 — Power-loss recovery
 
@@ -222,7 +283,7 @@ them — one focused task at a time gives the best results. Tick the box when do
 **Paste this:**
 > Read the plan and CLAUDE.md. **Backend CheckpointService exists.** Add AvaloniaUI UI:
 > - **RecoveryPanel** view model + XAML (appears on app startup if checkpoint exists):
->   - Job summary: start time, last line done, total lines
+>   - Job summary: start time, last line done, total lines, **last layer processed**
 >   - Guided recovery (3 steps):
 >     1. "Home" button (runs homing sequence)
 >     2. "Set Zero" button (user confirms machine is at correct position)
@@ -231,7 +292,10 @@ them — one focused task at a time gives the best results. Tick the box when do
 >   - "Dismiss Checkpoint" button (if user doesn't want to recover)
 > - Recovery only allowed when machine is Idle
 > - Inject MachineConnectionManager, CheckpointService into view model
-> This completes Milestone 3 (machine control). Stop and summarize.
+> - Test: Simulate power loss (close app mid-job), restart, verify recovery panel, run recovery
+> - Commit: "Task 11: RecoveryPanel with layer state restoration"
+> - This completes Milestone 3 (machine control).
+> - Continue to Task 12.
 
 ---
 
@@ -247,10 +311,13 @@ them — one focused task at a time gives the best results. Tick the box when do
 >   - Machine type selector (radio buttons or dropdown): Plasma / Laser / VinylKnife
 >   - Laser mode shows: Feed rate + Power % (0–100)
 >   - Laser mode hides: Kerf, Pierce delay, Pierce height, Lead-in/out, Profile picker
+>   - **Per-layer laser power:** Score×0.5, Engrave×0.2 (editable overrides)
 > - Inject ProjectService, CamSettings into view model
 > - CAM engine automatically skips kerf/leads in laser mode
 > - Laser post-processor selected automatically when laser mode chosen
-> Stop and summarize.
+> - Test: Switch to laser mode, set power, generate G-code
+> - Commit: "Task 12: Laser mode with per-layer power control"
+> - Continue to Task 13.
 
 ### [ ] Task 13 — Vinyl / drag-knife mode
 
@@ -263,7 +330,10 @@ them — one focused task at a time gives the best results. Tick the box when do
 >   - Hides: Kerf, Pierce delay, Laser power, Leads
 > - Inject ProjectService, CamSettings into view model
 > - CAM engine applies DragKnifeCompensator in vinyl mode
-> This completes Milestone 4. Stop and summarize.
+> - Test: Switch to vinyl mode, set blade offset, generate G-code
+> - Commit: "Task 13: Vinyl/drag-knife mode"
+> - This completes Milestone 4.
+> - Continue to Task 14.
 
 ---
 
@@ -289,8 +359,11 @@ them — one focused task at a time gives the best results. Tick the box when do
 > - **Text tool:** click canvas → floating TextPanel (text, font picker, size mm, letter spacing)
 >   - Fonts: Roboto Regular/Bold (bundled); opentype.js converts glyphs to polylines
 > - All shapes become parts (using synthetic file pattern)
+> - **Layer assignment:** New shapes inherit current active layer (from LayersPanel)
 > - Inject FileImportService, ProjectService into view models
-> Stop and summarize.
+> - Test: Draw shapes, draw text, draw with pen tool
+> - Commit: "Task 14: CreationSidebar with shape/pen/text tools"
+> - Continue to Task 15.
 
 ### [ ] Task 15 — Object editing: precise transforms, mirror, group, offset
 
@@ -304,11 +377,14 @@ them — one focused task at a time gives the best results. Tick the box when do
 >   - Buttons: Rotate ±90°, Mirror H, Mirror V
 >   - Stacking buttons: Bring to Front, Send to Back, Up, Down
 >   - Alignment buttons (6 options): align left/center-H/right, align top/center-V/bottom
+>   - **Layer selector** (dropdown): change part's layer (used in CAM)
 >   - Contour offset input (±mm spinbox, Enter applies, creates new part via backend)
 >   - Buttons: Duplicate, Delete
 > - Wraps on narrow viewport
 > - Inject ProjectService, direct part patching via view model
-> Deferred: group/ungroup (needs multi-select). Stop and summarize.
+> - Test: Transform parts, change layers, offset contours
+> - Commit: "Task 15: EditToolbar with layer assignment"
+> - Deferred: group/ungroup (needs multi-select). Continue to Task 16.
 
 ### [ ] Task 16 — Vector node editing + path operations
 
@@ -324,8 +400,11 @@ them — one focused task at a time gives the best results. Tick the box when do
 > - **NodeEditToolbar:** X/Y fields, sharp/smooth corner toggle, Scissors (split), Simplify button, Done
 > - **Pathfinder booleans:** shift-click a second part → BooleanToolbar appears
 >   - Buttons: Unite, Subtract, Intersect (post-process creates new part, deletes sources by default)
+>   - **Cutout support:** Subtract automatically creates holes; visually distinct in viewport
 > - Inject ProjectService, FileImportService into view models
-> Deferred: symmetric handle constraint, multi-node selection. Stop and summarize.
+> - Test: Edit nodes, create cutouts with subtract, verify hole detection
+> - Commit: "Task 16: Node editing + booleans with cutout support"
+> - Deferred: symmetric handle constraint, multi-node selection. Continue to Task 17.
 
 ### [ ] Task 17 — Arrays & material test grid
 
@@ -340,8 +419,11 @@ them — one focused task at a time gives the best results. Tick the box when do
 >   - **Test tab:** Two CAM param selectors (e.g., Feed × Pierce delay), grid rows/cols
 >     - Button: "Download test G-code" (file picker, saves as .nc)
 > - Array button on EditToolbar opens popover
+> - **Per-layer arrays:** arrays inherit layer from source part
 > - Inject ProjectService, PostProcessorRegistry into view model
-> Stop and summarize.
+> - Test: Create grid array, circular array, download test array
+> - Commit: "Task 17: ArrayPanel with layer inheritance"
+> - Continue to Task 18.
 
 ### [ ] Task 18 — Bitmap import + trace to vector
 
@@ -357,9 +439,12 @@ them — one focused task at a time gives the best results. Tick the box when do
 >   - Simplify tolerance (default 0.1mm)
 >   - Button: "Retrace" → updates geometry
 > - **Viewport:** render bitmap preview under parts with affine transform (rotation/scale correct)
+> - **Bitmap layer assignment:** assign traced bitmap to a layer (laser engrave, cut, etc.)
 > - Cache keyed by file ID; auto-refresh on file list changes
 > - Inject FileImportService into view model
-> Deferred: halftone/dither (depends on per-layer engrave mode). Stop and summarize.
+> - Test: Import bitmap, retrace with different settings, verify layer assignment
+> - Commit: "Task 18: BitmapTraceDialog with layer assignment"
+> - Deferred: halftone/dither (depends on per-layer engrave mode). Continue to Task 19.
 
 ### [ ] Task 19 — Templates, element library, canvas QoL & efficiency tools
 
@@ -369,6 +454,8 @@ them — one focused task at a time gives the best results. Tick the box when do
 > Read the plan and CLAUDE.md. **Backend template/library persistence exists.** Add UI:
 > - **Per-layer operation mode:** LayersPanel shows dropdown per layer: Cut / Score / Engrave
 >   - Engrave multiplies laser power ×0.2, feed ×1.5 (configurable)
+>   - **Layer visibility toggle** (eye icon per row)
+>   - **Layer color picker** (for viewport rendering)
 > - **Templates button** (header):
 >   - TemplateDialog: save form (name input) + list of saved templates (load/delete buttons)
 >   - Load imports project snapshot (no bitmap data)
@@ -379,18 +466,23 @@ them — one focused task at a time gives the best results. Tick the box when do
 >   - Grid toggle (show/hide)
 >   - Snap toggle (on/off)
 >   - Canvas light/dark toggle (independent of app theme)
+>   - **Complexity indicator:** estimated cut time / complexity score (from Task 4 metrics)
 > - **Measurement overlay:** when part selected, show W×H readout below bbox
+> - **Plate thickness visual:** left/right margin guides (from Task 1)
 > - Inject TemplateStore, ElementStore, ProjectService into view models
-> Deferred: smart fill, batch parameter assignment (needs multi-select). This ends Milestone 5.
-> Stop and summarize end-to-end: import → design → arrange → nest → CAM → simulate → cut + recover.
+> - Test: Create template, save to library, load template, verify layer structure preserved
+> - Commit: "Task 19: LayersPanel + Templates + Library + Complexity overlay"
+> - This completes Milestone 5 (full xTool-style parity).
+> - Commit summary: "Milestone 5: Full design parity with xTool Studio + Fusion 360"
+> - Continue to Task 21 (if deferred Task 20).
 
 ---
 
-## Milestone 5 Extra (Milestone 6 if deferred)
+## Advanced Features (Milestone 6)
 
-### [ ] Task 20 (if needed) — Advanced viewport features
+### [ ] Task 20 (Optional) — Advanced viewport features
 
-*Placeholder for future enhancements: angled guides, ruler, lock-all, context menus, etc.*
+*Placeholder for future: angled guides, dimension tools, lock-all, context menus, etc.*
 
 ### [ ] Task 21 — Node edit UX: smooth/sharp nodes, Bézier handles, node toolbar, scissors
 
@@ -405,25 +497,53 @@ them — one focused task at a time gives the best results. Tick the box when do
 >   - Smooth/sharp toggle button on NodeEditToolbar
 >   - Auto-smooth: smooth button computes Catmull-Rom tangents
 > - **Scissors:** split path at selected node into two open sub-paths (persists handles)
-> - Deferred: symmetric handle constraint, multi-node selection, node alignment
-> Stop and verify all node editing works end-to-end.
+> - **Complexity impact:** Show how smooth curves affect cut time vs. straight lines
+> - Test: Create smooth curves, split paths, verify complexity metrics update
+> - Commit: "Task 21: Node handles + scissors with complexity feedback"
+> - Verify all 21 tasks working end-to-end.
 
 ---
 
-## Build & Verification Checklist
+## Final Verification Checklist
 
-After each task:
-- [ ] Code compiles: `dotnet build` (both backend + desktop)
-- [ ] No new compiler warnings (except known CVE warnings on SixLabors.ImageSharp)
-- [ ] Feature works as described (manual test in AvaloniaUI app)
-- [ ] Update TASKS.md (tick the box, note deferrals)
-- [ ] Commit with clear message
+After Task 21 (all tasks complete):
+- [ ] App launches and loads backend services
+- [ ] Import SVG/DXF/bitmap → design (shapes/text/pen) → arrange/nest → simulate → cut (live or export)
+- [ ] Plate thickness set, visible in viewport margins
+- [ ] All layers working (visibility, per-layer CAM, per-layer modes)
+- [ ] Cutouts created via booleans; holes detected and marked
+- [ ] Complexity metrics estimated and warn on high complexity
+- [ ] Material profiles save/load with per-layer overrides
+- [ ] Templates and library work
+- [ ] Machine control (jog, run, pause, resume, recovery) works
+- [ ] Stunning Fluent AvaloniaUI design (no rough edges, smooth interactions)
+- [ ] No safety regressions (E-stop works, no auto-motion, bounds checked)
+
+---
+
+## Build & Quality Standards
+
+**For every task commit:**
+- Code compiles with 0 errors
+- Feature works end-to-end (manual test)
+- No regressions in backend or other UI components
+- Commit message is clear (what + why)
+- Continue to next task without accumulating debt
+
+**Safety-critical code (machine control):**
+- Conservative defaults
+- Explicit user action required
+- E-stop always wins
+- Bounds checking enforced
+- Extra testing before merge
 
 ---
 
 ## Working Agreement
 
-- One task per session. Read `PLASMA_CAM_PLAN.md` + `CLAUDE.md` first.
-- Don't pull later tasks forward. Flag scope creep instead of silently expanding.
-- Keep AvaloniaUI focus: MVVM pattern, XAML + code-behind, direct service injection.
-- Test the feature, not just the build. Safety-critical code (machine control) gets extra scrutiny.
+- One task per session. No batching.
+- Read `PLASMA_CAM_PLAN.md` + `CLAUDE.md` before each task.
+- Test, verify, commit, continue — keep momentum.
+- Don't skip "Test" step. This is a real machine control app.
+- Design is **stunning AvaloniaUI** — Fluent theme, smooth, responsive, intuitive.
+- Reference: [Riegelnegg 2024 complexity extraction](https://repositum.tuwien.at/bitstream/20.500.12708/198102/1/Riegelnegg%20Martin%20-%202024%20-%20Automated%20extraction%20of%20complexity%20measures%20from...pdf) for feature estimation.

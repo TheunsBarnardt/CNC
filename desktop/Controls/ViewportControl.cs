@@ -52,6 +52,12 @@ public sealed class ViewportControl : Control
     // ── pen tool state ─────────────────────────────────────────────────────
     private List<(double x, double y)> _penPoints = [];
 
+    // ── node edit state ────────────────────────────────────────────────────
+    private bool _nodeEditMode;
+    private Guid? _editingPartId;
+    private int? _selectedNodeIndex;
+    private double _nodeHitRadius = 5;  // screen pixels
+
     // ── events ────────────────────────────────────────────────────────────
     public event Action<Guid?    >? SelectionChanged;
     public event Action<Part     >? PartMoved;     // optimistic (during drag)
@@ -84,6 +90,23 @@ public sealed class ViewportControl : Control
         _scale = Math.Min(aw / (float)_table.WidthMm, ah / (float)_table.HeightMm);
         _tx = margin + (aw - (float)_table.WidthMm * _scale) / 2;
         _ty = margin + (ah - (float)_table.HeightMm * _scale) / 2;
+        InvalidateVisual();
+    }
+
+    // ── node edit mode ──────────────────────────────────────────────────
+    public void EnterNodeEditMode(Part part)
+    {
+        _nodeEditMode = true;
+        _editingPartId = part.Id;
+        _selectedNodeIndex = null;
+        InvalidateVisual();
+    }
+
+    public void ExitNodeEditMode()
+    {
+        _nodeEditMode = false;
+        _editingPartId = null;
+        _selectedNodeIndex = null;
         InvalidateVisual();
     }
 
@@ -141,6 +164,36 @@ public sealed class ViewportControl : Control
                 InvalidateVisual();
             }
             return;
+        }
+
+        // Node edit mode: left double-click or click on node
+        if (_nodeEditMode && props.IsLeftButtonPressed)
+        {
+            if (pos.X >= RULER_PX && pos.Y >= RULER_PX)
+            {
+                // Handle node selection/dragging in node edit mode
+                var nwx = ToWX((float)pos.X);
+                var nwy = ToWY((float)pos.Y);
+                HitTestNode(nwx, nwy);
+            }
+            return;
+        }
+
+        // Double-click to enter node edit mode
+        if (props.IsLeftButtonPressed && e.ClickCount == 2)
+        {
+            if (pos.X >= RULER_PX && pos.Y >= RULER_PX)
+            {
+                var dwx = ToWX((float)pos.X);
+                var dwy = ToWY((float)pos.Y);
+                Part? dpart = HitTestPartAtPoint(dwx, dwy);
+                if (dpart is not null)
+                {
+                    EnterNodeEditMode(dpart);
+                    _vm.StatusText = $"Node edit mode (double-click to edit): {dpart.FileId:N}";
+                    return;
+                }
+            }
         }
 
         // Middle mouse or right-drag → pan
@@ -242,6 +295,28 @@ public sealed class ViewportControl : Control
     protected override void OnKeyDown(KeyEventArgs e)
     {
         base.OnKeyDown(e);
+
+        // Node edit mode shortcuts
+        if (_nodeEditMode)
+        {
+            switch (e.Key)
+            {
+                case Key.Escape:
+                    ExitNodeEditMode();
+                    _vm.StatusText = "Node edit exited";
+                    e.Handled = true;
+                    break;
+                case Key.Delete: case Key.Back:
+                    if (_selectedNodeIndex.HasValue)
+                    {
+                        // Note: full node deletion requires backend PATCH; deferred for now
+                        _vm.StatusText = "Node deletion not yet implemented";
+                        e.Handled = true;
+                    }
+                    break;
+            }
+            if (e.Handled) return;
+        }
 
         // Pen tool shortcuts
         if (_vm?.PenToolActive == true)
@@ -501,6 +576,36 @@ public sealed class ViewportControl : Control
             canvas.DrawText($"Pen: {_penPoints.Count} points (Enter=finish, Shift+Enter=close, Esc=cancel)", 30, 45, statusPaint);
         }
 
+        // ── node edit mode ─────────────────────────────────────────────────
+        if (_nodeEditMode && _editingPartId.HasValue)
+        {
+            var part = _parts.FirstOrDefault(p => p.Id == _editingPartId.Value);
+            if (part is not null && _geometry.TryGetValue(part.FileId, out var geom))
+            {
+                var pivot = LocalCenter(geom);
+                using var nodePaint = new SKPaint { Color = colPrim, StrokeWidth = 2, IsStroke = false, IsAntialias = true };
+                using var selectPaint = new SKPaint { Color = colRed, StrokeWidth = 2, IsStroke = false, IsAntialias = true };
+
+                int nodeIdx = 0;
+                foreach (var pg in geom)
+                {
+                    foreach (var local in pg.Polyline.Points)
+                    {
+                        var world = PartTransform.Apply(part, pivot, local);
+                        float sx = ToSX(world.X);
+                        float sy = ToSY(world.Y);
+
+                        bool selected = nodeIdx == _selectedNodeIndex;
+                        canvas.DrawCircle(sx, sy, 5, selected ? selectPaint : nodePaint);
+                        nodeIdx++;
+                    }
+                }
+
+                using var statusPaint2 = new SKPaint { Color = colPrim, TextSize = 12, IsAntialias = true };
+                canvas.DrawText($"Node edit: {nodeIdx} nodes (Esc to exit)", 30, 45, statusPaint2);
+            }
+        }
+
         // ── rulers ────────────────────────────────────────────────────────
         RenderRulers(canvas, w, h, colRuler, colFg, colMuted);
     }
@@ -637,6 +742,57 @@ public sealed class ViewportControl : Control
         const double tol = 3;
         return wx >= mn.X - tol && wx <= mx.X + tol
             && wy >= mn.Y - tol && wy <= mx.Y + tol;
+    }
+
+    private Part? HitTestPartAtPoint(double wx, double wy)
+    {
+        for (int i = _parts.Count - 1; i >= 0; i--)
+        {
+            var part = _parts[i];
+            var layer = _layers.FirstOrDefault(l => l.Id == part.LayerId);
+            if (layer is { Visible: false } || layer is { Locked: true }) continue;
+            if (!_geometry.TryGetValue(part.FileId, out var geom)) continue;
+            if (HitTestPart(part, geom, wx, wy)) return part;
+        }
+        return null;
+    }
+
+    private void HitTestNode(double wx, double wy)
+    {
+        if (_editingPartId is null) return;
+        var part = _parts.FirstOrDefault(p => p.Id == _editingPartId.Value);
+        if (part is null || !_geometry.TryGetValue(part.FileId, out var geom)) return;
+
+        var pivot = LocalCenter(geom);
+        double minDist = _nodeHitRadius / _scale;
+        int? hitNode = null;
+
+        for (int pathIdx = 0; pathIdx < geom.Count; pathIdx++)
+        {
+            var pg = geom[pathIdx];
+            for (int nodeIdx = 0; nodeIdx < pg.Polyline.Points.Count; nodeIdx++)
+            {
+                var local = pg.Polyline.Points[nodeIdx];
+                var world = PartTransform.Apply(part, pivot, local);
+                double dx = world.X - wx, dy = world.Y - wy;
+                double dist = Math.Sqrt(dx * dx + dy * dy);
+                if (dist < minDist)
+                {
+                    minDist = dist;
+                    hitNode = nodeIdx;
+                }
+            }
+        }
+
+        _selectedNodeIndex = hitNode;
+        if (hitNode.HasValue)
+        {
+            _drag = DragMode.Move;  // Reuse Move drag for node dragging
+            _dragStart = new Point(ToSX(wx), ToSY(wy));
+            _partStartX = wx;
+            _partStartY = wy;
+        }
+        InvalidateVisual();
     }
 
     // ── ICustomDrawOperation ──────────────────────────────────────────────

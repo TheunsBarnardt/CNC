@@ -59,6 +59,9 @@ public sealed class MainViewModel : ObservableObject
     private bool _penToolActive;
     public bool PenToolActive { get => _penToolActive; set => SetProperty(ref _penToolActive, value); }
 
+    private bool _nodeEditMode;
+    public bool NodeEditMode { get => _nodeEditMode; set => SetProperty(ref _nodeEditMode, value); }
+
     // ── Project collections (bound to right panel lists) ──────────────────
 
     public ObservableCollection<ImportedFile> Files  { get; } = [];
@@ -648,6 +651,23 @@ public sealed class MainViewModel : ObservableObject
     public void CancelPenTool()
     {
         PenToolActive = false;
+        StatusText = "Ready";
+    }
+
+    // ── Node editing ──────────────────────────────────────────────────────
+
+    /// <summary>Enter node edit mode for selected part.</summary>
+    public void EnterNodeEditMode()
+    {
+        if (SelectedPart is not { } part) return;
+        NodeEditMode = true;
+        StatusText = "Node edit mode: double-click a part to edit its nodes";
+    }
+
+    /// <summary>Exit node edit mode.</summary>
+    public void ExitNodeEditMode()
+    {
+        NodeEditMode = false;
         StatusText = "Ready";
     }
 }

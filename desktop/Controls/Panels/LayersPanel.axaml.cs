@@ -2,6 +2,7 @@ using Avalonia.Controls;
 using Avalonia.Interactivity;
 using Backend.Models;
 using Desktop.ViewModels;
+using Desktop.Views;
 
 namespace Desktop.Controls.Panels;
 
@@ -13,12 +14,17 @@ public partial class LayersPanel : UserControl
 
     private void OnAddLayer(object? s, RoutedEventArgs e) => Vm?.AddLayer();
 
-    private void OnChangeColor(object? s, RoutedEventArgs e)
+    private async void OnChangeColor(object? s, RoutedEventArgs e)
     {
-        if (s is Button btn && btn.Tag is Layer layer)
+        if (s is not Button btn || btn.Tag is not Layer layer) return;
+
+        var dlg = new ColorPickerDialog { SelectedColor = layer.Color };
+        var owner = TopLevel.GetTopLevel(this) as Window;
+        if (owner is null) return;
+
+        if (await dlg.ShowDialog<bool>(owner))
         {
-            // TODO: Open color picker dialog
-            Vm?.StatusText = $"Color picker for '{layer.Name}' not yet implemented";
+            Vm?.UpdateLayer(layer, color: dlg.SelectedColor);
         }
     }
 

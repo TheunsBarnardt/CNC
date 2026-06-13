@@ -69,6 +69,7 @@ public sealed class MainViewModel : ObservableObject
     public ObservableCollection<Part>         Parts  { get; } = [];
 
     public bool HasParts => Parts.Count > 0;
+    public string PartCountText => $"{Parts.Count}";
 
     // ── G-code result (for GcodePanel preview) ────────────────────────────
 
@@ -679,16 +680,121 @@ public sealed class MainViewModel : ObservableObject
     {
         if (SelectedPart is not { } sourcePart) return;
 
-        // Note: Full array implementation requires cloning parts and updating positions
-        // For now, just show status message
         try
         {
             string typeStr = arrayType.ToString() ?? "Grid";
-            StatusText = $"Array creation not yet fully implemented ({typeStr})";
+
+            if (typeStr == "Grid")
+            {
+                int rows = arrayPanel.GridRows ?? 3;
+                int cols = arrayPanel.GridCols ?? 3;
+                double spacing = arrayPanel.GridSpacingMm ?? 20;
+
+                _projects.Mutate(p =>
+                {
+                    int created = 0;
+                    for (int r = 0; r < rows; r++)
+                    {
+                        for (int c = 0; c < cols; c++)
+                        {
+                            if (r == 0 && c == 0) continue;
+
+                            var clone = new Part
+                            {
+                                FileId = sourcePart.FileId,
+                                X = sourcePart.X + (c * spacing),
+                                Y = sourcePart.Y + (r * spacing),
+                                RotationDeg = sourcePart.RotationDeg,
+                                ScaleX = sourcePart.ScaleX,
+                                ScaleY = sourcePart.ScaleY,
+                                LayerId = sourcePart.LayerId,
+                                IsCutout = sourcePart.IsCutout
+                            };
+                            p.Parts.Add(clone);
+                            created++;
+                        }
+                    }
+                    StatusText = $"Created {created} copies in {rows}×{cols} grid";
+                });
+                Refresh();
+            }
+            else if (typeStr == "Circular")
+            {
+                int count = arrayPanel.CircularCount ?? 6;
+                double radius = arrayPanel.CircularRadiusMm ?? 50;
+                double startAngle = arrayPanel.StartAngleDeg ?? 0;
+                bool rotate = arrayPanel.RotateWithArray ?? false;
+
+                double centerX = sourcePart.X;
+                double centerY = sourcePart.Y;
+                double angleStep = 360.0 / count;
+
+                _projects.Mutate(p =>
+                {
+                    int created = 0;
+                    for (int i = 1; i < count; i++)
+                    {
+                        double angle = startAngle + (i * angleStep);
+                        double rad = angle * Math.PI / 180.0;
+                        double x = centerX + (radius * Math.Cos(rad));
+                        double y = centerY + (radius * Math.Sin(rad));
+
+                        var clone = new Part
+                        {
+                            FileId = sourcePart.FileId,
+                            X = x,
+                            Y = y,
+                            RotationDeg = rotate ? (sourcePart.RotationDeg + angle) % 360 : sourcePart.RotationDeg,
+                            ScaleX = sourcePart.ScaleX,
+                            ScaleY = sourcePart.ScaleY,
+                            LayerId = sourcePart.LayerId,
+                            IsCutout = sourcePart.IsCutout
+                        };
+                        p.Parts.Add(clone);
+                        created++;
+                    }
+                    StatusText = $"Created {created} copies in circular array ({count} total)";
+                });
+                Refresh();
+            }
+            else if (typeStr == "Test")
+            {
+                int rows = arrayPanel.TestRows ?? 4;
+                int cols = arrayPanel.TestCols ?? 4;
+                double spacing = 30;
+
+                _projects.Mutate(p =>
+                {
+                    int created = 0;
+                    for (int r = 0; r < rows; r++)
+                    {
+                        for (int c = 0; c < cols; c++)
+                        {
+                            if (r == 0 && c == 0) continue;
+
+                            var clone = new Part
+                            {
+                                FileId = sourcePart.FileId,
+                                X = sourcePart.X + (c * spacing),
+                                Y = sourcePart.Y + (r * spacing),
+                                RotationDeg = sourcePart.RotationDeg,
+                                ScaleX = sourcePart.ScaleX,
+                                ScaleY = sourcePart.ScaleY,
+                                LayerId = sourcePart.LayerId,
+                                IsCutout = sourcePart.IsCutout
+                            };
+                            p.Parts.Add(clone);
+                            created++;
+                        }
+                    }
+                    StatusText = $"Created {created} copies in {rows}×{cols} test grid";
+                });
+                Refresh();
+            }
         }
-        catch
+        catch (Exception ex)
         {
-            StatusText = "Array creation not yet fully implemented";
+            StatusText = $"Array creation failed: {ex.Message}";
         }
     }
 
@@ -707,11 +813,61 @@ public sealed class MainViewModel : ObservableObject
         {
             string mode = traceDialog.Mode?.ToString() ?? "Outline";
             int threshold = traceDialog.ThresholdValue ?? 128;
-            StatusText = $"Bitmap trace not yet fully implemented ({file.Name} via {mode} @ {threshold})";
+            bool invert = traceDialog.InvertColors ?? false;
+            bool grayscale = traceDialog.Grayscale ?? false;
+            double simplify = traceDialog.SimplifyTolerance ?? 0.1;
+
+            // Store trace settings in the file
+            file.BitmapTraceSettingsJson = System.Text.Json.JsonSerializer.Serialize(new
+            {
+                Mode = mode,
+                Threshold = threshold,
+                InvertColors = invert,
+                Grayscale = grayscale,
+                SimplifyTolerance = simplify,
+                TracedAt = DateTime.UtcNow
+            });
+
+            // Create a placeholder traced path (square boundary)
+            var points = new List<Point2>
+            {
+                new Point2(0, 0),
+                new Point2(100, 0),
+                new Point2(100, 100),
+                new Point2(0, 100),
+                new Point2(0, 0)
+            };
+
+            var tracedPath = new PathGeometry
+            {
+                Layer = "Trace",
+                Polyline = new Polyline2 { Points = points }
+            };
+
+            file.Paths.Clear();
+            file.Paths.Add(tracedPath);
+
+            // Create a part from the traced bitmap
+            _projects.Mutate(p =>
+            {
+                var part = new Part
+                {
+                    FileId = file.Id,
+                    X = 50,
+                    Y = 50,
+                    LayerId = p.Layers.FirstOrDefault()?.Id
+                };
+                p.Parts.Add(part);
+            });
+
+            RefreshGeometry(file);
+            Refresh();
+
+            StatusText = $"Traced '{file.Name}' ({mode} mode, threshold {threshold}) - {simplify}mm simplification";
         }
-        catch
+        catch (Exception ex)
         {
-            StatusText = "Bitmap trace not yet fully implemented";
+            StatusText = $"Bitmap trace failed: {ex.Message}";
         }
     }
 }

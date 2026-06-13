@@ -1,11 +1,13 @@
 using Avalonia.Controls;
 using Avalonia.Input;
 using Avalonia.Interactivity;
+using Avalonia.Media;
 using Avalonia.Platform.Storage;
 using Backend.Services;
 using Desktop.Controls;
 using Desktop.Controls.Toolbars;
 using Desktop.ViewModels;
+using Desktop.Views;
 using Microsoft.Extensions.DependencyInjection;
 
 namespace Desktop.Views;
@@ -197,6 +199,25 @@ public partial class MainWindow : Window
     }
 
     // ── keyboard shortcuts ────────────────────────────────────────────────
+
+    private void OnToggleGrid(object? sender, RoutedEventArgs e)
+    {
+        if (_vm is null) return;
+        _vm.ShowGrid = !_vm.ShowGrid;
+        BtnGridToggle.Background = _vm.ShowGrid ? null : new SolidColorBrush(Color.FromArgb(50, 100, 100, 100));
+    }
+
+    private void OnToggleSnap(object? sender, RoutedEventArgs e)
+    {
+        if (_vm is null) return;
+        _vm.StatusText = "Snap-to-grid: not fully implemented";
+    }
+
+    private void OnToggleCanvasDark(object? sender, RoutedEventArgs e)
+    {
+        if (_vm is null) return;
+        _vm.DarkCanvas = !_vm.DarkCanvas;
+    }
 
     private void OnKeyDown(object? sender, KeyEventArgs e)
     {

@@ -89,6 +89,38 @@
         <!-- edit toolbar at bottom (visible only when part selected + edit mode) -->
         <toolbars:EditToolbar x:Name="EditBar" DockPanel.Dock="Bottom"/>
 
+        <!-- canvas controls bar -->
+        <Border DockPanel.Dock="Bottom"
+                Background="{StaticResource Brush.Bg2}"
+                BorderBrush="{StaticResource Brush.Border}"
+                BorderThickness="0,1,0,0"
+                Padding="8,4">
+          <StackPanel Orientation="Horizontal" Spacing="12">
+            <!-- Grid toggle -->
+            <Button x:Name="BtnGridToggle" Content="⊞ Grid" Theme="{StaticResource Btn.Ghost}"
+                    Click="OnToggleGrid" Padding="8,4" ToolTip.Tip="Toggle grid visibility"/>
+
+            <!-- Snap toggle -->
+            <Button x:Name="BtnSnapToggle" Content="⊕ Snap" Theme="{StaticResource Btn.Ghost}"
+                    Click="OnToggleSnap" Padding="8,4" ToolTip.Tip="Toggle snap-to-grid"/>
+
+            <!-- Canvas dark/light -->
+            <Button x:Name="BtnCanvasDark" Content="◐" Theme="{StaticResource Btn.Ghost}"
+                    Click="OnToggleCanvasDark" Padding="8,4" ToolTip.Tip="Toggle canvas background"/>
+
+            <Separator Theme="{StaticResource Sep.Vertical}"/>
+
+            <!-- Complexity indicator -->
+            <TextBlock x:Name="ComplexityText" Text="Complexity: —"
+                      VerticalAlignment="Center" FontSize="12" Foreground="#999"
+                      Margin="8,0"/>
+
+            <!-- Parts counter -->
+            <TextBlock Text="{Binding PartCountText, StringFormat='Parts: {0}'}"
+                      VerticalAlignment="Center" FontSize="12" Foreground="#999"/>
+          </StackPanel>
+        </Border>
+
         <!-- canvas fills remaining space -->
         <Panel>
           <ctrl:ViewportControl x:Name="Viewport"/>

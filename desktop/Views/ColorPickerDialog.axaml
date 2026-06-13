@@ -1,0 +1,46 @@
+<Window xmlns="https://github.com/avaloniaui"
+        xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+        x:Class="Desktop.Views.ColorPickerDialog"
+        x:CompileBindings="False"
+        Title="Pick Color"
+        Width="300" Height="200"
+        WindowStartupLocation="CenterOwner"
+        CanResize="False">
+
+  <StackPanel Spacing="16" Margin="20">
+
+    <TextBlock Text="Layer Color" FontSize="14" FontWeight="SemiBold"/>
+
+    <!-- Preset colors -->
+    <StackPanel Spacing="8">
+      <TextBlock Text="Presets:" FontSize="12" Foreground="#666"/>
+      <StackPanel Orientation="Horizontal" Spacing="4">
+        <Button x:Name="ColRed" Width="32" Height="32" Background="#ef4444" Click="OnColorSelect" Tag="#ef4444" ToolTip.Tip="Red" Padding="0"/>
+        <Button x:Name="ColOrange" Width="32" Height="32" Background="#f97316" Click="OnColorSelect" Tag="#f97316" ToolTip.Tip="Orange" Padding="0"/>
+        <Button x:Name="ColYellow" Width="32" Height="32" Background="#eab308" Click="OnColorSelect" Tag="#eab308" ToolTip.Tip="Yellow" Padding="0"/>
+        <Button x:Name="ColGreen" Width="32" Height="32" Background="#22c55e" Click="OnColorSelect" Tag="#22c55e" ToolTip.Tip="Green" Padding="0"/>
+        <Button x:Name="ColBlue" Width="32" Height="32" Background="#3b82f6" Click="OnColorSelect" Tag="#3b82f6" ToolTip.Tip="Blue" Padding="0"/>
+        <Button x:Name="ColPurple" Width="32" Height="32" Background="#a855f7" Click="OnColorSelect" Tag="#a855f7" ToolTip.Tip="Purple" Padding="0"/>
+        <Button x:Name="ColPink" Width="32" Height="32" Background="#ec4899" Click="OnColorSelect" Tag="#ec4899" ToolTip.Tip="Pink" Padding="0"/>
+        <Button x:Name="ColGray" Width="32" Height="32" Background="#6b7280" Click="OnColorSelect" Tag="#6b7280" ToolTip.Tip="Gray" Padding="0"/>
+      </StackPanel>
+    </StackPanel>
+
+    <!-- Custom hex input -->
+    <StackPanel Spacing="8">
+      <TextBlock Text="Custom (Hex):" FontSize="12" Foreground="#666"/>
+      <Grid ColumnDefinitions="*,Auto" ColumnSpacing="8">
+        <TextBox x:Name="TbHex" Grid.Column="0" Text="#3b82f6" ToolTip.Tip="Enter hex color code"/>
+        <Border Grid.Column="1" Width="40" Height="32" CornerRadius="4" Background="{Binding HexColor}"/>
+      </Grid>
+    </StackPanel>
+
+    <!-- Buttons -->
+    <StackPanel Orientation="Horizontal" Spacing="8" HorizontalAlignment="Right">
+      <Button x:Name="BtnCancel" Content="Cancel" Padding="12,8"/>
+      <Button x:Name="BtnSelect" Content="Select" Padding="12,8" Background="#3b82f6" Foreground="White"/>
+    </StackPanel>
+
+  </StackPanel>
+
+</Window>

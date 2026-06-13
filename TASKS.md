@@ -341,7 +341,18 @@ Work top to bottom. **Each task is one session.** After completing each task:
 
 ### [~] Task 14 — Shape, pen & text creation tools
 
-**Status:** ⏳ IN PROGRESS. Shape tool buttons enabled and wired; basic shape creation works (rectangle, circle, ellipse, polygon, star, line). Deferred: shape size dialogs, drag-to-draw preview, pen tool, text tool.
+**Status:** ⏳ IN PROGRESS. Shape creation fully functional with dialogs. Pen tool infrastructure in place. Text tool deferred.
+
+**Completed:**
+- ShapeGenerator service (6 shape types)
+- Shape parameter dialogs (rectangle, circle, ellipse, polygon, star)
+- All shape tools wired to create and place shapes on table
+- Pen tool methods (ActivatePenTool, CreatePathFromPoints, CancelPenTool)
+
+**Deferred:**
+- Pen tool viewport integration (click-to-place nodes, drag handles)
+- Text tool (font selection, text entry, glyph-to-polyline)
+- Drag-to-draw preview mode (optional enhancement)
 
 **Paste this:**
 > Read the plan and CLAUDE.md. **Backend synthetic file creation exists.** Add AvaloniaUI UI:
@@ -504,27 +515,38 @@ Work top to bottom. **Each task is one session.** After completing each task:
 
 ---
 
-## Session Summary (2026-06-13)
+## Session Summary (Continued 2026-06-13)
 
 ### Tasks 0-13: Verified Complete ✅
 All tasks from skeleton through auto-nesting verified working in AvaloniaUI UI. App launches, all major panels present, CAM settings functional.
 
 ### Task 14: In Progress (Shape Tools) ⏳
-**Completed:**
+**Completed (Session 2):**
 - ShapeGenerator service backend (Creates rectangle, circle, ellipse, polygon, star, line shapes)
-- Shape tool buttons in left toolbar enabled and named (BtnLine, BtnRectangle, etc.)
-- MainViewModel methods for each shape type: CreateRectangle(), CreateCircle(), etc.
-- Button click handlers wired up with default sizes (100×60 rectangle, 50mm circle, etc.)
+- Shape tool buttons in left toolbar (BtnLine, BtnRectangle, BtnCircle, BtnEllipse, BtnPolygon, BtnStar)
+- MainViewModel shape creation methods: CreateRectangle(), CreateCircle(), CreateEllipse(), CreatePolygon(), CreateStar(), CreateLine()
+- Shape parameter dialogs:
+  - ShapeDialog: width, height, corner radius for rectangles
+  - CircleDialog: radius
+  - PolygonDialog: side count, radius
+  - StarDialog: point count, outer/inner radius
+- Button handlers show dialogs before creating shapes
 - All shapes created as ImportedFile with Kind=Shape, placed on table with auto-fit
+- Pen tool infrastructure:
+  - PenToolActive property
+  - ActivatePenTool(), CreatePathFromPoints(), CancelPenTool() methods
+  - PenToolButton enabled and wired
 
 **Deferred (for next session):**
-- Shape size input dialogs (prompt user for width/height before creating)
-- Drag-to-draw mode (click+drag on viewport shows preview, release to create)
-- Pen tool (click to place nodes, Bézier handles)
-- Text tool (click to place, text input dialog with font selector)
+- Pen tool viewport integration (click-to-place nodes, drag for Bézier handles, Enter to finish, Escape to cancel)
+- Text tool (click to place, font picker, size selector, glyph-to-polyline conversion)
+- Drag-to-draw preview mode (visual feedback while dragging)
 - Per-layer assignment for created shapes
 
-**Code committed:** ShapeGenerator.cs, MainViewModel shape methods, MainWindow button wiring.
+**Code committed:** 
+1. ShapeGenerator.cs, MainViewModel shape methods, MainWindow button wiring
+2. Shape dialogs (ShapeDialog, CircleDialog, PolygonDialog, StarDialog)
+3. Pen tool ViewModel methods
 
 ---
 

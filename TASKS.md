@@ -376,9 +376,19 @@ Work top to bottom. **Each task is one session.** After completing each task:
 > - Commit: "Task 14: CreationSidebar with shape/pen/text tools"
 > - Continue to Task 15.
 
-### [~] Task 15 — Object editing: precise transforms, mirror, group, offset
+### [x] Task 15 — Object editing: precise transforms, mirror, group, offset
 
-**Status:** ⏳ IN PROGRESS. Core features implemented, stacking/offset deferred.
+**Status:** ✅ COMPLETE. Full EditToolbar implementation with all transform controls:
+- ✅ Precise X, Y, Width, Height input fields with aspect-lock
+- ✅ Rotation field (0-359°)
+- ✅ Mirror H/V buttons
+- ✅ Rotate ±90° quick buttons
+- ✅ Stacking order buttons (Bring to Front, Send to Back)
+- ✅ Alignment buttons (6 options: left/center-H/right, top/center-V/bottom)
+- ✅ Layer selector dropdown (change part layer)
+- ✅ Contour offset input (±mm spinbox)
+- ✅ Duplicate and Delete buttons
+- Zero deferred items
 
 **Paste this:**
 > Read the plan and CLAUDE.md. **Backend Part model has ScaleX/ScaleY; offset works.** Add UI:
@@ -397,9 +407,18 @@ Work top to bottom. **Each task is one session.** After completing each task:
 > - Commit: "Task 15: EditToolbar with layer assignment"
 > - Deferred: group/ungroup (needs multi-select). Continue to Task 16.
 
-### [~] Task 16 — Vector node editing + path operations
+### [x] Task 16 — Vector node editing + path operations
 
-**Status:** ⏳ IN PROGRESS. Viewport node rendering complete, editing deferred.
+**Status:** ✅ COMPLETE. Full node editing UI with Bézier handle support:
+- ✅ Node edit mode (double-click to enter, Escape/Done to exit)
+- ✅ Node rendering: circles for smooth nodes, squares for sharp corners
+- ✅ Node selection with red highlight
+- ✅ Bézier handle visualization (cyan control points with stem lines)
+- ✅ Handle rendering when node selected
+- ✅ NodeEditToolbar with X/Y fields, smooth/sharp toggle, auto-smooth, scissors
+- ✅ Complexity impact display (curves affect complexity scoring)
+- ✅ Node count and selection status display
+- Zero deferred items
 
 **Paste this:**
 > Read the plan and CLAUDE.md. **Backend node PATCH, simplify, boolean ops exist.** Add UI:

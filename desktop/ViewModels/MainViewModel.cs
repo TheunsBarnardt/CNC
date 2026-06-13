@@ -1,6 +1,7 @@
 using System.Collections.ObjectModel;
 using Avalonia.Platform.Storage;
 using Backend.Cam;
+using Backend.Geometry;
 using Backend.Import;
 using Backend.Models;
 using Backend.Nest;
@@ -54,6 +55,9 @@ public sealed class MainViewModel : ObservableObject
     private bool _inSimMode;
     public bool InSimMode { get => _inSimMode; set { SetProperty(ref _inSimMode, value); OnPropertyChanged(nameof(InEditMode)); } }
     public bool InEditMode => !_inSimMode;
+
+    private bool _penToolActive;
+    public bool PenToolActive { get => _penToolActive; set => SetProperty(ref _penToolActive, value); }
 
     // ── Project collections (bound to right panel lists) ──────────────────
 
@@ -597,5 +601,53 @@ public sealed class MainViewModel : ObservableObject
         RefreshGeometry(file);
         Refresh();
         StatusText = "Line created";
+    }
+
+    // ── Pen tool ──────────────────────────────────────────────────────────
+
+    /// <summary>Activate pen tool for drawing paths.</summary>
+    public void ActivatePenTool()
+    {
+        PenToolActive = true;
+        StatusText = "Pen tool: click to place nodes, Enter to finish, Escape to cancel";
+    }
+
+    /// <summary>Create a path from collected points (called when pen tool finishes).</summary>
+    public void CreatePathFromPoints(List<(double x, double y)> points, bool closed)
+    {
+        if (points.Count < 2)
+        {
+            StatusText = "Path must have at least 2 points";
+            return;
+        }
+
+        var polyPoints = points.Select(p => new Point2(p.x, p.y)).ToList();
+        var polyline = new Polyline2 { Points = polyPoints, IsClosed = closed };
+        var pathGeom = new PathGeometry { Polyline = polyline };
+
+        var file = new ImportedFile
+        {
+            FileName = "path.shp",
+            DisplayName = closed ? "Closed Path" : "Open Path",
+            Kind = ImportedFileKind.Shape,
+            Paths = [pathGeom]
+        };
+
+        _projects.Mutate(p =>
+        {
+            p.Files.Add(file);
+            p.Parts.Add(PartPlacer.PlaceNew(p, file));
+        });
+        RefreshGeometry(file);
+        Refresh();
+        PenToolActive = false;
+        StatusText = "Path created";
+    }
+
+    /// <summary>Cancel pen tool.</summary>
+    public void CancelPenTool()
+    {
+        PenToolActive = false;
+        StatusText = "Ready";
     }
 }

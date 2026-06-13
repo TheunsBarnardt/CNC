@@ -75,7 +75,7 @@
           <Button x:Name="BtnEllipse"   Content="⬭" Theme="{StaticResource Btn.ToolRail}" ToolTip.Tip="Ellipse"/>
           <Button x:Name="BtnPolygon"   Content="⬟" Theme="{StaticResource Btn.ToolRail}" ToolTip.Tip="Polygon"/>
           <Button x:Name="BtnStar"      Content="✦" Theme="{StaticResource Btn.ToolRail}" ToolTip.Tip="Star"/>
-          <Button x:Name="BtnPen"       Content="✏" Theme="{StaticResource Btn.ToolRail}" ToolTip.Tip="Pen tool (coming soon)" IsEnabled="False"/>
+          <Button x:Name="BtnPen"       Content="✏" Theme="{StaticResource Btn.ToolRail}" ToolTip.Tip="Pen tool"/>
           <Button x:Name="BtnText"      Content="T"  Theme="{StaticResource Btn.ToolRail}" ToolTip.Tip="Text (coming soon)" IsEnabled="False"/>
         </StackPanel>
       </Border>

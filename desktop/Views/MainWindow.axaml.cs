@@ -117,6 +117,7 @@ public partial class MainWindow : Window
                 Viewport.FitToView();
             }
         };
+        BtnPen.Click += (_, _) => vm.ActivatePenTool();
 
         // Tab switching
         TabFiles.Click  += (_, _) => ShowPanel(PnlFiles);

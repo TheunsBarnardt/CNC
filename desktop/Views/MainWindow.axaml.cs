@@ -69,33 +69,53 @@ public partial class MainWindow : Window
         // Shape tools
         BtnLine.Click += (_, _) =>
         {
-            vm.CreateLine(100);  // 100mm line
+            vm.CreateLine(100);
             Viewport.FitToView();
         };
-        BtnRectangle.Click += (_, _) =>
+        BtnRectangle.Click += async (_, _) =>
         {
-            vm.CreateRectangle(100, 60);  // 100×60mm rectangle
-            Viewport.FitToView();
+            var dlg = new ShapeDialog { Title = "Create Rectangle" };
+            if (await dlg.ShowDialog<bool>(this))
+            {
+                vm.CreateRectangle(dlg.Width_mm, dlg.Height_mm, dlg.Radius_mm);
+                Viewport.FitToView();
+            }
         };
-        BtnCircle.Click += (_, _) =>
+        BtnCircle.Click += async (_, _) =>
         {
-            vm.CreateCircle(50);  // 50mm radius circle
-            Viewport.FitToView();
+            var dlg = new CircleDialog();
+            if (await dlg.ShowDialog<bool>(this))
+            {
+                vm.CreateCircle(dlg.Radius_mm);
+                Viewport.FitToView();
+            }
         };
-        BtnEllipse.Click += (_, _) =>
+        BtnEllipse.Click += async (_, _) =>
         {
-            vm.CreateEllipse(100, 60);  // 100×60mm ellipse
-            Viewport.FitToView();
+            var dlg = new ShapeDialog { Title = "Create Ellipse" };
+            if (await dlg.ShowDialog<bool>(this))
+            {
+                vm.CreateEllipse(dlg.Width_mm, dlg.Height_mm);
+                Viewport.FitToView();
+            }
         };
-        BtnPolygon.Click += (_, _) =>
+        BtnPolygon.Click += async (_, _) =>
         {
-            vm.CreatePolygon(6, 50);  // Hexagon with 50mm radius
-            Viewport.FitToView();
+            var dlg = new PolygonDialog();
+            if (await dlg.ShowDialog<bool>(this))
+            {
+                vm.CreatePolygon(dlg.SideCount, dlg.Radius_mm);
+                Viewport.FitToView();
+            }
         };
-        BtnStar.Click += (_, _) =>
+        BtnStar.Click += async (_, _) =>
         {
-            vm.CreateStar(5, 50, 20);  // 5-point star
-            Viewport.FitToView();
+            var dlg = new StarDialog();
+            if (await dlg.ShowDialog<bool>(this))
+            {
+                vm.CreateStar(dlg.PointCount, dlg.OuterRadius_mm, dlg.InnerRadius_mm);
+                Viewport.FitToView();
+            }
         };
 
         // Tab switching

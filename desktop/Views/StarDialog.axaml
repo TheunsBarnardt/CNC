@@ -1,0 +1,33 @@
+<Window xmlns="https://github.com/avaloniaui"
+        xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+        x:Class="Desktop.Views.StarDialog"
+        Title="Create Star"
+        Width="350" Height="280"
+        WindowStartupLocation="CenterOwner"
+        CanResize="False">
+
+  <StackPanel Spacing="16" Margin="20">
+
+    <TextBlock Text="Star" FontSize="18" FontWeight="SemiBold"/>
+
+    <Grid ColumnDefinitions="Auto,*" RowDefinitions="Auto,Auto,Auto" ColumnSpacing="8" RowSpacing="8">
+
+      <TextBlock Grid.Row="0" Grid.Column="0" Text="Points:" VerticalAlignment="Center"/>
+      <TextBox x:Name="TbPoints" Grid.Row="0" Grid.Column="1" Text="5"/>
+
+      <TextBlock Grid.Row="1" Grid.Column="0" Text="Outer Radius (mm):" VerticalAlignment="Center"/>
+      <TextBox x:Name="TbOuterRadius" Grid.Row="1" Grid.Column="1" Text="50"/>
+
+      <TextBlock Grid.Row="2" Grid.Column="0" Text="Inner Radius (mm):" VerticalAlignment="Center"/>
+      <TextBox x:Name="TbInnerRadius" Grid.Row="2" Grid.Column="1" Text="20"/>
+
+    </Grid>
+
+    <StackPanel Orientation="Horizontal" Spacing="8" HorizontalAlignment="Right">
+      <Button x:Name="BtnCancel" Content="Cancel" Padding="12,8"/>
+      <Button x:Name="BtnCreate" Content="Create" Padding="12,8" Background="#3b82f6" Foreground="White"/>
+    </StackPanel>
+
+  </StackPanel>
+
+</Window>

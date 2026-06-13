@@ -1,0 +1,83 @@
+<Window xmlns="https://github.com/avaloniaui"
+        xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+        x:Class="Desktop.Views.ArrayPanel"
+        Title="Create Array"
+        Width="450" Height="380"
+        WindowStartupLocation="CenterOwner"
+        CanResize="False">
+
+  <StackPanel Spacing="16" Margin="20">
+
+    <TextBlock Text="Array Type" FontSize="16" FontWeight="SemiBold"/>
+
+    <TabControl>
+      <!-- Grid Tab -->
+      <TabItem Header="Grid">
+        <StackPanel Spacing="12" Margin="12">
+          <Grid ColumnDefinitions="Auto,*" RowDefinitions="Auto,Auto,Auto" ColumnSpacing="8" RowSpacing="8">
+            <TextBlock Grid.Row="0" Grid.Column="0" Text="Rows:" VerticalAlignment="Center"/>
+            <TextBox x:Name="TbGridRows" Grid.Row="0" Grid.Column="1" Text="3"/>
+
+            <TextBlock Grid.Row="1" Grid.Column="0" Text="Cols:" VerticalAlignment="Center"/>
+            <TextBox x:Name="TbGridCols" Grid.Row="1" Grid.Column="1" Text="3"/>
+
+            <TextBlock Grid.Row="2" Grid.Column="0" Text="Spacing (mm):" VerticalAlignment="Center"/>
+            <TextBox x:Name="TbGridSpacing" Grid.Row="2" Grid.Column="1" Text="20"/>
+          </Grid>
+          <CheckBox x:Name="CbAutoStep" Content="Auto-calculate spacing"/>
+        </StackPanel>
+      </TabItem>
+
+      <!-- Circular Tab -->
+      <TabItem Header="Circular">
+        <StackPanel Spacing="12" Margin="12">
+          <Grid ColumnDefinitions="Auto,*" RowDefinitions="Auto,Auto,Auto,Auto" ColumnSpacing="8" RowSpacing="8">
+            <TextBlock Grid.Row="0" Grid.Column="0" Text="Count:" VerticalAlignment="Center"/>
+            <TextBox x:Name="TbCircularCount" Grid.Row="0" Grid.Column="1" Text="6"/>
+
+            <TextBlock Grid.Row="1" Grid.Column="0" Text="Radius (mm):" VerticalAlignment="Center"/>
+            <TextBox x:Name="TbCircularRadius" Grid.Row="1" Grid.Column="1" Text="50"/>
+
+            <TextBlock Grid.Row="2" Grid.Column="0" Text="Start Angle (°):" VerticalAlignment="Center"/>
+            <TextBox x:Name="TbStartAngle" Grid.Row="2" Grid.Column="1" Text="0"/>
+
+            <CheckBox Grid.Row="3" Grid.Column="0" Grid.ColumnSpan="2" x:Name="CbRotateWithArray" Content="Rotate with array"/>
+          </Grid>
+        </StackPanel>
+      </TabItem>
+
+      <!-- Test Tab -->
+      <TabItem Header="Test">
+        <StackPanel Spacing="12" Margin="12">
+          <TextBlock Text="Material Test Grid (creates optimized test pattern)"/>
+          <Grid ColumnDefinitions="Auto,*" RowDefinitions="Auto,Auto,Auto,Auto" ColumnSpacing="8" RowSpacing="8">
+            <TextBlock Grid.Row="0" Grid.Column="0" Text="Param 1:" VerticalAlignment="Center"/>
+            <ComboBox x:Name="CbParam1" Grid.Row="0" Grid.Column="1">
+              <ComboBoxItem>Feed Rate</ComboBoxItem>
+              <ComboBoxItem>Kerf Width</ComboBoxItem>
+            </ComboBox>
+
+            <TextBlock Grid.Row="1" Grid.Column="0" Text="Param 2:" VerticalAlignment="Center"/>
+            <ComboBox x:Name="CbParam2" Grid.Row="1" Grid.Column="1">
+              <ComboBoxItem>Pierce Delay</ComboBoxItem>
+              <ComboBoxItem>Power %</ComboBoxItem>
+            </ComboBox>
+
+            <TextBlock Grid.Row="2" Grid.Column="0" Text="Rows:" VerticalAlignment="Center"/>
+            <TextBox x:Name="TbTestRows" Grid.Row="2" Grid.Column="1" Text="4"/>
+
+            <TextBlock Grid.Row="3" Grid.Column="0" Text="Cols:" VerticalAlignment="Center"/>
+            <TextBox x:Name="TbTestCols" Grid.Row="3" Grid.Column="1" Text="4"/>
+          </Grid>
+        </StackPanel>
+      </TabItem>
+    </TabControl>
+
+    <StackPanel Orientation="Horizontal" Spacing="8" HorizontalAlignment="Right">
+      <Button x:Name="BtnCancel" Content="Cancel" Padding="12,8"/>
+      <Button x:Name="BtnCreate" Content="Create Array" Padding="12,8" Background="#3b82f6" Foreground="White"/>
+    </StackPanel>
+
+  </StackPanel>
+
+</Window>

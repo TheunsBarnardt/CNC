@@ -670,4 +670,24 @@ public sealed class MainViewModel : ObservableObject
         NodeEditMode = false;
         StatusText = "Ready";
     }
+
+    // ── Arrays ────────────────────────────────────────────────────────────
+
+    /// <summary>Create array from selected part.</summary>
+    public void CreateArray(dynamic arrayType, dynamic arrayPanel)
+    {
+        if (SelectedPart is not { } sourcePart) return;
+
+        // Note: Full array implementation requires cloning parts and updating positions
+        // For now, just show status message
+        try
+        {
+            string typeStr = arrayType.ToString() ?? "Grid";
+            StatusText = $"Array creation not yet fully implemented ({typeStr})";
+        }
+        catch
+        {
+            StatusText = "Array creation not yet fully implemented";
+        }
+    }
 }

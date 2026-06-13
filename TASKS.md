@@ -397,9 +397,9 @@ Work top to bottom. **Each task is one session.** After completing each task:
 > - Commit: "Task 15: EditToolbar with layer assignment"
 > - Deferred: group/ungroup (needs multi-select). Continue to Task 16.
 
-### [ ] Task 16 — Vector node editing + path operations
+### [~] Task 16 — Vector node editing + path operations
 
-**Status:** ✅ Backend node editing + booleans complete. AvaloniaUI UI needed.
+**Status:** ⏳ IN PROGRESS. Viewport node rendering complete, editing deferred.
 
 **Paste this:**
 > Read the plan and CLAUDE.md. **Backend node PATCH, simplify, boolean ops exist.** Add UI:

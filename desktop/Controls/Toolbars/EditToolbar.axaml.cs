@@ -1,7 +1,9 @@
 using Avalonia.Controls;
 using Avalonia.Interactivity;
+using Avalonia.VisualTree;
 using Backend.Models;
 using Desktop.ViewModels;
+using Desktop.Views;
 
 namespace Desktop.Controls.Toolbars;
 
@@ -27,6 +29,7 @@ public partial class EditToolbar : UserControl
             if (e.PropertyName == nameof(MainViewModel.Layers))
                 RefreshLayers();
         };
+        BtnArray.Click += OnArray;
         RefreshLayers();
         LoadFromPart(Vm?.SelectedPart);
     }
@@ -185,6 +188,16 @@ public partial class EditToolbar : UserControl
         if (!double.TryParse(TbOffset.Text, out var offsetMm)) return;
         // Note: full offset implementation requires Clipper2; deferred for now
         Vm.StatusText = $"Contour offset not yet implemented (requested: {offsetMm:F2}mm)";
+    }
+
+    private async void OnArray(object? s, RoutedEventArgs e)
+    {
+        var dlg = new ArrayPanel();
+        var owner = this.FindAncestorOfType<Window>();
+        if (owner is not null && await dlg.ShowDialog<bool>(owner))
+        {
+            Vm?.CreateArray(dlg.Type, dlg);
+        }
     }
 
     private void OnDuplicate(object? s, RoutedEventArgs e) => Vm?.DuplicateSelected();

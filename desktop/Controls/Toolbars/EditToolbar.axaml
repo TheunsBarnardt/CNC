@@ -77,6 +77,11 @@
 
         <Separator Theme="{StaticResource Sep.Vertical}"/>
 
+        <!-- Array -->
+        <Button x:Name="BtnArray" Content="⊞" Theme="{StaticResource Btn.Icon}" ToolTip.Tip="Create array"/>
+
+        <Separator Theme="{StaticResource Sep.Vertical}"/>
+
         <!-- Duplicate / Delete -->
         <Button Content="⧉" Theme="{StaticResource Btn.Icon}" Click="OnDuplicate" ToolTip.Tip="Duplicate"/>
         <Button Content="✕" Theme="{StaticResource Btn.Icon}" Click="OnDelete"

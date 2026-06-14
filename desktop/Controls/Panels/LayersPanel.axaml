@@ -438,12 +438,22 @@
 
               <!-- ── PART ROW ── -->
               <Grid IsVisible="{Binding IsPartKind}"
-                    ColumnDefinitions="*,22"
+                    ColumnDefinitions="Auto,*,22"
                     Margin="{Binding IndentMargin}"
                     Height="24">
 
-                <!-- part name (read-only label; click selects on canvas) -->
-                <TextBlock Grid.Column="0"
+                <!-- chain-link icon: visible when part moves with siblings -->
+                <PathIcon Grid.Column="0"
+                          Data="{StaticResource Icon.Link}"
+                          Width="11" Height="11"
+                          Foreground="{StaticResource Brush.TextMuted}"
+                          IsVisible="{Binding ShowLinkIcon}"
+                          ToolTip.Tip="Linked — moves with siblings. Right-click → Ungroup to detach."
+                          Margin="2,0,3,0"
+                          VerticalAlignment="Center"/>
+
+                <!-- part name -->
+                <TextBlock Grid.Column="1"
                            Text="{Binding PartDisplayName}"
                            VerticalAlignment="Center"
                            FontSize="{StaticResource Font.Sm}"
@@ -453,7 +463,7 @@
                            Cursor="Hand"/>
 
                 <!-- visibility -->
-                <Button Grid.Column="1"
+                <Button Grid.Column="2"
                         Theme="{StaticResource Btn.Icon}"
                         Width="22" Height="22"
                         ToolTip.Tip="Toggle visibility"

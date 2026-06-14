@@ -81,6 +81,8 @@ public sealed class LayerTreeItem : INotifyPropertyChanged
     public bool IsGroupKind  => Kind == LayerTreeNodeKind.Group;
     public bool IsPartKind   => Kind == LayerTreeNodeKind.Part;
     public bool IsExpandable => Kind != LayerTreeNodeKind.Part;
-    /// <summary>True for Part nodes that belong to a user-created group (so Ungroup is available).</summary>
+    /// <summary>True for Part nodes that belong to a group (move together on canvas).</summary>
     public bool IsInGroup    => Kind == LayerTreeNodeKind.Part && Part?.GroupId != null;
+    /// <summary>Show a link icon when the part moves with siblings.</summary>
+    public bool ShowLinkIcon => IsInGroup;
 }

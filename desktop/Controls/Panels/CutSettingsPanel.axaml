@@ -29,7 +29,7 @@
                 Theme="{StaticResource Card.Expander}"
                 IsExpanded="True"
                 Margin="8,6,8,0">
-        <Grid ColumnDefinitions="*,90" RowDefinitions="Auto,Auto,Auto,Auto,Auto,Auto">
+        <Grid ColumnDefinitions="*,90" RowDefinitions="Auto,Auto,Auto,Auto,Auto,Auto,Auto">
 
           <TextBlock Grid.Row="0" Grid.Column="0" Text="Feed rate (mm/min)"
                      Classes="muted" VerticalAlignment="Center"/>
@@ -63,11 +63,20 @@
                    Margin="0,8,0,2" LostFocus="OnParamChanged"
                    IsVisible="{Binding CutSettings.IsPlasma}"/>
 
+          <!-- plasma only: rapid (travel) height -->
+          <TextBlock Grid.Row="5" Grid.Column="0" Text="Rapid height (mm)"
+                     Classes="muted" VerticalAlignment="Center" Margin="0,6,0,0"
+                     IsVisible="{Binding CutSettings.IsPlasma}"
+                     ToolTip.Tip="Z height during rapid moves between cuts (clears clamps and slag)"/>
+          <TextBox Grid.Row="5" Grid.Column="1" x:Name="TbRapidHeight"
+                   Margin="0,8,0,2" LostFocus="OnParamChanged"
+                   IsVisible="{Binding CutSettings.IsPlasma}"/>
+
           <!-- laser only -->
-          <TextBlock Grid.Row="5" Grid.Column="0" Text="Laser power (%)"
+          <TextBlock Grid.Row="6" Grid.Column="0" Text="Laser power (%)"
                      Classes="muted" VerticalAlignment="Center" Margin="0,6,0,0"
                      IsVisible="{Binding CutSettings.IsLaser}"/>
-          <TextBox Grid.Row="5" Grid.Column="1" x:Name="TbLaserPower"
+          <TextBox Grid.Row="6" Grid.Column="1" x:Name="TbLaserPower"
                    Margin="0,8,0,2" LostFocus="OnParamChanged"
                    IsVisible="{Binding CutSettings.IsLaser}"/>
         </Grid>

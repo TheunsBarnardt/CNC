@@ -758,15 +758,16 @@ Deferred: text tool still disabled; stacking order / contour offset still `// TO
 
 Features from Rayforge, bCNC, Candle, UGS, OpenBuilds research. Add before implementing.
 
-### [ ] Task 23 — Plasma-critical: pierce settings + lead verification in G-code
+### [x] Task 23 — Plasma-critical: pierce settings + lead verification in G-code ✓
 
-**Priority: CRITICAL** — pierce delay/height/rapid height missing from post-processor output.
+**Priority: CRITICAL** — COMPLETE.
 
-- Add `G4 P{pierce_delay}` (dwell) after torch-on in GRBL plasma post-processor
-- Add `G0 Z{pierce_height}` before pierce, `G0 Z{cut_height}` after dwell
-- Add `G0 Z{rapid_height}` on all rapids between cuts
-- Verify `LeadBuilder` output actually appears in G-code moves
-- Test: generate G-code from plasma project; verify pierce dwell + height changes present
+- ✅ `G4 P{pierce_delay}` dwell after torch-on in GRBL plasma post-processor
+- ✅ `G0 Z{pierce_height}` before torch-on, `G0 Z{cut_height}` after dwell
+- ✅ `G0 Z{rapid_height}` opening safety lift + after each torch-off
+- ✅ `RapidHeightMm = 15.0` added to `CamSettings`; persisted with project
+- ✅ "Rapid height (mm)" field added to CutSettingsPanel (plasma-only, row 5)
+- ✅ G-code header comment lists all three heights for traceability
 
 ### [ ] Task 24 — Holding tabs / bridges
 

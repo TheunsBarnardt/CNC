@@ -26,6 +26,7 @@ public partial class CutSettingsPanel : UserControl
         TbPierceDelay.Text  = s.PierceDelayS.ToString("F2");
         TbCutHeight.Text    = s.CutHeightMm.ToString("F2");
         TbPierceHeight.Text = s.PierceHeightMm.ToString("F2");
+        TbRapidHeight.Text  = s.RapidHeightMm.ToString("F1");
         TbLaserPower.Text   = s.LaserPowerPercent.ToString("F0");
         TbLeadInLen.Text    = s.LeadInLengthMm.ToString("F1");
         TbLeadOutLen.Text   = s.LeadOutLengthMm.ToString("F1");
@@ -62,6 +63,7 @@ public partial class CutSettingsPanel : UserControl
         if (double.TryParse(TbPierceDelay.Text,  out v))     next.PierceDelayS       = v;
         if (double.TryParse(TbCutHeight.Text,    out v))     next.CutHeightMm        = v;
         if (double.TryParse(TbPierceHeight.Text, out v))     next.PierceHeightMm     = v;
+        if (double.TryParse(TbRapidHeight.Text,  out v))     next.RapidHeightMm      = v;
         if (double.TryParse(TbLaserPower.Text,   out v))     next.LaserPowerPercent  = v;
         if (double.TryParse(TbLeadInLen.Text,    out v))     next.LeadInLengthMm     = v;
         if (double.TryParse(TbLeadOutLen.Text,   out v))     next.LeadOutLengthMm    = v;
@@ -120,6 +122,7 @@ public partial class CutSettingsPanel : UserControl
         PierceDelayS       = s.PierceDelayS,
         CutHeightMm        = s.CutHeightMm,
         PierceHeightMm     = s.PierceHeightMm,
+        RapidHeightMm      = s.RapidHeightMm,
         LeadInType         = s.LeadInType,
         LeadInLengthMm     = s.LeadInLengthMm,
         LeadOutType        = s.LeadOutType,

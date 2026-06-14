@@ -41,11 +41,14 @@ public sealed class CamSettings
 
     public double PierceDelayS { get; set; } = 0.5;
 
-    /// <summary>Carried through to the plasma post-processor; not used by geometry.</summary>
+    /// <summary>Z height during cut (THC setpoint, mm above material surface).</summary>
     public double CutHeightMm { get; set; } = 1.5;
 
-    /// <summary>Carried through to the plasma post-processor; not used by geometry.</summary>
+    /// <summary>Z height when torch fires to pierce the material (higher than cut height).</summary>
     public double PierceHeightMm { get; set; } = 3.8;
+
+    /// <summary>Z height for rapid moves between cuts (clears clamps and slag).</summary>
+    public double RapidHeightMm { get; set; } = 15.0;
 
     public LeadType LeadInType { get; set; } = LeadType.Arc;
     public double LeadInLengthMm { get; set; } = 3;

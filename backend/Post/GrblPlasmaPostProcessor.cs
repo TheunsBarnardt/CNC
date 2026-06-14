@@ -8,9 +8,10 @@ namespace Backend.Post;
 /// <summary>
 /// GRBL-dialect plasma post: torch on/off via M3/M5 (spindle-enable pin drives
 /// the torch relay — the standard DIY GRBL plasma wiring), G4 pierce dwell,
-/// absolute mm coordinates. No Z/THC words yet — cut/pierce heights are
-/// emitted as header comments for torch-height controllers that read them;
-/// motion-level Z control belongs to the machine-control milestone.
+/// Z-axis height sequencing (rapid → pierce → cut height), absolute mm (G21 G90).
+/// For machines without THC or manual Z: set RapidHeightMm=0, CutHeightMm=0,
+/// PierceHeightMm=0 to omit all Z moves (the G0 Z0 lines still appear but are
+/// no-ops if your machine has no Z axis wired).
 /// </summary>
 public sealed class GrblPlasmaPostProcessor : IPostProcessor
 {
@@ -35,7 +36,7 @@ public sealed class GrblPlasmaPostProcessor : IPostProcessor
         g.Lines.Add($"; Generated {DateTime.Now:yyyy-MM-dd HH:mm} by DIY GRBL Cutting CAM");
         g.Lines.Add($"; Table {Num(project.Table.WidthMm)}x{Num(project.Table.HeightMm)}mm, work origin: {project.Table.Origin}");
         g.Lines.Add($"; Kerf {Num(cam.KerfWidthMm)}mm (compensated in path) | Feed {Num(cam.FeedRateMmMin)}mm/min | Pierce delay {Num(cam.PierceDelayS)}s");
-        g.Lines.Add($"; Cut height {Num(cam.CutHeightMm)}mm, pierce height {Num(cam.PierceHeightMm)}mm (advisory — no Z control in this post)");
+        g.Lines.Add($"; Heights — rapid Z{Num(cam.RapidHeightMm)}mm | pierce Z{Num(cam.PierceHeightMm)}mm | cut Z{Num(cam.CutHeightMm)}mm");
         foreach (var warning in toolpath.Warnings)
             g.Lines.Add($"; WARNING: {warning}");
         g.Warnings.AddRange(toolpath.Warnings);
@@ -47,7 +48,8 @@ public sealed class GrblPlasmaPostProcessor : IPostProcessor
         g.Lines.Add("G90 ; absolute coordinates");
         g.Lines.Add("G17 ; XY plane");
         g.Lines.Add("G94 ; feed per minute");
-        g.Lines.Add("M5 ; torch off (safety: known state before any motion)");
+        g.Lines.Add("M5 ; torch off (safety)");
+        g.Lines.Add($"G0 Z{Num(cam.RapidHeightMm)} ; lift to rapid height");
 
         int n = 0;
         foreach (var cut in toolpath.Cuts)
@@ -55,23 +57,32 @@ public sealed class GrblPlasmaPostProcessor : IPostProcessor
             n++;
             g.Lines.Add($"; --- cut {n}/{toolpath.Cuts.Count}: {cut.Side}" +
                         (cut.Layer is null ? "" : $", layer {cut.Layer}") +
-                        $", {Num(Math.Round(cut.CutLengthMm(), 1))}mm ---");
+                        $", {Num(Math.Round(cut.CutLengthMm(), 1))}mm" +
+                        (cut.LeadInPointCount > 0 ? $", lead-in {cut.LeadInPointCount}pts" : "") +
+                        (cut.LeadOutPointCount > 0 ? $", lead-out {cut.LeadOutPointCount}pts" : "") +
+                        " ---");
 
-            g.Lines.Add($"G0 {Xy(cut.Points[0], workOrigin)}");
+            // Rapid XY to pierce point (already at rapid height from previous lift)
+            g.Lines.Add($"G0 {Xy(cut.Points[0], workOrigin)} ; rapid to pierce");
+            // Lower to pierce height
+            g.Lines.Add($"G0 Z{Num(cam.PierceHeightMm)} ; pierce height");
+            // Fire torch and dwell
             g.Lines.Add("M3 S1000 ; torch on");
             if (cut.PierceDelayS > 0)
-                g.Lines.Add($"G4 P{Num(cut.PierceDelayS)} ; pierce");
+                g.Lines.Add($"G4 P{Num(cut.PierceDelayS)} ; pierce dwell");
+            // Drop to cut height
+            g.Lines.Add($"G0 Z{Num(cam.CutHeightMm)} ; cut height");
 
-            // Feed word on the first cutting move of every cut: feeds may vary
-            // per cut once material profiles arrive, and a stray program start
-            // mid-file still carries a feed.
+            // Feed through all cut points (lead-in → cut → lead-out are all in Points)
             for (int i = 1; i < cut.Points.Count; i++)
             {
                 string feed = i == 1 ? $" F{Num(cut.FeedRateMmMin)}" : "";
                 g.Lines.Add($"G1 {Xy(cut.Points[i], workOrigin)}{feed}");
             }
 
+            // Torch off, lift to rapid height
             g.Lines.Add("M5 ; torch off");
+            g.Lines.Add($"G0 Z{Num(cam.RapidHeightMm)} ; lift to rapid height");
         }
 
         g.Lines.Add("G0 X0 Y0 ; park at work origin");

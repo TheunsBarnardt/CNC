@@ -210,56 +210,19 @@ public sealed class MainViewModel : ObservableObject
     /// same canvas position so multi-layer artwork stays aligned. Falls back to
     /// a single part when the file has no layer metadata.
     /// </summary>
+    /// <summary>
+    /// Adds an imported file to the project as a single unit.
+    /// SVG/DXF internal layers are preserved as PathGeometry.Layer metadata
+    /// (used for viewport colouring) but do NOT create project layers.
+    /// The user controls project layers manually.
+    /// </summary>
     private List<ImportedFile> SplitImportByLayer(Project p, ImportedFile imported, string fileName)
     {
-        var groups = imported.Paths
-            .GroupBy(pg => string.IsNullOrEmpty(pg.Layer) ? null : pg.Layer)
-            .ToList();
-
-        bool hasLayers = groups.Count > 1 || groups[0].Key is not null;
-
-        if (!hasLayers)
-        {
-            p.Files.Add(imported);
-            var part = PartPlacer.PlaceNew(p, imported);
-            part.LayerId = ActiveLayerId(p);
-            p.Parts.Add(part);
-            return [imported];
-        }
-
-        // Multi-layer: create one sub-file+part per SVG/DXF layer.
-        // First part uses PlaceNew for auto-positioning; the rest share its X,Y
-        // so all layers stack on top of each other (same artwork, different operations).
-        // All parts (and sub-files) share a GroupId so they move as a unit.
-        var groupId = Guid.NewGuid();
-        var result = new List<ImportedFile>();
-        double? anchorX = null, anchorY = null;
-        var baseName = System.IO.Path.GetFileNameWithoutExtension(fileName);
-
-        foreach (var group in groups)
-        {
-            var layerName = group.Key ?? baseName;
-            var subFile = new ImportedFile
-            {
-                FileName    = imported.FileName,
-                DisplayName = layerName,
-                Kind        = imported.Kind,
-                GroupId     = groupId,
-            };
-            foreach (var pg in group) subFile.Paths.Add(pg);
-
-            p.Files.Add(subFile);
-            var part = PartPlacer.PlaceNew(p, subFile);
-            if (anchorX.HasValue) { part.X = anchorX.Value; part.Y = anchorY!.Value; }
-            else                  { anchorX = part.X; anchorY = part.Y; }
-            part.GroupId = groupId;
-            var color = imported.LayerColors.GetValueOrDefault(layerName);
-            part.LayerId = CreatePartLayer(p, layerName, color).Id;
-            p.Parts.Add(part);
-            result.Add(subFile);
-        }
-
-        return result;
+        p.Files.Add(imported);
+        var part = PartPlacer.PlaceNew(p, imported);
+        part.LayerId = ActiveLayerId(p);
+        p.Parts.Add(part);
+        return [imported];
     }
 
     // ── New / Save / Load ─────────────────────────────────────────────────

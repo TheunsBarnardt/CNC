@@ -87,6 +87,8 @@ public sealed class ViewportControl : Control
     public event Action<Part     >? PartCommitted;
     /// <summary>Fires at the START of any move/resize/rotate drag — use to checkpoint undo.</summary>
     public event Action? TransformStarted;
+    /// <summary>Fires when a node is selected in node-edit mode. Passes world X,Y or null when deselected.</summary>
+    public event Action<double?, double?>? NodeSelected;
     /// <summary>Fires when user drags from a ruler to create a guide.</summary>
     public event Action<double, double, double>? GuideCreateRequested; // (worldX, worldY, angleDeg)
     /// <summary>Fires when user finishes moving a guide.</summary>
@@ -1281,6 +1283,33 @@ public sealed class ViewportControl : Control
             }
         }
         _selectedNodeIndex = hitNode;
+
+        // Fire event so toolbar can display node world position
+        if (hitNode.HasValue && part is not null)
+        {
+            // Walk geom in the same order as HitTestNode above to find the node world pos
+            int ni = 0;
+            double? evtX = null, evtY = null;
+            foreach (var pg in geom)
+            {
+                for (int i = 0; i < pg.Polyline.Points.Count; i++, ni++)
+                {
+                    if (ni == hitNode.Value)
+                    {
+                        var w = PartTransform.Apply(part, pivot, pg.Polyline.Points[i]);
+                        evtX = w.X; evtY = w.Y;
+                        goto nodeFound;
+                    }
+                }
+            }
+            nodeFound:
+            NodeSelected?.Invoke(evtX, evtY);
+        }
+        else
+        {
+            NodeSelected?.Invoke(null, null);
+        }
+
         InvalidateVisual();
     }
 

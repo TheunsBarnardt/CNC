@@ -11,42 +11,65 @@ public partial class NodeEditToolbar : UserControl
     public NodeEditToolbar()
     {
         InitializeComponent();
-        DataContextChanged += (_, _) =>
+    }
+
+    /// <summary>Called by MainWindow when viewport fires NodeSelected.</summary>
+    public void OnNodeSelected(double? x, double? y)
+    {
+        bool hasNode = x.HasValue && y.HasValue;
+        TbNodeX.Text       = hasNode ? x!.Value.ToString("F3") : "";
+        TbNodeY.Text       = hasNode ? y!.Value.ToString("F3") : "";
+        TbNodeX.IsEnabled  = hasNode;
+        TbNodeY.IsEnabled  = hasNode;
+    }
+
+    // ── X/Y position editing ──────────────────────────────────────────────
+
+    private void OnNodeXChanged(object? s, RoutedEventArgs e)
+    {
+        if (Vm is null || string.IsNullOrWhiteSpace(TbNodeX.Text)) return;
+        Vm.StatusText = "Node X move: node position editing coming in a future task";
+    }
+
+    private void OnNodeYChanged(object? s, RoutedEventArgs e)
+    {
+        if (Vm is null || string.IsNullOrWhiteSpace(TbNodeY.Text)) return;
+        Vm.StatusText = "Node Y move: node position editing coming in a future task";
+    }
+
+    // ── Node alignment ────────────────────────────────────────────────────
+
+    private void OnNodeAlignLeft   (object? s, RoutedEventArgs e) => Vm?.AlignNodesLeft();
+    private void OnNodeAlignHCenter(object? s, RoutedEventArgs e) => Vm?.AlignNodesHCenter();
+    private void OnNodeAlignRight  (object? s, RoutedEventArgs e) => Vm?.AlignNodesRight();
+    private void OnNodeAlignTop    (object? s, RoutedEventArgs e) => Vm?.AlignNodesTop();
+    private void OnNodeAlignVCenter(object? s, RoutedEventArgs e) => Vm?.AlignNodesVCenter();
+    private void OnNodeAlignBottom (object? s, RoutedEventArgs e) => Vm?.AlignNodesBottom();
+
+    // ── Node type ─────────────────────────────────────────────────────────
+
+    private void OnNodeSmooth    (object? s, RoutedEventArgs e) { SetActiveNodeBtn(BtnNodeSmooth);     Vm?.SetNodeTypeSmoothSym(); }
+    private void OnNodeSmoothAsym(object? s, RoutedEventArgs e) { SetActiveNodeBtn(BtnNodeSmoothAsym); Vm?.SetNodeTypeSmoothAsym(); }
+    private void OnNodeCorner    (object? s, RoutedEventArgs e) { SetActiveNodeBtn(BtnNodeCorner);     Vm?.SetNodeTypeCorner(); }
+    private void OnNodeCusp      (object? s, RoutedEventArgs e) { SetActiveNodeBtn(BtnNodeCusp);       Vm?.SetNodeTypeCusp(); }
+
+    private void SetActiveNodeBtn(Button active)
+    {
+        foreach (var b in new[] { BtnNodeSmooth, BtnNodeSmoothAsym, BtnNodeCorner, BtnNodeCusp })
         {
-            if (Vm is not null)
-                ComplexityInfo.Text = Vm.CalculateComplexity();
-        };
+            if (b.Classes.Contains("active")) b.Classes.Remove("active");
+        }
+        if (!active.Classes.Contains("active")) active.Classes.Add("active");
     }
 
-    private void OnToggleSmooth(object? sender, RoutedEventArgs e)
-    {
-        if (Vm is null) return;
-        Vm.StatusText = "Node smooth: mark selected node as smooth (Bézier curve)";
-    }
+    // ── Extra tools ───────────────────────────────────────────────────────
 
-    private void OnToggleSharp(object? sender, RoutedEventArgs e)
-    {
-        if (Vm is null) return;
-        Vm.StatusText = "Node sharp: remove Bézier handles from selected node";
-    }
+    private void OnNodeTransform(object? s, RoutedEventArgs e) => Vm?.ScaleSelectedNodes();
+    private void OnNodeAdd      (object? s, RoutedEventArgs e) => Vm?.AddOrJoinNode();
+    private void OnSimplify     (object? s, RoutedEventArgs e) => Vm?.SimplifyPath();
+    private void OnScissors     (object? s, RoutedEventArgs e) => Vm?.SplitPathAtNode();
 
-    private void OnAutoSmooth(object? sender, RoutedEventArgs e)
-    {
-        if (Vm is null) return;
-        Vm.AutoSmoothNode();
-        ComplexityInfo.Text = Vm.CalculateComplexity();
-    }
+    // ── Done ──────────────────────────────────────────────────────────────
 
-    private void OnScissors(object? sender, RoutedEventArgs e)
-    {
-        if (Vm is null) return;
-        Vm.SplitPathAtNode();
-        ComplexityInfo.Text = Vm.CalculateComplexity();
-    }
-
-    private void OnDone(object? sender, RoutedEventArgs e)
-    {
-        if (Vm is null) return;
-        Vm.ExitNodeEditMode();
-    }
+    private void OnDone(object? s, RoutedEventArgs e) => Vm?.ExitNodeEditMode();
 }

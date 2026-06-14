@@ -86,4 +86,18 @@
   <StreamGeometry x:Key="Icon.CornerRound">M5,19 V12 C5,8 8,5 12,5 H19</StreamGeometry>
   <StreamGeometry x:Key="Icon.CornerBevel">M5,19 V13 L13,5 H19</StreamGeometry>
 
+  <!-- Node editing icons -->
+  <!-- Smooth symmetric: S-curve with equal handles marked -->
+  <StreamGeometry x:Key="Icon.NodeSmooth">M3,17 C7,5 17,5 21,17 M9,11 A1.5 1.5 0 1 0 12 11 A1.5 1.5 0 1 0 9 11</StreamGeometry>
+  <!-- Smooth asymmetric: S-curve with tangent tick mark -->
+  <StreamGeometry x:Key="Icon.NodeSmoothAsym">M3,17 C6,5 16,7 21,17 M10,10 L14,12 M12,11 A1.5 1.5 0 1 0 15 11 A1.5 1.5 0 1 0 12 11</StreamGeometry>
+  <!-- Corner: V-shape, handles diverge -->
+  <StreamGeometry x:Key="Icon.NodeCorner">M3,18 L12,6 L21,18 M12,6 A1.5 1.5 0 1 0 15 6 A1.5 1.5 0 1 0 12 6</StreamGeometry>
+  <!-- Cusp: sharp point, no handles -->
+  <StreamGeometry x:Key="Icon.NodeCusp">M4,18 L12,5 L20,18 M10.5,5 H13.5 V8 H10.5 Z</StreamGeometry>
+  <!-- Node transform: bounding box with resize arrows -->
+  <StreamGeometry x:Key="Icon.NodeTransform">F0 M4,4 H20 V20 H4 Z M9,4 A2 2 0 1 0 13 4 A2 2 0 1 0 9 4 Z M9,20 A2 2 0 1 0 13 20 A2 2 0 1 0 9 20 Z M4,9 A2 2 0 1 0 4 13 A2 2 0 1 0 4 9 Z M20,9 A2 2 0 1 0 20 13 A2 2 0 1 0 20 9 Z</StreamGeometry>
+  <!-- Node add / join: plus on a path -->
+  <StreamGeometry x:Key="Icon.NodeAdd">M3,12 H21 M9,6 A3 3 0 1 0 9 18 A3 3 0 1 0 9 6 Z M16,9 H19 V12 H16 Z M17.5,9 V6 M17.5,15 V12</StreamGeometry>
+
 </ResourceDictionary>

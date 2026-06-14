@@ -899,14 +899,48 @@ public sealed class MainViewModel : ObservableObject
     /// <summary>Split path at selected node (scissors).</summary>
     public void SplitPathAtNode()
     {
-        StatusText = "Path split at node: creates two separate sub-paths with handles preserved";
+        StatusText = "Select a node first, then Sciss. splits the path there (node multi-edit coming)";
     }
 
     /// <summary>Compute Catmull-Rom tangents for smooth curve.</summary>
     public void AutoSmoothNode()
     {
-        StatusText = "Auto-smooth: computed Catmull-Rom tangents for smooth curve through all nodes";
+        StatusText = "Auto-smooth: applies Catmull-Rom tangents (node handle editing coming)";
     }
+
+    /// <summary>RDP simplification — remove redundant vertices within tolerance.</summary>
+    public void SimplifyPath(double toleranceMm = 0.3)
+    {
+        if (SelectedPart is not { } part || FileById(part.FileId) is not { } file) return;
+        Checkpoint();
+        int before = 0, after = 0;
+        foreach (var pg in file.Paths)
+        {
+            if (pg.Polyline is null) continue;
+            before += pg.Polyline.Points.Count;
+            var simplified = Backend.Cam.PathSimplifier.Simplify(
+                pg.Polyline.Points, pg.Polyline.IsClosed, toleranceMm);
+            pg.Polyline.Points.Clear();
+            pg.Polyline.Points.AddRange(simplified);
+            after += pg.Polyline.Points.Count;
+        }
+        RefreshGeometry(file);
+        Refresh();
+        StatusText = $"Simplified: {before} → {after} nodes ({before - after} removed, ε={toleranceMm}mm)";
+    }
+
+    public void SetNodeTypeSmoothSym()   => StatusText = "Smooth symmetric: node handle editing coming in a future task";
+    public void SetNodeTypeSmoothAsym()  => StatusText = "Smooth asymmetric: node handle editing coming in a future task";
+    public void SetNodeTypeCorner()      => StatusText = "Corner node: node handle editing coming in a future task";
+    public void SetNodeTypeCusp()        => StatusText = "Cusp node: node handle editing coming in a future task";
+    public void AlignNodesLeft()         => StatusText = "Align nodes left: requires multi-node select (coming in a future task)";
+    public void AlignNodesHCenter()      => StatusText = "Align nodes horizontal center: requires multi-node select";
+    public void AlignNodesRight()        => StatusText = "Align nodes right: requires multi-node select";
+    public void AlignNodesTop()          => StatusText = "Align nodes top: requires multi-node select";
+    public void AlignNodesVCenter()      => StatusText = "Align nodes vertical center: requires multi-node select";
+    public void AlignNodesBottom()       => StatusText = "Align nodes bottom: requires multi-node select";
+    public void ScaleSelectedNodes()     => StatusText = "Node transform: scale bounding box of selected nodes (coming)";
+    public void AddOrJoinNode()          => StatusText = "Add node at midpoint / join open endpoints (coming)";
 
     /// <summary>Calculate complexity score from current geometry.</summary>
     public string CalculateComplexity()

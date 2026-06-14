@@ -43,6 +43,7 @@ public partial class MainWindow : Window
         // Guide events
         Viewport.GuideCreateRequested += (x, y, angleDeg) =>
             vm.AddGuide(new Backend.Models.Guide { X = x, Y = y, AngleDeg = angleDeg });
+        Viewport.NodeSelected  += (x, y) => NodeEditBar.OnNodeSelected(x, y);
         Viewport.GuideMoved    += guide => vm.UpdateGuide(guide);
         Viewport.GuideEditRequested += async guide =>
         {

@@ -7,53 +7,135 @@
   <Border Background="{StaticResource Brush.Bg2}"
           BorderBrush="{StaticResource Brush.Border}"
           BorderThickness="0,1,0,0"
-          Padding="8,4">
+          Padding="8,3">
     <ScrollViewer HorizontalScrollBarVisibility="Auto"
                   VerticalScrollBarVisibility="Disabled">
-      <StackPanel Orientation="Horizontal" Spacing="4">
+      <StackPanel Orientation="Horizontal" Spacing="2" VerticalAlignment="Center">
 
-        <!-- Node position X/Y -->
-        <TextBlock Text="X" Classes="muted" VerticalAlignment="Center"/>
-        <TextBox x:Name="TbNodeX" Width="60" Watermark="X" IsEnabled="False"/>
-        <TextBlock Text="Y" Classes="muted" VerticalAlignment="Center" Margin="8,0,0,0"/>
-        <TextBox x:Name="TbNodeY" Width="60" Watermark="Y" IsEnabled="False"/>
+        <!-- ── X / Y node position ── -->
+        <Grid RowDefinitions="Auto,Auto" ColumnDefinitions="14,64" VerticalAlignment="Center">
+          <TextBlock Grid.Row="0" Grid.Column="0" Text="X" Classes="muted"
+                     VerticalAlignment="Center" FontSize="{StaticResource Font.Xs}" Margin="0,0,4,0"/>
+          <TextBox   Grid.Row="0" Grid.Column="1" x:Name="TbNodeX"
+                     FontSize="{StaticResource Font.Xs}" Padding="4,2"
+                     Margin="0,1" LostFocus="OnNodeXChanged"
+                     PlaceholderText="—" IsEnabled="False"/>
+          <TextBlock Grid.Row="1" Grid.Column="0" Text="Y" Classes="muted"
+                     VerticalAlignment="Center" FontSize="{StaticResource Font.Xs}" Margin="0,0,4,0"/>
+          <TextBox   Grid.Row="1" Grid.Column="1" x:Name="TbNodeY"
+                     FontSize="{StaticResource Font.Xs}" Padding="4,2"
+                     Margin="0,1" LostFocus="OnNodeYChanged"
+                     PlaceholderText="—" IsEnabled="False"/>
+        </Grid>
 
-        <Separator Theme="{StaticResource Sep.Vertical}"/>
+        <Separator Theme="{StaticResource Sep.Vertical}" Margin="4,0"/>
 
-        <!-- Smooth/Sharp toggle -->
-        <Button x:Name="BtnSmooth" Theme="{StaticResource Btn.Icon}"
-                ToolTip.Tip="Smooth corner (Bézier)" Click="OnToggleSmooth">
-          <PathIcon Data="{StaticResource Icon.Smooth}" Width="16" Height="16"/>
+        <!-- ── Node alignment (2×3) ── -->
+        <Grid RowDefinitions="Auto,Auto" ColumnDefinitions="24,24,24" VerticalAlignment="Center">
+          <Button Grid.Row="0" Grid.Column="0" Theme="{StaticResource Btn.Icon}"
+                  Width="22" Height="22" ToolTip.Tip="Align nodes left"
+                  Click="OnNodeAlignLeft">
+            <PathIcon Data="{StaticResource Icon.AlignLeft}" Width="13" Height="13"/>
+          </Button>
+          <Button Grid.Row="0" Grid.Column="1" Theme="{StaticResource Btn.Icon}"
+                  Width="22" Height="22" ToolTip.Tip="Align nodes horizontal center"
+                  Click="OnNodeAlignHCenter">
+            <PathIcon Data="{StaticResource Icon.Center}" Width="13" Height="13"/>
+          </Button>
+          <Button Grid.Row="0" Grid.Column="2" Theme="{StaticResource Btn.Icon}"
+                  Width="22" Height="22" ToolTip.Tip="Align nodes right"
+                  Click="OnNodeAlignRight">
+            <PathIcon Data="{StaticResource Icon.AlignRight}" Width="13" Height="13"/>
+          </Button>
+          <Button Grid.Row="1" Grid.Column="0" Theme="{StaticResource Btn.Icon}"
+                  Width="22" Height="22" ToolTip.Tip="Align nodes top"
+                  Click="OnNodeAlignTop">
+            <PathIcon Data="{StaticResource Icon.AlignTop}" Width="13" Height="13"/>
+          </Button>
+          <Button Grid.Row="1" Grid.Column="1" Theme="{StaticResource Btn.Icon}"
+                  Width="22" Height="22" ToolTip.Tip="Align nodes vertical center"
+                  Click="OnNodeAlignVCenter">
+            <PathIcon Data="{StaticResource Icon.AlignBottom}" Width="13" Height="13"/>
+          </Button>
+          <Button Grid.Row="1" Grid.Column="2" Theme="{StaticResource Btn.Icon}"
+                  Width="22" Height="22" ToolTip.Tip="Align nodes bottom"
+                  Click="OnNodeAlignBottom">
+            <PathIcon Data="{StaticResource Icon.AlignBottom}" Width="13" Height="13"/>
+          </Button>
+        </Grid>
+
+        <Separator Theme="{StaticResource Sep.Vertical}" Margin="4,0"/>
+
+        <!-- ── Node type (2×2) ── -->
+        <Grid RowDefinitions="Auto,Auto" ColumnDefinitions="24,24" VerticalAlignment="Center">
+          <Button Grid.Row="0" Grid.Column="0" x:Name="BtnNodeSmooth"
+                  Theme="{StaticResource Btn.Icon}" Width="22" Height="22"
+                  ToolTip.Tip="Smooth symmetric — equal Bézier handles"
+                  Click="OnNodeSmooth">
+            <PathIcon Data="{StaticResource Icon.NodeSmooth}" Width="13" Height="13"/>
+          </Button>
+          <Button Grid.Row="0" Grid.Column="1" x:Name="BtnNodeSmoothAsym"
+                  Theme="{StaticResource Btn.Icon}" Width="22" Height="22"
+                  ToolTip.Tip="Smooth asymmetric — tangent Bézier handles"
+                  Click="OnNodeSmoothAsym">
+            <PathIcon Data="{StaticResource Icon.NodeSmoothAsym}" Width="13" Height="13"/>
+          </Button>
+          <Button Grid.Row="1" Grid.Column="0" x:Name="BtnNodeCorner"
+                  Theme="{StaticResource Btn.Icon}" Width="22" Height="22"
+                  ToolTip.Tip="Corner — sharp with independent handles"
+                  Click="OnNodeCorner">
+            <PathIcon Data="{StaticResource Icon.NodeCorner}" Width="13" Height="13"/>
+          </Button>
+          <Button Grid.Row="1" Grid.Column="1" x:Name="BtnNodeCusp"
+                  Theme="{StaticResource Btn.Icon}" Width="22" Height="22"
+                  ToolTip.Tip="Cusp — sharp point, no handles"
+                  Click="OnNodeCusp">
+            <PathIcon Data="{StaticResource Icon.NodeCusp}" Width="13" Height="13"/>
+          </Button>
+        </Grid>
+
+        <Separator Theme="{StaticResource Sep.Vertical}" Margin="4,0"/>
+
+        <!-- ── Extra tools (2×1) ── -->
+        <Grid RowDefinitions="Auto,Auto" ColumnDefinitions="24" VerticalAlignment="Center">
+          <Button Grid.Row="0" Theme="{StaticResource Btn.Icon}" Width="22" Height="22"
+                  ToolTip.Tip="Scale/transform selected nodes" Click="OnNodeTransform">
+            <PathIcon Data="{StaticResource Icon.NodeTransform}" Width="13" Height="13"/>
+          </Button>
+          <Button Grid.Row="1" Theme="{StaticResource Btn.Icon}" Width="22" Height="22"
+                  ToolTip.Tip="Add node at midpoint / join endpoints" Click="OnNodeAdd">
+            <PathIcon Data="{StaticResource Icon.NodeAdd}" Width="13" Height="13"/>
+          </Button>
+        </Grid>
+
+        <Separator Theme="{StaticResource Sep.Vertical}" Margin="4,0"/>
+
+        <!-- ── Simplify / Scissors text buttons ── -->
+        <StackPanel VerticalAlignment="Center" Spacing="2">
+          <Button x:Name="BtnSimplify" Theme="{StaticResource Btn.Ghost}" Padding="6,3"
+                  FontSize="{StaticResource Font.Xs}"
+                  ToolTip.Tip="Remove redundant nodes (RDP simplification)"
+                  Click="OnSimplify">
+            Simpl.
+          </Button>
+          <Button x:Name="BtnScissors" Theme="{StaticResource Btn.Ghost}" Padding="6,3"
+                  FontSize="{StaticResource Font.Xs}"
+                  ToolTip.Tip="Split path at selected node"
+                  Click="OnScissors">
+            Sciss.
+          </Button>
+        </StackPanel>
+
+        <Separator Theme="{StaticResource Sep.Vertical}" Margin="4,0"/>
+
+        <!-- ── Done (green) ── -->
+        <Button x:Name="BtnDone" Theme="{StaticResource Btn.Primary}" Padding="10,6"
+                Click="OnDone" VerticalAlignment="Center">
+          <StackPanel Orientation="Horizontal" Spacing="5">
+            <PathIcon Data="{StaticResource Icon.Check}" Width="12" Height="12"/>
+            <TextBlock Text="Done" VerticalAlignment="Center"/>
+          </StackPanel>
         </Button>
-        <Button x:Name="BtnSharp" Theme="{StaticResource Btn.Icon}"
-                ToolTip.Tip="Sharp corner" Click="OnToggleSharp">
-          <PathIcon Data="{StaticResource Icon.Sharp}" Width="16" Height="16"/>
-        </Button>
-
-        <!-- Auto-smooth -->
-        <Button x:Name="BtnAutoSmooth" Theme="{StaticResource Btn.Icon}"
-                ToolTip.Tip="Auto-smooth (Catmull-Rom)" Click="OnAutoSmooth">
-          <PathIcon Data="{StaticResource Icon.AutoSmooth}" Width="16" Height="16"/>
-        </Button>
-
-        <Separator Theme="{StaticResource Sep.Vertical}"/>
-
-        <!-- Scissors (split path) -->
-        <Button x:Name="BtnScissors" Theme="{StaticResource Btn.Icon}"
-                ToolTip.Tip="Split path at node" Click="OnScissors">
-          <PathIcon Data="{StaticResource Icon.Scissors}" Width="16" Height="16"/>
-        </Button>
-
-        <Separator Theme="{StaticResource Sep.Vertical}"/>
-
-        <!-- Complexity indicator -->
-        <TextBlock x:Name="ComplexityInfo" Text="Complexity: —"
-                  VerticalAlignment="Center" FontSize="12" Foreground="#999"
-                  Margin="8,0"/>
-
-        <!-- Done button -->
-        <Button x:Name="BtnDone" Content="Done" Theme="{StaticResource Btn.Ghost}"
-                Click="OnDone" HorizontalAlignment="Right"/>
 
       </StackPanel>
     </ScrollViewer>

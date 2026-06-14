@@ -77,8 +77,10 @@ public sealed class LayerTreeItem : INotifyPropertyChanged
     }
 
     // Convenience type discriminators for XAML
-    public bool IsLayerKind => Kind == LayerTreeNodeKind.Layer;
-    public bool IsGroupKind => Kind == LayerTreeNodeKind.Group;
-    public bool IsPartKind  => Kind == LayerTreeNodeKind.Part;
+    public bool IsLayerKind  => Kind == LayerTreeNodeKind.Layer;
+    public bool IsGroupKind  => Kind == LayerTreeNodeKind.Group;
+    public bool IsPartKind   => Kind == LayerTreeNodeKind.Part;
     public bool IsExpandable => Kind != LayerTreeNodeKind.Part;
+    /// <summary>True for Part nodes that belong to a user-created group (so Ungroup is available).</summary>
+    public bool IsInGroup    => Kind == LayerTreeNodeKind.Part && Part?.GroupId != null;
 }

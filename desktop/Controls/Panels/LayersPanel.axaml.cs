@@ -236,6 +236,22 @@ public partial class LayersPanel : UserControl
         }
     }
 
+    private void OnCtxUngroupFromPart(object? s, RoutedEventArgs e)
+    {
+        // Ungroup the whole group that contains this part
+        var node = TagFromSender<LayerTreeItem>(s);
+        if (node?.Part?.GroupId is { } gid)
+        {
+            // Build a synthetic group node and delegate to existing ungroup logic
+            var groupNode = new LayerTreeItem
+            {
+                Kind    = LayerTreeNodeKind.Group,
+                GroupId = gid,
+            };
+            Vm?.UngroupTreeNode(groupNode);
+        }
+    }
+
     /// <summary>Extracts the Tag from either a MenuItem or Button sender.</summary>
     private static T? TagFromSender<T>(object? sender) where T : class
     {

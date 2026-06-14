@@ -285,13 +285,13 @@
           </Border>
 
           <!-- Panel switcher — panels share the DataContext from MainWindow -->
-          <Panel x:Name="PanelHost">
-            <panels:FilesPanel    x:Name="PnlFiles"   IsVisible="True"/>
-            <panels:LayersPanel   x:Name="PnlLayers"  IsVisible="False"/>
-            <panels:CutSettingsPanel x:Name="PnlCut"  IsVisible="False"/>
-            <panels:NestPanel     x:Name="PnlNest"    IsVisible="False"/>
-            <panels:GcodePanel    x:Name="PnlGcode"   IsVisible="False"/>
-            <panels:DevicePanel   x:Name="PnlDevice"  IsVisible="False"/>
+          <Panel x:Name="PanelHost" VerticalAlignment="Stretch">
+            <panels:FilesPanel    x:Name="PnlFiles"   IsVisible="True" VerticalAlignment="Stretch"/>
+            <panels:LayersPanel   x:Name="PnlLayers"  IsVisible="False" VerticalAlignment="Stretch"/>
+            <panels:CutSettingsPanel x:Name="PnlCut"  IsVisible="False" VerticalAlignment="Stretch"/>
+            <panels:NestPanel     x:Name="PnlNest"    IsVisible="False" VerticalAlignment="Stretch"/>
+            <panels:GcodePanel    x:Name="PnlGcode"   IsVisible="False" VerticalAlignment="Stretch"/>
+            <panels:DevicePanel   x:Name="PnlDevice"  IsVisible="False" VerticalAlignment="Stretch"/>
           </Panel>
 
         </DockPanel>

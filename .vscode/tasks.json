@@ -2,6 +2,17 @@
   "version": "2.0.0",
   "tasks": [
     {
+      "label": "build-desktop",
+      "type": "process",
+      "command": "dotnet",
+      "args": ["build", "${workspaceFolder}/desktop/desktop.csproj"],
+      "problemMatcher": "$msCompile",
+      "group": {
+        "kind": "build",
+        "isDefault": true
+      }
+    },
+    {
       "label": "build-backend",
       "type": "process",
       "command": "dotnet",
@@ -9,25 +20,35 @@
       "problemMatcher": "$msCompile"
     },
     {
-      "label": "start-frontend",
+      "label": "run-desktop",
+      "type": "process",
+      "command": "dotnet",
+      "args": ["run", "--project", "${workspaceFolder}/desktop/desktop.csproj"],
+      "cwd": "${workspaceFolder}/desktop"
+    },
+    {
+      "label": "rebuild-desktop",
       "type": "shell",
-      "command": "npm run dev",
-      "options": { "cwd": "${workspaceFolder}/frontend" },
-      "isBackground": true,
-      // Background problem matcher so VS Code knows when Vite is "ready" and
-      // can proceed to launch the browser (instead of waiting forever).
-      "problemMatcher": {
-        "owner": "vite",
-        "pattern": {
-          "regexp": "."
-        },
-        "background": {
-          "activeOnStart": true,
-          "beginsPattern": "VITE",
-          "endsPattern": "Local:.*"
-        }
-      },
-      "presentation": { "reveal": "silent", "panel": "dedicated" }
+      "command": "dotnet clean && dotnet build",
+      "args": ["${workspaceFolder}/desktop/desktop.csproj"],
+      "cwd": "${workspaceFolder}/desktop",
+      "problemMatcher": "$msCompile"
+    },
+    {
+      "label": "test",
+      "type": "process",
+      "command": "dotnet",
+      "args": ["test"],
+      "cwd": "${workspaceFolder}",
+      "problemMatcher": "$msCompile"
+    },
+    {
+      "label": "clean",
+      "type": "process",
+      "command": "dotnet",
+      "args": ["clean"],
+      "cwd": "${workspaceFolder}",
+      "problemMatcher": "$msCompile"
     }
   ]
 }

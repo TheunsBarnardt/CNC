@@ -2,35 +2,42 @@
   "version": "0.2.0",
   "configurations": [
     {
-      "name": "Backend (ASP.NET Core)",
+      "name": "DIY GRBL CNC — Debug",
       "type": "coreclr",
       "request": "launch",
-      "preLaunchTask": "build-backend",
-      "program": "${workspaceFolder}/backend/bin/Debug/net10.0/backend.dll",
-      "cwd": "${workspaceFolder}/backend",
-      "env": {
-        "ASPNETCORE_ENVIRONMENT": "Development",
-        "ASPNETCORE_URLS": "http://localhost:5100"
-      },
-      "serverReadyAction": {
-        "action": "openExternally",
-        "pattern": "\\bNow listening on:\\s+(https?://\\S+)",
-        "uriFormat": "%s/api/health"
+      "preLaunchTask": "build-desktop",
+      "program": "${workspaceFolder}/desktop/bin/Debug/net10.0/Desktop.dll",
+      "cwd": "${workspaceFolder}/desktop",
+      "stopAtEntry": false,
+      "console": "integratedTerminal",
+      "sourceLanguages": ["csharp"],
+      "logging": {
+        "moduleLoad": true,
+        "programOutput": true
       }
     },
     {
-      "name": "Frontend (Vite + Chrome)",
-      "type": "chrome",
+      "name": "DIY GRBL CNC — Run",
+      "type": "coreclr",
       "request": "launch",
-      "preLaunchTask": "start-frontend",
-      "url": "http://localhost:5173",
-      "webRoot": "${workspaceFolder}/frontend/src"
+      "preLaunchTask": "build-desktop",
+      "program": "${workspaceFolder}/desktop/bin/Debug/net10.0/Desktop.dll",
+      "cwd": "${workspaceFolder}/desktop",
+      "stopAtEntry": false,
+      "console": "integratedTerminal",
+      "noDebug": true
+    },
+    {
+      "name": "DIY GRBL CNC — Attach to Process",
+      "type": "coreclr",
+      "request": "attach",
+      "processId": "${command:pickProcess}"
     }
   ],
   "compounds": [
     {
-      "name": "Full stack (backend + frontend)",
-      "configurations": ["Backend (ASP.NET Core)", "Frontend (Vite + Chrome)"],
+      "name": "Debug CNC App",
+      "configurations": ["DIY GRBL CNC — Debug"],
       "stopAll": true
     }
   ]

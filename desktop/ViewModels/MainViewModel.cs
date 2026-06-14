@@ -96,10 +96,12 @@ public sealed class MainViewModel : ObservableObject
 
     // ── Project collections (bound to right panel lists) ──────────────────
 
-    public ObservableCollection<ImportedFile> Files     { get; } = [];
-    public ObservableCollection<Layer>        Layers    { get; } = [];
-    public ObservableCollection<Part>         Parts     { get; } = [];
-    public ObservableCollection<NoGoZone>     NoGoZones { get; } = [];
+    public ObservableCollection<ImportedFile>  Files     { get; } = [];
+    public ObservableCollection<Layer>         Layers    { get; } = [];
+    public ObservableCollection<Part>          Parts     { get; } = [];
+    public ObservableCollection<NoGoZone>      NoGoZones { get; } = [];
+    /// <summary>Files panel data source — one row per standalone file or per group.</summary>
+    public ObservableCollection<FileGroupItem> FileGroups { get; } = [];
 
     public bool HasParts => Parts.Count > 0;
     public string PartCountText => $"{Parts.Count}";
@@ -218,6 +220,8 @@ public sealed class MainViewModel : ObservableObject
         // Multi-layer: create one sub-file+part per SVG/DXF layer.
         // First part uses PlaceNew for auto-positioning; the rest share its X,Y
         // so all layers stack on top of each other (same artwork, different operations).
+        // All parts (and sub-files) share a GroupId so they move as a unit.
+        var groupId = Guid.NewGuid();
         var result = new List<ImportedFile>();
         double? anchorX = null, anchorY = null;
         var baseName = System.IO.Path.GetFileNameWithoutExtension(fileName);
@@ -230,6 +234,7 @@ public sealed class MainViewModel : ObservableObject
                 FileName    = imported.FileName,
                 DisplayName = layerName,
                 Kind        = imported.Kind,
+                GroupId     = groupId,
             };
             foreach (var pg in group) subFile.Paths.Add(pg);
 
@@ -237,6 +242,7 @@ public sealed class MainViewModel : ObservableObject
             var part = PartPlacer.PlaceNew(p, subFile);
             if (anchorX.HasValue) { part.X = anchorX.Value; part.Y = anchorY!.Value; }
             else                  { anchorX = part.X; anchorY = part.Y; }
+            part.GroupId = groupId;
             var color = imported.LayerColors.GetValueOrDefault(layerName);
             part.LayerId = CreatePartLayer(p, layerName, color).Id;
             p.Parts.Add(part);
@@ -350,6 +356,20 @@ public sealed class MainViewModel : ObservableObject
     public void CommitPartTransform(Part part, double x, double y, double rotDeg,
         double scaleX = 1, double scaleY = 1)
     {
+        // Group-move: when this part belongs to a group, delta-move all siblings
+        // so the entire multi-layer import moves as one unit.
+        if (part.GroupId.HasValue)
+        {
+            double dx = x - part.X;
+            double dy = y - part.Y;
+            var siblings = _projects.With(p =>
+                p.Parts.Where(pt => pt.GroupId == part.GroupId && pt.Id != part.Id).ToList());
+            foreach (var sib in siblings)
+            {
+                sib.X += dx;
+                sib.Y += dy;
+            }
+        }
         part.X           = x;
         part.Y           = y;
         part.RotationDeg = rotDeg;
@@ -379,10 +399,40 @@ public sealed class MainViewModel : ObservableObject
         NotifyPartChanged();
     }
 
+    public void ToggleGroupVisible(FileGroupItem group)
+    {
+        bool next = !group.Members.Any(f => f.Visible);
+        foreach (var f in group.Members) f.Visible = next;
+        NotifyPartChanged();
+    }
+
     public void AddToTable(ImportedFile file)
     {
         var part = _projects.With(p => PartPlacer.PlaceNew(p, file));
         _projects.Mutate(p => p.Parts.Add(part));
+        Refresh();
+    }
+
+    public void AddGroupToTable(FileGroupItem group)
+    {
+        if (!group.IsGroup)
+        {
+            AddToTable(group.Members[0]);
+            return;
+        }
+        // Place all layers as a unit; assign a shared GroupId so they move together.
+        var sharedGroupId = Guid.NewGuid();
+        var newParts = _projects.With(p =>
+            group.Members.Select(f =>
+            {
+                var part = PartPlacer.PlaceNew(p, f);
+                part.GroupId = sharedGroupId;
+                return part;
+            }).ToList());
+        _projects.Mutate(p =>
+        {
+            foreach (var part in newParts) p.Parts.Add(part);
+        });
         Refresh();
     }
 
@@ -394,6 +444,22 @@ public sealed class MainViewModel : ObservableObject
             p.Files.Remove(file);
         });
         Geometry.Remove(file.Id);
+        if (SelectedPart is { } sel && !_projects.With(p => p.Parts.Contains(sel)))
+            SelectedPart = null;
+        Refresh();
+    }
+
+    public void RemoveFileGroup(FileGroupItem group)
+    {
+        foreach (var f in group.Members.ToList())
+        {
+            _projects.Mutate(p =>
+            {
+                p.Parts.RemoveAll(pt => pt.FileId == f.Id);
+                p.Files.Remove(f);
+            });
+            Geometry.Remove(f.Id);
+        }
         if (SelectedPart is { } sel && !_projects.With(p => p.Parts.Contains(sel)))
             SelectedPart = null;
         Refresh();
@@ -939,6 +1005,23 @@ public sealed class MainViewModel : ObservableObject
             Layers.Clear();    foreach (var l  in p.Layers)     Layers.Add(l);
             Parts.Clear();     foreach (var pt in p.Parts)      Parts.Add(pt);
             NoGoZones.Clear(); foreach (var z  in p.NoGoZones)  NoGoZones.Add(z);
+
+            // Rebuild FileGroups: one row per standalone file, one row per group.
+            FileGroups.Clear();
+            var seenGroups = new HashSet<Guid>();
+            foreach (var f in p.Files)
+            {
+                if (f.GroupId is { } gid)
+                {
+                    if (!seenGroups.Add(gid)) continue; // already added this group
+                    var members = p.Files.Where(x => x.GroupId == gid).ToList();
+                    FileGroups.Add(new FileGroupItem(members));
+                }
+                else
+                {
+                    FileGroups.Add(new FileGroupItem([f]));
+                }
+            }
             return true;
         });
         OnPropertyChanged(nameof(HasParts));

@@ -70,6 +70,11 @@ public sealed class ImportedFile : Observable
     public Guid Id { get; init; } = Guid.NewGuid();
     /// <summary>Original file name (e.g. "bracket.svg").</summary>
     public required string FileName { get; init; }
+    /// <summary>
+    /// When this file was split from a multi-layer import, the GroupId shared
+    /// by all sibling sub-files (and their parts). Null for standalone imports.
+    /// </summary>
+    public Guid? GroupId { get; set; }
     private string _displayName = "";
     /// <summary>User-editable display name.</summary>
     public required string DisplayName
@@ -197,6 +202,13 @@ public sealed class Part : Observable
     private double _tabWidthMm = 5.0;
     /// <summary>Width of each holding tab in mm (default 5 mm).</summary>
     public double TabWidthMm { get => _tabWidthMm; set => SetField(ref _tabWidthMm, value); }
+
+    /// <summary>
+    /// When non-null, this part belongs to a group of parts that move together.
+    /// All parts with the same GroupId were created from the same multi-layer import
+    /// and should maintain their relative positions when any one is dragged.
+    /// </summary>
+    public Guid? GroupId { get; set; }
 }
 
 /// <summary>

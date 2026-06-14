@@ -23,10 +23,10 @@ public partial class FilesPanel : UserControl
     {
         _vm = vm;
         if (FilesList is null) return;
-        FilesList.ItemsSource = vm.Files;
-        FilesEmptyHint.IsVisible = vm.Files.Count == 0;
-        vm.Files.CollectionChanged += (_, _) =>
-            FilesEmptyHint.IsVisible = _vm?.Files.Count == 0;
+        FilesList.ItemsSource = vm.FileGroups;
+        FilesEmptyHint.IsVisible = vm.FileGroups.Count == 0;
+        vm.FileGroups.CollectionChanged += (_, _) =>
+            FilesEmptyHint.IsVisible = _vm?.FileGroups.Count == 0;
     }
 
     private void OnDataContextSet(object? s, EventArgs e)
@@ -51,14 +51,15 @@ public partial class FilesPanel : UserControl
 
     private void OnToggleVisible(object? s, RoutedEventArgs e)
     {
-        if (s is Button btn && btn.Tag is ImportedFile f)
-            Vm?.ToggleFileVisible(f);
+        if (s is Button btn && btn.Tag is FileGroupItem group)
+            Vm?.ToggleGroupVisible(group);
     }
 
     private async void OnTraceBitmap(object? s, RoutedEventArgs e)
     {
-        if (s is not Button btn || btn.Tag is not ImportedFile f) return;
-        if (!f.IsBitmap) return;
+        if (s is not Button btn || btn.Tag is not FileGroupItem group) return;
+        if (group.Members.Count != 1 || !group.Members[0].IsBitmap) return;
+        var f = group.Members[0];
 
         var dlg = new BitmapTraceDialog();
         var owner = TopLevel.GetTopLevel(this) as Window;
@@ -72,31 +73,27 @@ public partial class FilesPanel : UserControl
 
     private void OnAddToTable(object? s, RoutedEventArgs e)
     {
-        if (s is Button btn && btn.Tag is ImportedFile f)
-            Vm?.AddToTable(f);
+        if (s is Button btn && btn.Tag is FileGroupItem group)
+            Vm?.AddGroupToTable(group);
     }
 
     private void OnRemoveFile(object? s, RoutedEventArgs e)
     {
-        if (s is Button btn && btn.Tag is ImportedFile f)
-            Vm?.RemoveFile(f);
+        if (s is Button btn && btn.Tag is FileGroupItem group)
+            Vm?.RemoveFileGroup(group);
     }
 
     // ── inline rename ─────────────────────────────────────────────────────
     private void OnFileNameDoubleTapped(object? s, TappedEventArgs e)
     {
-        if (s is not TextBlock tb || tb.Tag is not ImportedFile) return;
-        // Find the matching TextBox in the same template (same column 1)
+        if (s is not TextBlock tb || tb.Tag is not FileGroupItem group || group.IsGroup) return;
         var parent = tb.Parent as Panel ?? tb.Parent as Control;
         if (parent is null) return;
-        // Both FileNameLabel (the TextBlock) and FileNameEdit (the TextBox) live
-        // inside the same Border; we toggle visibility and focus.
         tb.IsVisible = false;
-        // Locate the editor by walking siblings.
         var editor = FindSibling<TextBox>(tb, "FileNameEdit");
         if (editor is not null)
         {
-            editor.Text = ((ImportedFile)tb.Tag).Name;
+            editor.Text = group.Name;
             editor.IsVisible = true;
             editor.Focus();
             editor.SelectAll();
@@ -128,11 +125,11 @@ public partial class FilesPanel : UserControl
 
     private void CommitFileRename(TextBox tb)
     {
-        if (tb.Tag is ImportedFile f)
+        if (tb.Tag is FileGroupItem group && !group.IsGroup)
         {
             var newName = tb.Text?.Trim();
             if (!string.IsNullOrEmpty(newName))
-                f.Name = newName;
+                group.Name = newName;
         }
         tb.IsVisible = false;
         var label = FindSibling<TextBlock>(tb, "FileNameLabel");

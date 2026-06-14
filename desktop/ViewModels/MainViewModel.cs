@@ -747,78 +747,93 @@ public sealed class MainViewModel : ObservableObject
 
     // ── Shape creation ────────────────────────────────────────────────────
 
-    /// <summary>Create and place a rectangle shape.</summary>
-    public void CreateRectangle(double widthMm, double heightMm, double cornerRadiusMm = 0)
+    /// <summary>Create and place a rectangle shape. atX/atY override auto-placement.</summary>
+    public void CreateRectangle(double widthMm, double heightMm, double cornerRadiusMm = 0, double? atX = null, double? atY = null)
     {
         var file = ShapeGenerator.CreateRectangle(widthMm, heightMm, cornerRadiusMm);
         _projects.Mutate(p =>
         {
             p.Files.Add(file);
-            p.Parts.Add(PartPlacer.PlaceNew(p, file));
+            var part = PartPlacer.PlaceNew(p, file);
+            if (atX.HasValue) part.X = atX.Value;
+            if (atY.HasValue) part.Y = atY.Value;
+            p.Parts.Add(part);
         });
         RefreshGeometry(file);
         Refresh();
         StatusText = "Rectangle created";
     }
 
-    /// <summary>Create and place a circle shape.</summary>
-    public void CreateCircle(double radiusMm)
+    /// <summary>Create and place a circle shape. atX/atY = center position.</summary>
+    public void CreateCircle(double radiusMm, double? atX = null, double? atY = null)
     {
         var file = ShapeGenerator.CreateCircle(radiusMm);
         _projects.Mutate(p =>
         {
             p.Files.Add(file);
-            p.Parts.Add(PartPlacer.PlaceNew(p, file));
+            var part = PartPlacer.PlaceNew(p, file);
+            if (atX.HasValue) part.X = atX.Value - radiusMm;
+            if (atY.HasValue) part.Y = atY.Value - radiusMm;
+            p.Parts.Add(part);
         });
         RefreshGeometry(file);
         Refresh();
         StatusText = "Circle created";
     }
 
-    /// <summary>Create and place an ellipse shape.</summary>
-    public void CreateEllipse(double widthMm, double heightMm)
+    /// <summary>Create and place an ellipse shape. atX/atY override auto-placement.</summary>
+    public void CreateEllipse(double widthMm, double heightMm, double? atX = null, double? atY = null)
     {
         var file = ShapeGenerator.CreateEllipse(widthMm, heightMm);
         _projects.Mutate(p =>
         {
             p.Files.Add(file);
-            p.Parts.Add(PartPlacer.PlaceNew(p, file));
+            var part = PartPlacer.PlaceNew(p, file);
+            if (atX.HasValue) part.X = atX.Value;
+            if (atY.HasValue) part.Y = atY.Value;
+            p.Parts.Add(part);
         });
         RefreshGeometry(file);
         Refresh();
         StatusText = "Ellipse created";
     }
 
-    /// <summary>Create and place a polygon shape.</summary>
-    public void CreatePolygon(int sideCount, double radiusMm)
+    /// <summary>Create and place a polygon shape. atX/atY = center position.</summary>
+    public void CreatePolygon(int sideCount, double radiusMm, double? atX = null, double? atY = null)
     {
         var file = ShapeGenerator.CreatePolygon(sideCount, radiusMm);
         _projects.Mutate(p =>
         {
             p.Files.Add(file);
-            p.Parts.Add(PartPlacer.PlaceNew(p, file));
+            var part = PartPlacer.PlaceNew(p, file);
+            if (atX.HasValue) part.X = atX.Value - radiusMm;
+            if (atY.HasValue) part.Y = atY.Value - radiusMm;
+            p.Parts.Add(part);
         });
         RefreshGeometry(file);
         Refresh();
         StatusText = $"{sideCount}-gon created";
     }
 
-    /// <summary>Create and place a star shape.</summary>
-    public void CreateStar(int pointCount, double outerRadiusMm, double innerRadiusMm)
+    /// <summary>Create and place a star shape. atX/atY = center position.</summary>
+    public void CreateStar(int pointCount, double outerRadiusMm, double innerRadiusMm, double? atX = null, double? atY = null)
     {
         var file = ShapeGenerator.CreateStar(pointCount, outerRadiusMm, innerRadiusMm);
         _projects.Mutate(p =>
         {
             p.Files.Add(file);
-            p.Parts.Add(PartPlacer.PlaceNew(p, file));
+            var part = PartPlacer.PlaceNew(p, file);
+            if (atX.HasValue) part.X = atX.Value - outerRadiusMm;
+            if (atY.HasValue) part.Y = atY.Value - outerRadiusMm;
+            p.Parts.Add(part);
         });
         RefreshGeometry(file);
         Refresh();
         StatusText = $"{pointCount}-point star created";
     }
 
-    /// <summary>Create and place a line shape.</summary>
-    public void CreateLine(double lengthMm)
+    /// <summary>Create and place a line shape (default 100 mm horizontal).</summary>
+    public void CreateLine(double lengthMm = 100)
     {
         var file = ShapeGenerator.CreateLine(lengthMm);
         _projects.Mutate(p =>
@@ -829,6 +844,28 @@ public sealed class MainViewModel : ObservableObject
         RefreshGeometry(file);
         Refresh();
         StatusText = "Line created";
+    }
+
+    /// <summary>Create a line from two canvas points (drag-draw).</summary>
+    public void CreateLineFromPoints(double x1, double y1, double x2, double y2)
+    {
+        double dx = x2 - x1, dy = y2 - y1;
+        double len = Math.Sqrt(dx * dx + dy * dy);
+        if (len < 0.5) return;
+        // ShapeGenerator creates a horizontal line; we create it then rotate
+        var file = ShapeGenerator.CreateLine(len);
+        _projects.Mutate(p =>
+        {
+            p.Files.Add(file);
+            var part = PartPlacer.PlaceNew(p, file);
+            part.X = x1;
+            part.Y = y1;
+            part.RotationDeg = Math.Atan2(dy, dx) * 180 / Math.PI;
+            p.Parts.Add(part);
+        });
+        RefreshGeometry(file);
+        Refresh();
+        StatusText = $"Line created ({len:F1} mm)";
     }
 
     // ── Pen tool ──────────────────────────────────────────────────────────

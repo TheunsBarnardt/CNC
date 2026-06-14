@@ -72,6 +72,32 @@ public sealed class ViewportControl : Control
     private double _rotateStartAngle;
     private double _origRotation;
 
+    // ── draw tool state ────────────────────────────────────────────────────
+    public enum DrawToolType { None, Line, Rectangle, Circle, Ellipse, Polygon, Star }
+    private DrawToolType _drawTool = DrawToolType.None;
+    private Point2? _drawStart;
+    private Point2? _drawEnd;
+    public event Action<DrawToolType, double, double, double, double>? DrawShapeRequested;
+    public event Action? DrawToolCancelled;
+
+    public void SetDrawTool(DrawToolType tool)
+    {
+        _drawTool  = tool;
+        _drawStart = null;
+        _drawEnd   = null;
+        Cursor = tool != DrawToolType.None ? new Cursor(StandardCursorType.Cross) : Cursor.Default;
+        InvalidateVisual();
+    }
+
+    public void CancelDrawTool()
+    {
+        _drawTool  = DrawToolType.None;
+        _drawStart = null;
+        _drawEnd   = null;
+        Cursor     = Cursor.Default;
+        InvalidateVisual();
+    }
+
     // ── pen tool state ─────────────────────────────────────────────────────
     private List<(double x, double y)> _penPoints = [];
 
@@ -300,6 +326,19 @@ public sealed class ViewportControl : Control
             return;
         }
 
+        // Draw tool: start a shape drag
+        if (_drawTool != DrawToolType.None && props.IsLeftButtonPressed
+            && pos.X >= RULER_PX && pos.Y >= RULER_PX)
+        {
+            double wx = ToWX((float)pos.X), wy = ToWY((float)pos.Y);
+            if (_snap && _gridMinorMm > 0)
+            { wx = Math.Round(wx / _gridMinorMm) * _gridMinorMm; wy = Math.Round(wy / _gridMinorMm) * _gridMinorMm; }
+            _drawStart = new Point2(wx, wy);
+            _drawEnd   = _drawStart;
+            e.Pointer.Capture(this);
+            return;
+        }
+
         // Node edit mode
         if (_nodeEditMode && props.IsLeftButtonPressed)
         {
@@ -457,6 +496,18 @@ public sealed class ViewportControl : Control
         base.OnPointerMoved(e);
         var pos = e.GetPosition(this);
         _cursor = pos;
+
+        // Draw tool: update live preview end point
+        if (_drawTool != DrawToolType.None && _drawStart.HasValue
+            && e.GetCurrentPoint(this).Properties.IsLeftButtonPressed)
+        {
+            double wx = ToWX((float)pos.X), wy = ToWY((float)pos.Y);
+            if (_snap && _gridMinorMm > 0)
+            { wx = Math.Round(wx / _gridMinorMm) * _gridMinorMm; wy = Math.Round(wy / _gridMinorMm) * _gridMinorMm; }
+            _drawEnd = new Point2(wx, wy);
+            InvalidateVisual();
+            return;
+        }
 
         if (_drag == DragMode.None) { InvalidateVisual(); return; }
 
@@ -631,6 +682,20 @@ public sealed class ViewportControl : Control
         base.OnPointerReleased(e);
         var pos = e.GetPosition(this);
 
+        // Draw tool: finalize shape on mouse-up
+        if (_drawTool != DrawToolType.None && _drawStart.HasValue && _drawEnd.HasValue)
+        {
+            var s = _drawStart.Value;
+            var d = _drawEnd.Value;
+            if (Math.Abs(s.X - d.X) > 0.5 || Math.Abs(s.Y - d.Y) > 0.5)
+                DrawShapeRequested?.Invoke(_drawTool, s.X, s.Y, d.X, d.Y);
+            _drawStart = null;
+            _drawEnd   = null;
+            InvalidateVisual();
+            e.Pointer.Capture(null);
+            return;
+        }
+
         switch (_drag)
         {
             case DragMode.Move:
@@ -700,6 +765,15 @@ public sealed class ViewportControl : Control
     protected override void OnKeyDown(KeyEventArgs e)
     {
         base.OnKeyDown(e);
+
+        // Escape cancels active draw tool
+        if (_drawTool != DrawToolType.None && e.Key == Key.Escape)
+        {
+            CancelDrawTool();
+            DrawToolCancelled?.Invoke();
+            e.Handled = true;
+            return;
+        }
 
         if (_nodeEditMode)
         {
@@ -1005,6 +1079,51 @@ public sealed class ViewportControl : Control
                 PathEffect = SKPathEffect.CreateDash([4f,4f], 0),
             };
             canvas.DrawRect(sx0, sy0, sx1-sx0, sy1-sy0, bandLine);
+        }
+
+        // Draw-tool ghost preview
+        if (_drawTool != DrawToolType.None && _drawStart.HasValue)
+        {
+            var s = _drawStart.Value;
+            var d = _drawEnd ?? s;
+            float sx1 = ToSX(s.X), sy1 = ToSY(s.Y);
+            float sx2 = ToSX(d.X), sy2 = ToSY(d.Y);
+            float minX = Math.Min(sx1, sx2), minY = Math.Min(sy1, sy2);
+            float rw   = Math.Abs(sx2 - sx1),  rh  = Math.Abs(sy2 - sy1);
+
+            using var ghost = new SKPaint
+            {
+                Color = new SKColor(0x36, 0x8b, 0xff, 200),
+                StrokeWidth = 1.5f,
+                Style = SKPaintStyle.Stroke,
+                IsAntialias = true,
+                PathEffect = SKPathEffect.CreateDash([6f, 4f], 0f),
+            };
+            switch (_drawTool)
+            {
+                case DrawToolType.Line:
+                    canvas.DrawLine(sx1, sy1, sx2, sy2, ghost);
+                    break;
+                case DrawToolType.Rectangle:
+                    canvas.DrawRect(minX, minY, rw, rh, ghost);
+                    break;
+                case DrawToolType.Ellipse:
+                    canvas.DrawOval(minX + rw / 2, minY + rh / 2, rw / 2, rh / 2, ghost);
+                    break;
+                case DrawToolType.Circle:
+                    float cr = (float)Math.Sqrt((sx2 - sx1) * (sx2 - sx1) + (sy2 - sy1) * (sy2 - sy1));
+                    canvas.DrawCircle(sx1, sy1, cr, ghost);
+                    break;
+                case DrawToolType.Polygon:
+                case DrawToolType.Star:
+                    float pr = (float)Math.Sqrt((sx2 - sx1) * (sx2 - sx1) + (sy2 - sy1) * (sy2 - sy1));
+                    canvas.DrawCircle(sx1, sy1, pr, ghost);
+                    break;
+            }
+            // Crosshair at current mouse tip
+            using var cross = new SKPaint { Color = new SKColor(0x36, 0x8b, 0xff, 180), StrokeWidth = 1f };
+            canvas.DrawLine(sx2 - 12, sy2, sx2 + 12, sy2, cross);
+            canvas.DrawLine(sx2, sy2 - 12, sx2, sy2 + 12, cross);
         }
 
         RenderGuidesAndCursor(canvas, w, h, colFg);

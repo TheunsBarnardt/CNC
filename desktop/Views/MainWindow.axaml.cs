@@ -88,58 +88,18 @@ public partial class MainWindow : Window
         // Left tool-rail import
         BtnImport.Click += async (_, _) => await vm.ImportAsync(StorageProvider);
 
-        // Shape tools
-        BtnLine.Click += (_, _) =>
-        {
-            vm.CreateLine(100);
-            Viewport.FitToView();
-        };
-        BtnRectangle.Click += async (_, _) =>
-        {
-            var dlg = new ShapeDialog { Title = "Create Rectangle" };
-            if (await dlg.ShowDialog<bool>(this))
-            {
-                vm.CreateRectangle(dlg.Width_mm, dlg.Height_mm, dlg.Radius_mm);
-                Viewport.FitToView();
-            }
-        };
-        BtnCircle.Click += async (_, _) =>
-        {
-            var dlg = new CircleDialog();
-            if (await dlg.ShowDialog<bool>(this))
-            {
-                vm.CreateCircle(dlg.Radius_mm);
-                Viewport.FitToView();
-            }
-        };
-        BtnEllipse.Click += async (_, _) =>
-        {
-            var dlg = new ShapeDialog { Title = "Create Ellipse" };
-            if (await dlg.ShowDialog<bool>(this))
-            {
-                vm.CreateEllipse(dlg.Width_mm, dlg.Height_mm);
-                Viewport.FitToView();
-            }
-        };
-        BtnPolygon.Click += async (_, _) =>
-        {
-            var dlg = new PolygonDialog();
-            if (await dlg.ShowDialog<bool>(this))
-            {
-                vm.CreatePolygon(dlg.SideCount, dlg.Radius_mm);
-                Viewport.FitToView();
-            }
-        };
-        BtnStar.Click += async (_, _) =>
-        {
-            var dlg = new StarDialog();
-            if (await dlg.ShowDialog<bool>(this))
-            {
-                vm.CreateStar(dlg.PointCount, dlg.OuterRadius_mm, dlg.InnerRadius_mm);
-                Viewport.FitToView();
-            }
-        };
-        BtnPen.Click += (_, _) => vm.ActivatePenTool();
+        // Shape tools — drag-draw: click tool to activate, drag canvas to place shape
+        BtnLine.Click      += (_, _) => ActivateDrawTool(Desktop.Controls.ViewportControl.DrawToolType.Line,      BtnLine);
+        BtnRectangle.Click += (_, _) => ActivateDrawTool(Desktop.Controls.ViewportControl.DrawToolType.Rectangle, BtnRectangle);
+        BtnCircle.Click    += (_, _) => ActivateDrawTool(Desktop.Controls.ViewportControl.DrawToolType.Circle,    BtnCircle);
+        BtnEllipse.Click   += (_, _) => ActivateDrawTool(Desktop.Controls.ViewportControl.DrawToolType.Ellipse,   BtnEllipse);
+        BtnPolygon.Click   += (_, _) => ActivateDrawTool(Desktop.Controls.ViewportControl.DrawToolType.Polygon,   BtnPolygon);
+        BtnStar.Click      += (_, _) => ActivateDrawTool(Desktop.Controls.ViewportControl.DrawToolType.Star,      BtnStar);
+        BtnPen.Click       += (_, _) => { ClearDrawTool(); vm.ActivatePenTool(); };
+
+        // Wire viewport draw events
+        Viewport.DrawShapeRequested += (tool, x1, y1, x2, y2) => OnDrawShape(vm, tool, x1, y1, x2, y2);
+        Viewport.DrawToolCancelled  += ClearDrawTool;
 
         // Tab switching
         TabFiles.Click  += (_, _) => SelectTab(TabFiles,  PnlFiles);
@@ -183,6 +143,66 @@ public partial class MainWindow : Window
 
         // Keyboard shortcuts
         KeyDown += OnKeyDown;
+    }
+
+    // ── draw-tool helpers ─────────────────────────────────────────────────
+
+    private Button? _activeDrawBtn;
+
+    private void ActivateDrawTool(Desktop.Controls.ViewportControl.DrawToolType tool, Button btn)
+    {
+        // Toggle off if same tool clicked again
+        if (_activeDrawBtn == btn)
+        {
+            ClearDrawTool();
+            return;
+        }
+        ClearDrawTool();
+        _activeDrawBtn = btn;
+        SetActive(btn, true);
+        Viewport.SetDrawTool(tool);
+        if (_vm is not null) _vm.StatusText = "Draw: drag on canvas to place — Esc to cancel";
+    }
+
+    private void ClearDrawTool()
+    {
+        if (_activeDrawBtn is not null)
+        {
+            SetActive(_activeDrawBtn, false);
+            _activeDrawBtn = null;
+        }
+        Viewport.CancelDrawTool();
+    }
+
+    private void OnDrawShape(MainViewModel vm, Desktop.Controls.ViewportControl.DrawToolType tool,
+                             double x1, double y1, double x2, double y2)
+    {
+        double w = Math.Abs(x2 - x1), h = Math.Abs(y2 - y1);
+        double lx = Math.Min(x1, x2), ly = Math.Min(y1, y2);
+        double r = Math.Sqrt((x2 - x1) * (x2 - x1) + (y2 - y1) * (y2 - y1));
+
+        switch (tool)
+        {
+            case Desktop.Controls.ViewportControl.DrawToolType.Line:
+                vm.CreateLineFromPoints(x1, y1, x2, y2);
+                break;
+            case Desktop.Controls.ViewportControl.DrawToolType.Rectangle:
+                vm.CreateRectangle(w, h, 0, lx, ly);
+                break;
+            case Desktop.Controls.ViewportControl.DrawToolType.Circle:
+                // drag from center — radius = distance
+                vm.CreateCircle(r, x1, y1);
+                break;
+            case Desktop.Controls.ViewportControl.DrawToolType.Ellipse:
+                vm.CreateEllipse(w, h, lx, ly);
+                break;
+            case Desktop.Controls.ViewportControl.DrawToolType.Polygon:
+                vm.CreatePolygon(6, r, x1, y1);
+                break;
+            case Desktop.Controls.ViewportControl.DrawToolType.Star:
+                vm.CreateStar(5, r, r * 0.45, x1, y1);
+                break;
+        }
     }
 
     // ── tab switching ─────────────────────────────────────────────────────
@@ -310,7 +330,8 @@ public partial class MainWindow : Window
                 e.Handled = true;
                 break;
             case Key.Escape:
-                if (_vm.InSimMode) _vm.ExitSimMode();
+                if (_activeDrawBtn is not null) { ClearDrawTool(); }
+                else if (_vm.InSimMode) _vm.ExitSimMode();
                 else _vm.SelectedPart = null;
                 e.Handled = true;
                 break;

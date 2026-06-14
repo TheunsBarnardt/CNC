@@ -4,6 +4,7 @@ using Avalonia.Input;
 using Avalonia.Media;
 using Avalonia.Rendering.SceneGraph;
 using Avalonia.Skia;
+using Backend.Cam;
 using Backend.Geometry;
 using Backend.Models;
 using Backend.Simulation;
@@ -986,6 +987,42 @@ public sealed class ViewportControl : Control
                 using var rotStroke = new SKPaint { Color = new(0xff,0xaa,0x00), StrokeWidth = 1.5f, IsStroke = true, IsAntialias = true };
                 canvas.DrawCircle(rx, ry, 6, rotFill);
                 canvas.DrawCircle(rx, ry, 6, rotStroke);
+
+                // Tab markers: small perpendicular ticks at each tab boundary
+                if (part.TabCount > 0)
+                {
+                    using var tabP = new SKPaint { Color = new SKColor(0xff, 0x80, 0x00), StrokeWidth = 2f, IsStroke = true, IsAntialias = true };
+                    using var tabFill = new SKPaint { Color = new SKColor(0xff, 0x80, 0x00, 0x30), IsAntialias = true };
+                    foreach (var pg in geom)
+                    {
+                        if (pg.Polyline.Points.Count < 2 || !pg.Polyline.IsClosed) continue;
+                        var wPts = pg.Polyline.Points
+                            .Select(p => PartTransform.Apply(part, LocalCenter(geom), p))
+                            .ToList();
+                        var (tabPts, tabSpans) = TabBuilder.Apply(wPts, part.TabCount, part.TabWidthMm);
+                        foreach (var (start, end) in tabSpans)
+                        {
+                            // Draw a small filled rect across the path at each tab span
+                            float sx0 = ToSX((float)tabPts[start].X), sy0 = ToSY((float)tabPts[start].Y);
+                            float sx1 = ToSX((float)tabPts[end].X),   sy1 = ToSY((float)tabPts[end].Y);
+                            // Segment direction for perpendicular tick
+                            float dx = sx1 - sx0, dy = sy1 - sy0;
+                            float len = MathF.Sqrt(dx * dx + dy * dy);
+                            if (len > 0.5f)
+                            {
+                                float nx = -dy / len * 5, ny = dx / len * 5;
+                                using var tabPath2 = new SKPath();
+                                tabPath2.MoveTo(sx0 + nx, sy0 + ny);
+                                tabPath2.LineTo(sx1 + nx, sy1 + ny);
+                                tabPath2.LineTo(sx1 - nx, sy1 - ny);
+                                tabPath2.LineTo(sx0 - nx, sy0 - ny);
+                                tabPath2.Close();
+                                canvas.DrawPath(tabPath2, tabFill);
+                                canvas.DrawPath(tabPath2, tabP);
+                            }
+                        }
+                    }
+                }
             }
         }
 

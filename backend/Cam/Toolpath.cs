@@ -44,6 +44,13 @@ public sealed class Cut
     /// <summary>Resolved laser S-word value (0–1000). Laser post-processor uses this directly.</summary>
     public int LaserPowerS { get; init; }
 
+    /// <summary>
+    /// Index pairs [Start, End] where the torch turns off and rapids across.
+    /// Points at Start and End are the exact tab boundary positions (already
+    /// inserted by TabBuilder). Between them the machine does M5 + G0 + re-pierce.
+    /// </summary>
+    public List<(int Start, int End)> TabSpans { get; init; } = [];
+
     public Point2 PierceAt => Points[0];
     public Point2 EndsAt => Points[^1];
 

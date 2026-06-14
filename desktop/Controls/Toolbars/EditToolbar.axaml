@@ -189,6 +189,45 @@
 
         <Separator Theme="{StaticResource Sep.Vertical}"/>
 
+        <!-- ── Tabs flyout (plasma holding tabs) ── -->
+        <Button x:Name="BtnTabs" Theme="{StaticResource Btn.Ghost}" Padding="8,5">
+          <StackPanel Orientation="Horizontal" Spacing="4">
+            <PathIcon Data="{StaticResource Icon.Scissors}" Width="14" Height="14"/>
+            <TextBlock Text="Tabs" VerticalAlignment="Center"/>
+            <TextBlock Text="▾" FontSize="9" VerticalAlignment="Center" Opacity="0.6"/>
+          </StackPanel>
+          <Button.Flyout>
+            <Flyout Placement="Bottom" ShowMode="TransientWithDismissOnPointerMoveAway">
+              <Border Width="220" Padding="14,12" CornerRadius="{StaticResource Radius.Md}"
+                      Background="{StaticResource Brush.Bg1}"
+                      BorderBrush="{StaticResource Brush.Border}"
+                      BorderThickness="1">
+                <StackPanel Spacing="10">
+                  <TextBlock Text="Holding Tabs" FontSize="{StaticResource Font.Sm}" FontWeight="SemiBold"/>
+                  <TextBlock Text="Keep part attached during cut" Classes="muted" FontSize="{StaticResource Font.Xs}" TextWrapping="Wrap"/>
+
+                  <Grid ColumnDefinitions="80,*" RowDefinitions="Auto,8,Auto">
+                    <TextBlock Grid.Row="0" Grid.Column="0" Text="Count" Classes="muted" FontSize="{StaticResource Font.Xs}" VerticalAlignment="Center"/>
+                    <TextBox Grid.Row="0" Grid.Column="1" x:Name="TbTabCount" Text="0" Height="26"
+                             ToolTip.Tip="Number of tabs (0 = no tabs)"
+                             LostFocus="OnTabCountChanged" KeyDown="OnTabKeyDown"/>
+
+                    <TextBlock Grid.Row="2" Grid.Column="0" Text="Width (mm)" Classes="muted" FontSize="{StaticResource Font.Xs}" VerticalAlignment="Center"/>
+                    <TextBox Grid.Row="2" Grid.Column="1" x:Name="TbTabWidth" Text="5" Height="26"
+                             ToolTip.Tip="Width of each tab in mm"
+                             LostFocus="OnTabWidthChanged" KeyDown="OnTabKeyDown"/>
+                  </Grid>
+
+                  <TextBlock x:Name="TabHint" Text="0 tabs · select a part" Classes="muted"
+                             FontSize="{StaticResource Font.Xs}" TextWrapping="Wrap"/>
+                </StackPanel>
+              </Border>
+            </Flyout>
+          </Button.Flyout>
+        </Button>
+
+        <Separator Theme="{StaticResource Sep.Vertical}"/>
+
         <!-- Array -->
         <Button x:Name="BtnArray" Theme="{StaticResource Btn.Icon}" ToolTip.Tip="Create array">
           <PathIcon Data="{StaticResource Icon.Array}" Width="16" Height="16"/>

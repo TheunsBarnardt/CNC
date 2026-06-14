@@ -60,7 +60,18 @@ public partial class EditToolbar : UserControl
             TbW.Text = (bb.Width  * part.ScaleX).ToString("F2");
             TbH.Text = (bb.Height * part.ScaleY).ToString("F2");
         }
+        TbTabCount.Text = part.TabCount.ToString();
+        TbTabWidth.Text = part.TabWidthMm.ToString("F1");
+        UpdateTabHint(part);
         _loading = false;
+    }
+
+    private void UpdateTabHint(Part? part)
+    {
+        if (TabHint is null || part is null) return;
+        TabHint.Text = part.TabCount <= 0
+            ? "No tabs — part will fall free"
+            : $"{part.TabCount} tab{(part.TabCount == 1 ? "" : "s")} · {part.TabWidthMm:F1} mm each";
     }
 
     // ── Transform inputs ──────────────────────────────────────────────────
@@ -200,6 +211,35 @@ public partial class EditToolbar : UserControl
         bool external  = CbExternal.IsChecked ?? true;
         bool outerOnly = CbOuterOnly.IsChecked ?? false;
         Vm?.ApplyOffset(dist, external, _cornerStyle, outerOnly);
+    }
+
+    // ── Tabs ──────────────────────────────────────────────────────────────
+
+    private void OnTabCountChanged(object? s, RoutedEventArgs e)
+    {
+        if (_loading || Vm?.SelectedPart is not { } part) return;
+        if (int.TryParse(TbTabCount.Text, out var n) && n >= 0)
+        {
+            part.TabCount = n;
+            UpdateTabHint(part);
+        }
+    }
+
+    private void OnTabWidthChanged(object? s, RoutedEventArgs e)
+    {
+        if (_loading || Vm?.SelectedPart is not { } part) return;
+        if (double.TryParse(TbTabWidth.Text, out var w) && w > 0)
+        {
+            part.TabWidthMm = w;
+            UpdateTabHint(part);
+        }
+    }
+
+    private void OnTabKeyDown(object? s, Avalonia.Input.KeyEventArgs e)
+    {
+        if (e.Key != Avalonia.Input.Key.Enter || s is not TextBox tb) return;
+        TopLevel.GetTopLevel(tb)?.Focus();
+        e.Handled = true;
     }
 
     // ── Layer ──────────────────────────────────────────────────────────────

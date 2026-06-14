@@ -73,9 +73,34 @@ public sealed class GrblPlasmaPostProcessor : IPostProcessor
             // Drop to cut height
             g.Lines.Add($"G0 Z{Num(cam.CutHeightMm)} ; cut height");
 
-            // Feed through all cut points (lead-in → cut → lead-out are all in Points)
+            // Feed through all cut points (lead-in → cut → lead-out are all in Points).
+            // Tabs = torch-off + rapid across the tab gap + re-pierce at the far side.
+            var tabStarts = new HashSet<int>(cut.TabSpans.Select(s => s.Start));
+            var tabByStart = cut.TabSpans.ToDictionary(s => s.Start, s => s.End);
+
             for (int i = 1; i < cut.Points.Count; i++)
             {
+                if (tabStarts.Contains(i))
+                {
+                    // Reach the tab start point at feed rate, then bridge.
+                    string feedTab = i == 1 ? $" F{Num(cut.FeedRateMmMin)}" : "";
+                    g.Lines.Add($"G1 {Xy(cut.Points[i], workOrigin)}{feedTab} ; tab start");
+                    g.Lines.Add("M5 ; torch off (tab)");
+                    g.Lines.Add($"G0 Z{Num(cam.RapidHeightMm)} ; lift over tab");
+
+                    int tabEnd = tabByStart[i];
+                    g.Lines.Add($"G0 {Xy(cut.Points[tabEnd], workOrigin)} ; rapid across tab");
+                    g.Lines.Add($"G0 Z{Num(cam.PierceHeightMm)} ; re-pierce height");
+                    g.Lines.Add("M3 S1000 ; torch on");
+                    if (cut.PierceDelayS > 0)
+                        g.Lines.Add($"G4 P{Num(cut.PierceDelayS)} ; pierce dwell");
+                    g.Lines.Add($"G0 Z{Num(cam.CutHeightMm)} ; cut height");
+
+                    // Jump to tab end; the loop increment will move to tabEnd+1.
+                    i = tabEnd;
+                    continue;
+                }
+
                 string feed = i == 1 ? $" F{Num(cut.FeedRateMmMin)}" : "";
                 g.Lines.Add($"G1 {Xy(cut.Points[i], workOrigin)}{feed}");
             }

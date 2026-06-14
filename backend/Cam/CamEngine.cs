@@ -171,6 +171,16 @@ public static class CamEngine
 
             var partLayer = partById.TryGetValue(source.PartId, out var sp) ? PartLayer(sp) : null;
             var opMode = partLayer?.OperationMode ?? LayerOperationMode.Cut;
+
+            // Insert holding tabs for plasma closed cuts when the part requests them.
+            List<(int Start, int End)> tabSpans = [];
+            if (!isLaser && !isVinyl && isClosedContour
+                && partById.TryGetValue(source.PartId, out var tabPart)
+                && tabPart.TabCount > 0)
+            {
+                (points, tabSpans) = TabBuilder.Apply(points, tabPart.TabCount, tabPart.TabWidthMm);
+            }
+
             toolpath.Cuts.Add(new Cut
             {
                 PartId = source.PartId,
@@ -185,6 +195,7 @@ public static class CamEngine
                 FeedRateMmMin = ResolveFeed(partLayer, opMode),
                 OperationMode = opMode,
                 LaserPowerS = isLaser ? ResolveLaserS(partLayer, opMode) : 0,
+                TabSpans = tabSpans,
             });
         }
 

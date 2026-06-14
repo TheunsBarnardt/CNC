@@ -189,6 +189,14 @@ public sealed class Part : Observable
     /// overriding the automatic containment-depth classification.
     /// </summary>
     public bool IsCutout { get => _isCutout; set => SetField(ref _isCutout, value); }
+
+    private int _tabCount;
+    /// <summary>Number of holding tabs to insert (0 = none). Plasma/router only.</summary>
+    public int TabCount { get => _tabCount; set => SetField(ref _tabCount, value); }
+
+    private double _tabWidthMm = 5.0;
+    /// <summary>Width of each holding tab in mm (default 5 mm).</summary>
+    public double TabWidthMm { get => _tabWidthMm; set => SetField(ref _tabWidthMm, value); }
 }
 
 /// <summary>

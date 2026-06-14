@@ -211,18 +211,74 @@ public sealed class MainViewModel : ObservableObject
     /// a single part when the file has no layer metadata.
     /// </summary>
     /// <summary>
-    /// Adds an imported file to the project as a single unit.
-    /// SVG/DXF internal layers are preserved as PathGeometry.Layer metadata
-    /// (used for viewport colouring) but do NOT create project layers.
-    /// The user controls project layers manually.
+    /// Maps SVG/DXF internal layers to project layers, mirroring Inkscape's model:
+    /// each distinct layer in the file becomes one named project layer containing
+    /// one part. All parts share a GroupId so they move together on the canvas.
+    /// Files with no layer metadata import as a single part on the active layer.
     /// </summary>
     private List<ImportedFile> SplitImportByLayer(Project p, ImportedFile imported, string fileName)
     {
-        p.Files.Add(imported);
-        var part = PartPlacer.PlaceNew(p, imported);
-        part.LayerId = ActiveLayerId(p);
-        p.Parts.Add(part);
-        return [imported];
+        var groups = imported.Paths
+            .GroupBy(pg => string.IsNullOrEmpty(pg.Layer) ? null : pg.Layer)
+            .ToList();
+
+        bool hasLayers = groups.Count > 1 || groups[0].Key is not null;
+
+        if (!hasLayers)
+        {
+            p.Files.Add(imported);
+            var part = PartPlacer.PlaceNew(p, imported);
+            part.LayerId = ActiveLayerId(p);
+            p.Parts.Add(part);
+            return [imported];
+        }
+
+        // Multi-layer: one ImportedFile + one Part + one project Layer per SVG layer.
+        // Parts share a GroupId so dragging one moves all (artwork stays registered).
+        // The tree display shows each part DIRECTLY under its layer (no folder wrapper)
+        // because the tree rebuild detects only 1 grouped part per layer.
+        var groupId = Guid.NewGuid();
+        var result  = new List<ImportedFile>();
+        double? anchorX = null, anchorY = null;
+        var baseName = System.IO.Path.GetFileNameWithoutExtension(fileName);
+
+        foreach (var group in groups)
+        {
+            var layerName = group.Key ?? baseName;
+            var subFile = new ImportedFile
+            {
+                FileName    = imported.FileName,
+                DisplayName = layerName,
+                Kind        = imported.Kind,
+                GroupId     = groupId,
+            };
+            foreach (var pg in group) subFile.Paths.Add(pg);
+            subFile.Warnings.AddRange(imported.Warnings);
+
+            p.Files.Add(subFile);
+            var part = PartPlacer.PlaceNew(p, subFile);
+            if (anchorX.HasValue) { part.X = anchorX.Value; part.Y = anchorY!.Value; }
+            else                  { anchorX = part.X; anchorY = part.Y; }
+            part.GroupId = groupId;
+
+            // Reuse an existing project layer with the same name, or create one.
+            var existing = p.Layers.FirstOrDefault(l =>
+                string.Equals(l.Name, layerName, StringComparison.OrdinalIgnoreCase));
+            if (existing is not null)
+            {
+                part.LayerId = existing.Id;
+            }
+            else
+            {
+                var color = imported.LayerColors.GetValueOrDefault(layerName);
+                part.LayerId = CreatePartLayer(p, layerName, color).Id;
+            }
+
+            p.Parts.Add(part);
+            result.Add(subFile);
+        }
+
+        return result;
     }
 
     // ── New / Save / Load ─────────────────────────────────────────────────

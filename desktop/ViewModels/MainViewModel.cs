@@ -1169,39 +1169,62 @@ public sealed class MainViewModel : ObservableObject
                 else
                 {
                     var gid = part.GroupId.Value;
-                    if (!seenGroups.Add(gid)) continue; // group header already added
+                    if (!seenGroups.Add(gid)) continue; // already emitted this group
 
-                    bool groupExp = _groupExpanded.GetValueOrDefault(gid, true);
-                    string groupName = _groupNames.TryGetValue(gid, out var n) ? n
-                                     : (file != null
-                                        ? System.IO.Path.GetFileNameWithoutExtension(file.FileName)
-                                        : "Group");
-                    var groupNode = new LayerTreeItem
+                    // Count how many parts with this GroupId live in THIS layer.
+                    // Multi-layer SVG imports: each sub-part is in its own dedicated layer,
+                    // so there is only 1 sibling per layer → show the part directly, no folder.
+                    // User-created groups: multiple parts share the same layer → show a folder.
+                    var siblingsHere = layerParts.Where(pt => pt.GroupId == gid).ToList();
+
+                    if (siblingsHere.Count == 1)
                     {
-                        Kind       = LayerTreeNodeKind.Group,
-                        GroupId    = gid,
-                        GroupName  = groupName,
-                        Depth      = 1,
-                        Visible    = true,
-                        IsExpanded = groupExp,
-                    };
-                    LayerTree.Add(groupNode);
-
-                    if (!groupExp) continue;
-
-                    // Children of this group — depth 2
-                    foreach (var gpart in layerParts.Where(pt => pt.GroupId == gid))
-                    {
-                        var gfile = project.Files.FirstOrDefault(f => f.Id == gpart.FileId);
+                        // Only one grouped part in this layer — render directly (no folder).
+                        var gfile = project.Files.FirstOrDefault(f => f.Id == siblingsHere[0].FileId);
                         LayerTree.Add(new LayerTreeItem
                         {
                             Kind            = LayerTreeNodeKind.Part,
-                            Part            = gpart,
-                            Depth           = 2,
+                            Part            = siblingsHere[0],
+                            Depth           = 1,
                             PartDisplayName = gfile?.DisplayName ?? "Part",
                             Visible         = gfile?.Visible ?? true,
-                            IsSelected      = gpart == _selectedPart,
+                            IsSelected      = siblingsHere[0] == _selectedPart,
                         });
+                    }
+                    else
+                    {
+                        // Multiple grouped parts in this layer — show a collapsible folder.
+                        bool groupExp = _groupExpanded.GetValueOrDefault(gid, true);
+                        string groupName = _groupNames.TryGetValue(gid, out var n) ? n
+                                         : (file != null
+                                            ? System.IO.Path.GetFileNameWithoutExtension(file.FileName)
+                                            : "Group");
+                        var groupNode = new LayerTreeItem
+                        {
+                            Kind       = LayerTreeNodeKind.Group,
+                            GroupId    = gid,
+                            GroupName  = groupName,
+                            Depth      = 1,
+                            Visible    = true,
+                            IsExpanded = groupExp,
+                        };
+                        LayerTree.Add(groupNode);
+
+                        if (!groupExp) continue;
+
+                        foreach (var gpart in siblingsHere)
+                        {
+                            var gfile = project.Files.FirstOrDefault(f => f.Id == gpart.FileId);
+                            LayerTree.Add(new LayerTreeItem
+                            {
+                                Kind            = LayerTreeNodeKind.Part,
+                                Part            = gpart,
+                                Depth           = 2,
+                                PartDisplayName = gfile?.DisplayName ?? "Part",
+                                Visible         = gfile?.Visible ?? true,
+                                IsSelected      = gpart == _selectedPart,
+                            });
+                        }
                     }
                 }
             }

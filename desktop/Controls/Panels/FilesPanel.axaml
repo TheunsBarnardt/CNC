@@ -1,6 +1,5 @@
 <UserControl xmlns="https://github.com/avaloniaui"
              xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
-             xmlns:vm="using:Desktop.ViewModels"
              xmlns:conv="using:Desktop.Converters"
              x:Class="Desktop.Controls.Panels.FilesPanel"
              x:CompileBindings="False">
@@ -19,7 +18,7 @@
                    VerticalAlignment="Center"/>
         <Button Grid.Column="1"
                 Theme="{StaticResource Btn.Icon}"
-                ToolTip.Tip="Import file"
+                ToolTip.Tip="Import SVG / DXF / image"
                 Click="OnImportClick">
           <PathIcon Data="{StaticResource Icon.Plus}" Width="15" Height="15"/>
         </Button>
@@ -27,86 +26,125 @@
     </Border>
 
     <!-- empty hint -->
-    <TextBlock DockPanel.Dock="Bottom"
-               Text="Drop SVG / DXF / image here"
+    <TextBlock x:Name="FilesEmptyHint"
+               DockPanel.Dock="Bottom"
+               Text="Drop SVG / DXF / image here, or click +"
                Classes="muted"
                HorizontalAlignment="Center"
-               Margin="0,12"
-               IsVisible="{Binding !Files.Count}"/>
+               Margin="0,16"/>
 
     <!-- file list -->
-    <ScrollViewer>
-      <ItemsControl ItemsSource="{Binding Files}">
+    <ScrollViewer VerticalScrollBarVisibility="Auto">
+      <ItemsControl x:Name="FilesList">
         <ItemsControl.ItemTemplate>
           <DataTemplate>
             <Border Background="Transparent"
                     BorderBrush="{StaticResource Brush.Border}"
                     BorderThickness="0,0,0,1"
                     Padding="8,5">
-              <Grid ColumnDefinitions="Auto,*,Auto,Auto,Auto,Auto">
-                <!-- visibility eye -->
-                <Button Grid.Column="0"
-                        Theme="{StaticResource Btn.Icon}"
-                        Width="22" Height="22"
-                        ToolTip.Tip="Toggle visibility"
-                        Click="OnToggleVisible"
-                        Tag="{Binding}">
-                  <PathIcon Data="{Binding Visible, Converter={x:Static conv:VisibilityIconConverter.Instance}}"
-                            Width="15" Height="15"/>
-                </Button>
+              <Grid RowDefinitions="Auto,Auto">
 
-                <!-- file name -->
-                <TextBlock Grid.Column="1"
-                           Text="{Binding Name}"
-                           VerticalAlignment="Center"
-                           Margin="4,0"
-                           FontSize="{StaticResource Font.Md}"
-                           Foreground="{StaticResource Brush.Text}"
-                           TextTrimming="CharacterEllipsis"/>
+                <!-- row 0: controls -->
+                <Grid Grid.Row="0" ColumnDefinitions="22,*,Auto,22,22,22">
 
-                <!-- kind badge -->
-                <Border Grid.Column="2"
-                        Background="{StaticResource Brush.Bg3}"
-                        CornerRadius="{StaticResource Radius.Sm}"
-                        Padding="4,1"
-                        Margin="4,0"
-                        VerticalAlignment="Center">
-                  <TextBlock Text="{Binding KindLabel}"
+                  <!-- visibility eye -->
+                  <Button Grid.Column="0"
+                          Theme="{StaticResource Btn.Icon}"
+                          Width="22" Height="22"
+                          ToolTip.Tip="Toggle visibility on canvas"
+                          Click="OnToggleVisible"
+                          Tag="{Binding}">
+                    <PathIcon Data="{Binding Visible, Converter={x:Static conv:VisibilityIconConverter.Instance}}"
+                              Width="14" Height="14"/>
+                  </Button>
+
+                  <!-- file name: label (click once selects, double-click edits) -->
+                  <Panel Grid.Column="1" Margin="4,0">
+                    <TextBlock x:Name="FileNameLabel"
+                               Text="{Binding Name}"
+                               VerticalAlignment="Center"
+                               FontSize="{StaticResource Font.Md}"
+                               Foreground="{StaticResource Brush.Text}"
+                               TextTrimming="CharacterEllipsis"
+                               DoubleTapped="OnFileNameDoubleTapped"
+                               Tag="{Binding}"
+                               Cursor="IBeam"/>
+                    <TextBox x:Name="FileNameEdit"
+                             Text="{Binding Name, Mode=TwoWay}"
+                             IsVisible="False"
+                             VerticalAlignment="Center"
+                             FontSize="{StaticResource Font.Md}"
+                             Tag="{Binding}"
+                             KeyDown="OnFileNameEditKeyDown"
+                             LostFocus="OnFileNameEditLostFocus"/>
+                  </Panel>
+
+                  <!-- kind badge -->
+                  <Border Grid.Column="2"
+                          Background="{StaticResource Brush.Bg3}"
+                          CornerRadius="{StaticResource Radius.Sm}"
+                          Padding="4,1"
+                          Margin="2,0"
+                          VerticalAlignment="Center">
+                    <TextBlock Text="{Binding KindLabel}"
+                               FontSize="{StaticResource Font.Xs}"
+                               Foreground="{StaticResource Brush.TextMuted}"/>
+                  </Border>
+
+                  <!-- trace (bitmaps only) -->
+                  <Button Grid.Column="3"
+                          Theme="{StaticResource Btn.Icon}"
+                          Width="22" Height="22"
+                          ToolTip.Tip="Trace to vector"
+                          Click="OnTraceBitmap"
+                          Tag="{Binding}"
+                          IsVisible="{Binding IsBitmap}">
+                    <PathIcon Data="{StaticResource Icon.Refresh}" Width="14" Height="14"/>
+                  </Button>
+
+                  <!-- add to table -->
+                  <Button Grid.Column="4"
+                          Theme="{StaticResource Btn.Icon}"
+                          Width="22" Height="22"
+                          ToolTip.Tip="Place a copy on the table"
+                          Click="OnAddToTable"
+                          Tag="{Binding}">
+                    <PathIcon Data="{StaticResource Icon.AddBox}" Width="15" Height="15"/>
+                  </Button>
+
+                  <!-- remove -->
+                  <Button Grid.Column="5"
+                          Theme="{StaticResource Btn.Icon}"
+                          Width="22" Height="22"
+                          Foreground="{StaticResource Brush.Danger}"
+                          ToolTip.Tip="Remove file and its parts from project"
+                          Click="OnRemoveFile"
+                          Tag="{Binding}">
+                    <PathIcon Data="{StaticResource Icon.Trash}" Width="14" Height="14"/>
+                  </Button>
+                </Grid>
+
+                <!-- row 1: summary (paths · size) and warnings -->
+                <Grid Grid.Row="1" ColumnDefinitions="22,*,Auto" Margin="0,2,0,0">
+                  <!-- warning indicator — only shows if import had warnings -->
+                  <PathIcon Grid.Column="0"
+                            Data="{StaticResource Icon.Warning}"
+                            Width="12" Height="12"
+                            Foreground="#f59e0b"
+                            ToolTip.Tip="{Binding WarningsSummary}"
+                            IsVisible="{Binding HasWarnings}"
+                            HorizontalAlignment="Center"/>
+
+                  <!-- entity count + bounding box size -->
+                  <TextBlock Grid.Column="1"
+                             Text="{Binding SummaryLine}"
+                             Classes="muted"
                              FontSize="{StaticResource Font.Xs}"
-                             Foreground="{StaticResource Brush.TextMuted}"/>
-                </Border>
+                             Margin="4,0"
+                             TextTrimming="CharacterEllipsis"
+                             VerticalAlignment="Center"/>
+                </Grid>
 
-                <!-- trace bitmap (only for bitmaps) -->
-                <Button Grid.Column="3"
-                        Theme="{StaticResource Btn.Icon}"
-                        Width="22" Height="22"
-                        ToolTip.Tip="Trace to vector"
-                        Click="OnTraceBitmap"
-                        Tag="{Binding}"
-                        IsVisible="{Binding IsBitmap}">
-                  <PathIcon Data="{StaticResource Icon.Refresh}" Width="14" Height="14"/>
-                </Button>
-
-                <!-- add to table -->
-                <Button Grid.Column="4"
-                        Theme="{StaticResource Btn.Icon}"
-                        Width="22" Height="22"
-                        ToolTip.Tip="Add copy to table"
-                        Click="OnAddToTable"
-                        Tag="{Binding}">
-                  <PathIcon Data="{StaticResource Icon.AddBox}" Width="15" Height="15"/>
-                </Button>
-
-                <!-- delete -->
-                <Button Grid.Column="5"
-                        Theme="{StaticResource Btn.Icon}"
-                        Width="22" Height="22"
-                        Foreground="{StaticResource Brush.Danger}"
-                        ToolTip.Tip="Remove file"
-                        Click="OnRemoveFile"
-                        Tag="{Binding}">
-                  <PathIcon Data="{StaticResource Icon.Trash}" Width="14" Height="14"/>
-                </Button>
               </Grid>
             </Border>
           </DataTemplate>

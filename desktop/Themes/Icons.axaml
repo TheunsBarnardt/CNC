@@ -72,6 +72,8 @@
   <StreamGeometry x:Key="Icon.Check">M5,12.5 L9.5,17 L19,6.5 L17,4.7 L9.5,13.2 L7,10.7 Z</StreamGeometry>
   <StreamGeometry x:Key="Icon.Array">M3,3 H8 V8 H3 Z M9.5,3 H14.5 V8 H9.5 Z M16,3 H21 V8 H16 Z M3,9.5 H8 V14.5 H3 Z M9.5,9.5 H14.5 V14.5 H9.5 Z M16,9.5 H21 V14.5 H16 Z M3,16 H8 V21 H3 Z M9.5,16 H14.5 V21 H9.5 Z M16,16 H21 V21 H16 Z</StreamGeometry>
 
+  <StreamGeometry x:Key="Icon.Warning">M12,3 L2.5,20 H21.5 Z M11,10 H13 V15 H11 Z M11,17 H13 V19 H11 Z</StreamGeometry>
+
   <!-- ── Node edit ──────────────────────────────────────────────── -->
   <StreamGeometry x:Key="Icon.Smooth">M3,16 C7,8 17,8 21,16 L19,17 C16,11 8,11 5,17 Z</StreamGeometry>
   <StreamGeometry x:Key="Icon.Sharp">M5,4 H8 V16 H20 V19 H5 Z</StreamGeometry>

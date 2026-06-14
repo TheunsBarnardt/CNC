@@ -1,7 +1,8 @@
 using System.Globalization;
 using Avalonia.Data.Converters;
 using Avalonia.Media;
-using Backend.Machine; // JobLogEvent
+using Backend.Machine;
+using Backend.Models;
 
 namespace Desktop.Converters;
 
@@ -59,4 +60,36 @@ public sealed class VisibilityIconConverter : IValueConverter
     public object Convert(object? v, Type t, object? p, CultureInfo c) => v is true ? Eye : EyeOff;
     public object ConvertBack(object? v, Type t, object? p, CultureInfo c) =>
         throw new NotSupportedException();
+}
+
+/// <summary>Object → bool (true if not null, false if null).</summary>
+public sealed class NotNullConverter : IValueConverter
+{
+    public static readonly NotNullConverter Instance = new();
+    public object Convert(object? v, Type t, object? p, CultureInfo c) => v is not null;
+    public object ConvertBack(object? v, Type t, object? p, CultureInfo c) =>
+        throw new NotSupportedException();
+}
+
+/// <summary>Bool → lock / unlock vector geometry (matching Icon.Lock / Icon.Unlock in Icons.axaml).</summary>
+public sealed class LockIconConverter : IValueConverter
+{
+    public static readonly LockIconConverter Instance = new();
+
+    // Paths match Icon.Lock and Icon.Unlock in Themes/Icons.axaml
+    private static readonly Geometry Locked = Geometry.Parse(
+        "F0 M7,10 V7 A5 5 0 0 1 17,7 V10 H15 V7 A3 3 0 0 0 9,7 V10 Z M5.5,10 H18.5 V21 H5.5 Z M11,13.5 H13 V17.5 H11 Z");
+    private static readonly Geometry Unlocked = Geometry.Parse(
+        "F0 M9,10 V7 A3 3 0 0 1 15,7 H17 A5 5 0 0 0 7,7 V10 Z M5.5,10 H18.5 V21 H5.5 Z M11,13.5 H13 V17.5 H11 Z");
+
+    public object Convert(object? v, Type t, object? p, CultureInfo c) => v is true ? Locked : Unlocked;
+    public object ConvertBack(object? v, Type t, object? p, CultureInfo c) =>
+        throw new NotSupportedException();
+}
+
+/// <summary>Static source for LayerOperationMode combo — avoids inline ComboBoxItem children.</summary>
+public static class LayerEditorHelper
+{
+    public static LayerOperationMode[] OperationModes { get; } =
+        Enum.GetValues<LayerOperationMode>();
 }

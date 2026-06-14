@@ -102,7 +102,7 @@
     </Border>
 
     <!-- ═══ MAIN ════════════════════════════════════════════════════ -->
-    <Grid Grid.Row="1" ColumnDefinitions="52,*,5,250">
+    <Grid Grid.Row="1" ColumnDefinitions="52,4*,5,3*" MinWidth="900">
 
       <!-- ── LEFT TOOL RAIL ─────────────────────────────────────── -->
       <Border Grid.Column="0"
@@ -144,7 +144,7 @@
       </Border>
 
       <!-- ── VIEWPORT + TOOLBARS ────────────────────────────────── -->
-      <DockPanel Grid.Column="1">
+      <DockPanel Grid.Column="1" MinWidth="400">
 
         <!-- simulation bar at bottom (visible only in sim mode) -->
         <toolbars:SimulationBar x:Name="SimBar" DockPanel.Dock="Bottom"/>
@@ -234,6 +234,7 @@
 
       <!-- ── RIGHT PANEL ────────────────────────────────────────── -->
       <Border Grid.Column="3"
+              MinWidth="200"
               Background="{StaticResource Brush.Bg1}"
               BorderBrush="{StaticResource Brush.Border}"
               BorderThickness="1,0,0,0">

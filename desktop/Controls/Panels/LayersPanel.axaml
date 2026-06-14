@@ -25,69 +25,136 @@
       </Grid>
     </Border>
 
-    <ScrollViewer>
-      <ItemsControl ItemsSource="{Binding Layers}">
+    <!-- empty hint -->
+    <TextBlock x:Name="LayersEmptyHint"
+               DockPanel.Dock="Bottom"
+               Text="No layers"
+               Classes="muted"
+               HorizontalAlignment="Center"
+               Margin="0,12"/>
+
+    <ScrollViewer VerticalScrollBarVisibility="Auto">
+      <ItemsControl x:Name="LayersList">
         <ItemsControl.ItemTemplate>
           <DataTemplate>
             <Border Background="Transparent"
                     BorderBrush="{StaticResource Brush.Border}"
                     BorderThickness="0,0,0,1"
                     Padding="8,5">
-              <Grid ColumnDefinitions="Auto,*,Auto,Auto,Auto">
-                <!-- colour swatch (click to change color) -->
-                <Button Grid.Column="0"
-                        Width="14" Height="14"
-                        Padding="0"
-                        Margin="0,0,6,0"
-                        Background="{Binding Color}"
-                        CornerRadius="{StaticResource Radius.Sm}"
-                        ToolTip.Tip="Change layer color"
-                        Click="OnChangeColor"
-                        Tag="{Binding}"/>
+              <Grid RowDefinitions="Auto,Auto">
 
-                <!-- layer name -->
-                <TextBox Grid.Column="1"
-                         Text="{Binding Name}"
-                         Background="Transparent"
-                         BorderThickness="0"
-                         Padding="0"
-                         VerticalAlignment="Center"
-                         FontSize="{StaticResource Font.Md}"
-                         Foreground="{StaticResource Brush.Text}"/>
+                <!-- main row: swatch · name · mode · lock · eye · delete -->
+                <Grid Grid.Row="0"
+                      ColumnDefinitions="14,*,90,22,22,22"
+                      VerticalAlignment="Center">
 
-                <!-- operation mode dropdown -->
-                <ComboBox Grid.Column="2"
-                          SelectedItem="{Binding OperationMode}"
-                          Width="90"
-                          ToolTip.Tip="Cut / Score / Engrave"
-                          SelectionChanged="OnOperationModeChanged"
+                  <!-- colour swatch -->
+                  <Button Grid.Column="0"
+                          Width="14" Height="14"
+                          Padding="0"
+                          Margin="0,0,6,0"
+                          Background="{Binding Color}"
+                          CornerRadius="{StaticResource Radius.Sm}"
+                          ToolTip.Tip="Change layer color"
+                          Click="OnChangeColor"
+                          Tag="{Binding}"/>
+
+                  <!-- layer name (inline edit, commits on Enter or focus-lost) -->
+                  <TextBox Grid.Column="1"
+                           Text="{Binding Name, Mode=TwoWay}"
+                           Background="Transparent"
+                           BorderThickness="0"
+                           Padding="4,0"
+                           VerticalAlignment="Center"
+                           FontSize="{StaticResource Font.Md}"
+                           Foreground="{StaticResource Brush.Text}"
+                           LostFocus="OnNameCommit"
+                           KeyDown="OnNameKeyDown"
+                           Tag="{Binding}"/>
+
+                  <!-- operation mode — click cycles Cut→Score→Engrave -->
+                  <Button Grid.Column="2"
+                          Height="20"
+                          HorizontalAlignment="Stretch"
+                          HorizontalContentAlignment="Center"
+                          FontSize="{StaticResource Font.Xs}"
+                          Foreground="{StaticResource Brush.TextMuted}"
+                          Background="{StaticResource Brush.Bg3}"
+                          BorderBrush="{StaticResource Brush.Border}"
+                          BorderThickness="1"
+                          CornerRadius="{StaticResource Radius.Sm}"
+                          Padding="4,0"
+                          Content="{Binding OperationMode}"
+                          Click="OnCycleOperationMode"
+                          Tag="{Binding}"
+                          ToolTip.Tip="Click to toggle Cut / Score / Engrave"/>
+
+                  <!-- lock -->
+                  <Button Grid.Column="3"
+                          Theme="{StaticResource Btn.Icon}"
+                          Width="22" Height="22"
+                          ToolTip.Tip="Lock / unlock layer"
+                          Click="OnToggleLock"
                           Tag="{Binding}">
-                  <ComboBoxItem>Cut</ComboBoxItem>
-                  <ComboBoxItem>Score</ComboBoxItem>
-                  <ComboBoxItem>Engrave</ComboBoxItem>
-                </ComboBox>
+                    <PathIcon Data="{Binding Locked, Converter={x:Static conv:LockIconConverter.Instance}}"
+                              Width="13" Height="13"/>
+                  </Button>
 
-                <!-- visibility -->
-                <Button Grid.Column="3"
-                        Theme="{StaticResource Btn.Icon}"
-                        Width="22" Height="22"
-                        ToolTip.Tip="Toggle visibility"
-                        Click="OnToggleVisible"
-                        Tag="{Binding}">
-                  <PathIcon Data="{Binding Visible, Converter={x:Static conv:VisibilityIconConverter.Instance}}"
-                            Width="15" Height="15"/>
-                </Button>
+                  <!-- visibility -->
+                  <Button Grid.Column="4"
+                          Theme="{StaticResource Btn.Icon}"
+                          Width="22" Height="22"
+                          ToolTip.Tip="Toggle visibility"
+                          Click="OnToggleVisible"
+                          Tag="{Binding}">
+                    <PathIcon Data="{Binding Visible, Converter={x:Static conv:VisibilityIconConverter.Instance}}"
+                              Width="15" Height="15"/>
+                  </Button>
 
-                <!-- delete -->
-                <Button Grid.Column="4"
-                        Theme="{StaticResource Btn.Icon}"
-                        Width="22" Height="22"
-                        Foreground="{StaticResource Brush.Danger}"
-                        ToolTip.Tip="Delete layer"
-                        Click="OnDeleteLayer"
-                        Tag="{Binding}">
-                  <PathIcon Data="{StaticResource Icon.Close}" Width="13" Height="13"/>
-                </Button>
+                  <!-- delete -->
+                  <Button Grid.Column="5"
+                          Theme="{StaticResource Btn.Icon}"
+                          Width="22" Height="22"
+                          Foreground="{StaticResource Brush.Danger}"
+                          ToolTip.Tip="Delete layer"
+                          Click="OnDeleteLayer"
+                          Tag="{Binding}">
+                    <PathIcon Data="{StaticResource Icon.Close}" Width="13" Height="13"/>
+                  </Button>
+                </Grid>
+
+                <!-- override row: per-layer feed + laser power -->
+                <StackPanel Grid.Row="1"
+                            Orientation="Horizontal"
+                            Spacing="4"
+                            Margin="20,3,0,1">
+                  <TextBlock Text="Feed"
+                             Classes="muted"
+                             FontSize="{StaticResource Font.Xs}"
+                             VerticalAlignment="Center"/>
+                  <TextBox Width="58" Height="20"
+                           FontSize="{StaticResource Font.Xs}"
+                           Watermark="global"
+                           ToolTip.Tip="Feed-rate override mm/min (blank = global)"
+                           LostFocus="OnFeedOverrideCommit"
+                           KeyDown="OnOverrideKeyDown"
+                           Tag="{Binding}"
+                           x:Name="TbFeed"/>
+                  <TextBlock Text="Pwr%"
+                             Classes="muted"
+                             FontSize="{StaticResource Font.Xs}"
+                             VerticalAlignment="Center"
+                             Margin="4,0,0,0"/>
+                  <TextBox Width="44" Height="20"
+                           FontSize="{StaticResource Font.Xs}"
+                           Watermark="global"
+                           ToolTip.Tip="Laser power override % (blank = global)"
+                           LostFocus="OnPowerOverrideCommit"
+                           KeyDown="OnOverrideKeyDown"
+                           Tag="{Binding}"
+                           x:Name="TbPwr"/>
+                </StackPanel>
+
               </Grid>
             </Border>
           </DataTemplate>

@@ -1,0 +1,62 @@
+<Window xmlns="https://github.com/avaloniaui"
+        xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+        x:Class="Desktop.Views.GuideDialog"
+        x:CompileBindings="False"
+        Title="Guideline"
+        Width="340" Height="340"
+        WindowStartupLocation="CenterOwner"
+        CanResize="False">
+
+  <StackPanel Spacing="10" Margin="16">
+
+    <!-- ID / description -->
+    <StackPanel Spacing="2">
+      <TextBlock x:Name="TbId"   FontSize="11" Foreground="#888"/>
+      <TextBlock x:Name="TbDesc" FontSize="11" Foreground="#888"/>
+    </StackPanel>
+
+    <!-- Label -->
+    <Grid ColumnDefinitions="56,*" VerticalAlignment="Center">
+      <TextBlock Grid.Column="0" Text="Label:" VerticalAlignment="Center" Margin="0,0,6,0"/>
+      <TextBox   Grid.Column="1" x:Name="TbLabel" Padding="6,4"/>
+    </Grid>
+
+    <!-- X -->
+    <Grid ColumnDefinitions="56,*,44" VerticalAlignment="Center">
+      <TextBlock Grid.Column="0" Text="X:" VerticalAlignment="Center" Margin="0,0,6,0"/>
+      <TextBox   Grid.Column="1" x:Name="TbX" Padding="6,4"/>
+      <TextBlock Grid.Column="2" Text="mm" VerticalAlignment="Center" Margin="6,0,0,0" Foreground="#888"/>
+    </Grid>
+
+    <!-- Y -->
+    <Grid ColumnDefinitions="56,*,44" VerticalAlignment="Center">
+      <TextBlock Grid.Column="0" Text="Y:" VerticalAlignment="Center" Margin="0,0,6,0"/>
+      <TextBox   Grid.Column="1" x:Name="TbY" Padding="6,4"/>
+      <TextBlock Grid.Column="2" Text="mm" VerticalAlignment="Center" Margin="6,0,0,0" Foreground="#888"/>
+    </Grid>
+
+    <!-- Angle -->
+    <Grid ColumnDefinitions="56,*,44" VerticalAlignment="Center">
+      <TextBlock Grid.Column="0" Text="Angle:" VerticalAlignment="Center" Margin="0,0,6,0"/>
+      <TextBox   Grid.Column="1" x:Name="TbAngle" Padding="6,4"/>
+      <TextBlock Grid.Column="2" Text="°" VerticalAlignment="Center" Margin="6,0,0,0" Foreground="#888"/>
+    </Grid>
+
+    <!-- Relative change -->
+    <CheckBox x:Name="CbRelative" Content="Relative change"
+              ToolTip.Tip="X/Y/Angle values are offsets from the current position"/>
+
+    <!-- Locked -->
+    <CheckBox x:Name="CbLocked" Content="Locked"
+              ToolTip.Tip="Lock guide so it cannot be moved by dragging"/>
+
+    <!-- Buttons -->
+    <StackPanel Orientation="Horizontal" Spacing="6" HorizontalAlignment="Right" Margin="0,8,0,0">
+      <Button x:Name="BtnOk"        Content="OK"        Padding="14,7" Background="#3b82f6" Foreground="White"/>
+      <Button x:Name="BtnDuplicate" Content="Duplicate" Padding="10,7"/>
+      <Button x:Name="BtnDelete"    Content="Delete"    Padding="10,7" Foreground="#ef4444"/>
+      <Button x:Name="BtnCancel"    Content="Cancel"    Padding="10,7"/>
+    </StackPanel>
+
+  </StackPanel>
+</Window>

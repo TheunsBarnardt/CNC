@@ -16,28 +16,28 @@ namespace Desktop.Controls;
 
 /// <summary>
 /// SkiaSharp canvas that renders the cutting table, grid, rulers, and placed
-/// parts. Handles pan / zoom / select / move interactions directly.
+/// parts. Handles pan / zoom / select / move / resize / rotate interactions.
 /// </summary>
 public sealed class ViewportControl : Control
 {
     // ── view transform ────────────────────────────────────────────────────
-    private float _scale = 0.5f;   // pixels per mm
-    private float _tx = 20;        // table-origin screen X (px)
-    private float _ty = 20;        // table-origin screen Y (px, from bottom)
+    private float _scale = 0.5f;
+    private float _tx = 20;
+    private float _ty = 20;
     private bool _fitted;
 
     // ── display options ───────────────────────────────────────────────────
     private bool _darkCanvas = true;
     private bool _showGrid   = true;
-    private bool _snap;                 // snap part position to grid while dragging
+    private bool _snap;
     private const int RULER_PX = 20;
 
     // ── live cursor + alignment-guide state ───────────────────────────────
-    private Point? _cursor;             // last pointer position, screen px
-    private double? _guideX, _guideY;   // active alignment guides (world mm)
-    private float _gridMinorMm = 10;    // current grid minor spacing (mm)
+    private Point? _cursor;
+    private double? _guideX, _guideY;
+    private float _gridMinorMm = 10;
 
-    // ── data (set by MainWindow when ViewModel changes) ───────────────────
+    // ── data ──────────────────────────────────────────────────────────────
     private MainViewModel? _vm;
     private TableSettings  _table  = new();
     private List<Part>     _parts  = [];
@@ -45,15 +45,32 @@ public sealed class ViewportControl : Control
     private Dictionary<Guid, List<ModelPathGeometry>> _geometry = new();
     private Guid? _selectedId;
 
-    // ── simulation state (set by SimulationBar on each tick) ─────────────
+    // ── simulation state ──────────────────────────────────────────────────
     public SimState? SimState { get; set; }
 
+    // ── user guides ───────────────────────────────────────────────────────
+    private List<Guide> _userGuides = [];
+
     // ── drag state ────────────────────────────────────────────────────────
-    private enum DragMode { None, Pan, Move }
+    private enum DragMode { None, Pan, Move, Resize, Rotate, Select, MoveGuide, CreateGuide }
     private DragMode _drag;
     private Point    _dragStart;
     private float    _dragTx, _dragTy;
     private double   _partStartX, _partStartY;
+    private int      _dragGuideIdx = -1;
+    private double   _newGuideAngleDeg;
+
+    // ── resize state ──────────────────────────────────────────────────────
+    private int    _resizeHandle = -1;
+    private double _resizeAnchorX, _resizeAnchorY;
+    private double _localW, _localH;
+    private bool   _resizeAffectsX, _resizeAffectsY;
+    private bool   _anchorXOnRight, _anchorYOnTop;
+
+    // ── rotate state ──────────────────────────────────────────────────────
+    private double _rotateCenterX, _rotateCenterY;
+    private double _rotateStartAngle;
+    private double _origRotation;
 
     // ── pen tool state ─────────────────────────────────────────────────────
     private List<(double x, double y)> _penPoints = [];
@@ -62,12 +79,20 @@ public sealed class ViewportControl : Control
     private bool _nodeEditMode;
     private Guid? _editingPartId;
     private int? _selectedNodeIndex;
-    private double _nodeHitRadius = 5;  // screen pixels
+    private double _nodeHitRadius = 5;
 
     // ── events ────────────────────────────────────────────────────────────
     public event Action<Guid?    >? SelectionChanged;
-    public event Action<Part     >? PartMoved;     // optimistic (during drag)
-    public event Action<Part     >? PartCommitted; // final (drag end)
+    public event Action<Part     >? PartMoved;
+    public event Action<Part     >? PartCommitted;
+    /// <summary>Fires at the START of any move/resize/rotate drag — use to checkpoint undo.</summary>
+    public event Action? TransformStarted;
+    /// <summary>Fires when user drags from a ruler to create a guide.</summary>
+    public event Action<double, double, double>? GuideCreateRequested; // (worldX, worldY, angleDeg)
+    /// <summary>Fires when user finishes moving a guide.</summary>
+    public event Action<Guide>? GuideMoved;
+    /// <summary>Fires when user double-clicks a guide line.</summary>
+    public event Action<Guide>? GuideEditRequested;
 
     public ViewportControl()
     {
@@ -124,10 +149,11 @@ public sealed class ViewportControl : Control
     {
         if (_vm is null) return;
         var p = _vm.Project;
-        _table    = p.Table;
-        _parts    = [.. p.Parts];
-        _layers   = [.. p.Layers];
-        _geometry = _vm.Geometry;
+        _table      = p.Table;
+        _parts      = [.. p.Parts];
+        _layers     = [.. p.Layers];
+        _userGuides = [.. p.Guides];
+        _geometry   = _vm.Geometry;
         _selectedId = _vm.SelectedPart?.Id;
 
         if (!_fitted && Bounds.Width > 0) { _fitted = true; FitToView(); }
@@ -139,6 +165,88 @@ public sealed class ViewportControl : Control
     private float ToSY(double worldY) => (float)(Bounds.Height - (worldY * _scale + _ty));
     private double ToWX(float sx)     => (sx - _tx) / _scale;
     private double ToWY(float sy)     => (Bounds.Height - sy - _ty) / _scale;
+
+    // ── handle hit-testing ────────────────────────────────────────────────
+
+    /// <summary>Returns handle index 0-7 if pointer is over a resize handle, else -1.</summary>
+    private int HitTestHandle(Point screenPos)
+    {
+        if (!_selectedId.HasValue) return -1;
+        var part = _parts.FirstOrDefault(p => p.Id == _selectedId.Value);
+        if (part is null || !_geometry.TryGetValue(part.FileId, out var geom)) return -1;
+
+        var (bMin, bMax) = WorldBounds(part, geom);
+        float bx0 = ToSX(bMin.X), by0 = ToSY(bMax.Y);
+        float bx1 = ToSX(bMax.X), by1 = ToSY(bMin.Y);
+        float mx = (bx0 + bx1) / 2, my = (by0 + by1) / 2;
+        float[] hx = [bx0, mx, bx1, bx0, bx1, bx0, mx, bx1];
+        float[] hy = [by0, by0, by0, my,  my,  by1, by1, by1];
+
+        const float TOL = 7f;
+        for (int i = 0; i < 8; i++)
+            if (Math.Abs(screenPos.X - hx[i]) <= TOL && Math.Abs(screenPos.Y - hy[i]) <= TOL)
+                return i;
+        return -1;
+    }
+
+    /// <summary>Returns true if pointer is over the rotation handle (circle above top-center).</summary>
+    private bool HitTestRotateHandle(Point screenPos)
+    {
+        if (!_selectedId.HasValue) return false;
+        var part = _parts.FirstOrDefault(p => p.Id == _selectedId.Value);
+        if (part is null || !_geometry.TryGetValue(part.FileId, out var geom)) return false;
+
+        var (bMin, bMax) = WorldBounds(part, geom);
+        float bx0 = ToSX(bMin.X), bx1 = ToSX(bMax.X);
+        float by0 = ToSY(bMax.Y);
+        float rx = (bx0 + bx1) / 2;
+        float ry = by0 - 22;
+
+        float dx = (float)(screenPos.X - rx);
+        float dy = (float)(screenPos.Y - ry);
+        return dx * dx + dy * dy <= 8 * 8;
+    }
+
+    /// <summary>Sets resize anchor and flags from handle index. Must call AFTER computing WorldBounds.</summary>
+    private void SetResizeState(int hIdx, (Point2 Min, Point2 Max) bounds, Part part)
+    {
+        double cx = (bounds.Min.X + bounds.Max.X) / 2;
+        double cy = (bounds.Min.Y + bounds.Max.Y) / 2;
+
+        // Which anchor world X/Y stays fixed (opposite side from the dragged handle)
+        _resizeAnchorX = hIdx switch {
+            0 or 3 or 5 => bounds.Max.X,
+            1 or 6      => cx,
+            _           => bounds.Min.X,
+        };
+        _resizeAnchorY = hIdx switch {
+            0 or 1 or 2 => bounds.Min.Y,
+            3 or 4      => cy,
+            _           => bounds.Max.Y,
+        };
+
+        _anchorXOnRight = (hIdx == 0 || hIdx == 3 || hIdx == 5);
+        _anchorYOnTop   = (hIdx == 5 || hIdx == 6 || hIdx == 7);
+
+        _resizeAffectsX = (hIdx != 1 && hIdx != 6);
+        _resizeAffectsY = (hIdx != 3 && hIdx != 4);
+
+        _resizeHandle = hIdx;
+
+        // Get local (un-scaled) file dimensions
+        if (_vm?.FileById(part.FileId) is { } file)
+        {
+            var bb = file.BoundingBox;
+            _localW = bb.Width;
+            _localH = bb.Height;
+        }
+        else
+        {
+            // Fallback: infer from world bounds / current scale
+            _localW = Math.Abs(part.ScaleX) > 1e-9 ? (bounds.Max.X - bounds.Min.X) / Math.Abs(part.ScaleX) : 1;
+            _localH = Math.Abs(part.ScaleY) > 1e-9 ? (bounds.Max.Y - bounds.Min.Y) / Math.Abs(part.ScaleY) : 1;
+        }
+    }
 
     // ── interaction ───────────────────────────────────────────────────────
     protected override void OnPointerWheelChanged(PointerWheelEventArgs e)
@@ -167,45 +275,36 @@ public sealed class ViewportControl : Control
         {
             if (pos.X >= RULER_PX && pos.Y >= RULER_PX)
             {
-                var pwx = ToWX((float)pos.X);
-                var pwy = ToWY((float)pos.Y);
-                _penPoints.Add((pwx, pwy));
+                _penPoints.Add((ToWX((float)pos.X), ToWY((float)pos.Y)));
                 InvalidateVisual();
             }
             return;
         }
 
-        // Node edit mode: left double-click or click on node
+        // Node edit mode
         if (_nodeEditMode && props.IsLeftButtonPressed)
         {
             if (pos.X >= RULER_PX && pos.Y >= RULER_PX)
-            {
-                // Handle node selection/dragging in node edit mode
-                var nwx = ToWX((float)pos.X);
-                var nwy = ToWY((float)pos.Y);
-                HitTestNode(nwx, nwy);
-            }
+                HitTestNode(ToWX((float)pos.X), ToWY((float)pos.Y));
             return;
         }
 
-        // Double-click to enter node edit mode
+        // Double-click → enter node edit
         if (props.IsLeftButtonPressed && e.ClickCount == 2)
         {
             if (pos.X >= RULER_PX && pos.Y >= RULER_PX)
             {
-                var dwx = ToWX((float)pos.X);
-                var dwy = ToWY((float)pos.Y);
-                Part? dpart = HitTestPartAtPoint(dwx, dwy);
+                Part? dpart = HitTestPartAtPoint(ToWX((float)pos.X), ToWY((float)pos.Y));
                 if (dpart is not null)
                 {
                     EnterNodeEditMode(dpart);
-                    _vm.StatusText = $"Node edit mode (double-click to edit): {dpart.FileId:N}";
+                    _vm!.StatusText = "Node edit — double-click edits nodes. Esc to exit.";
                     return;
                 }
             }
         }
 
-        // Middle mouse or right-drag → pan
+        // Middle/right → pan
         if (props.IsMiddleButtonPressed || props.IsRightButtonPressed)
         {
             _drag = DragMode.Pan;
@@ -217,12 +316,90 @@ public sealed class ViewportControl : Control
 
         if (!props.IsLeftButtonPressed) return;
 
-        // Skip ruler area
+        // ── Drag from ruler → create a guide ─────────────────────────────
+        if (pos.X < RULER_PX && pos.Y >= RULER_PX)
+        {
+            _newGuideAngleDeg = 90; // vertical guide from left ruler
+            _drag = DragMode.CreateGuide;
+            _dragStart = pos;
+            e.Pointer.Capture(this);
+            return;
+        }
+        if (pos.Y < RULER_PX && pos.X >= RULER_PX)
+        {
+            _newGuideAngleDeg = 0; // horizontal guide from top ruler
+            _drag = DragMode.CreateGuide;
+            _dragStart = pos;
+            e.Pointer.Capture(this);
+            return;
+        }
+
         if (pos.X < RULER_PX || pos.Y < RULER_PX) return;
 
-        // Hit-test parts (back-to-front so top-most wins)
-        var wx = ToWX((float)pos.X);
-        var wy = ToWY((float)pos.Y);
+        // ── Check rotation handle first (small target, must win) ──────────
+        if (_selectedId.HasValue && HitTestRotateHandle(pos))
+        {
+            var part = _parts.FirstOrDefault(p => p.Id == _selectedId.Value);
+            if (part is not null && _geometry.TryGetValue(part.FileId, out var geom))
+            {
+                var (bMin, bMax) = WorldBounds(part, geom);
+                _rotateCenterX   = (bMin.X + bMax.X) / 2;
+                _rotateCenterY   = (bMin.Y + bMax.Y) / 2;
+                _origRotation    = part.RotationDeg;
+                double wx = ToWX((float)pos.X), wy = ToWY((float)pos.Y);
+                _rotateStartAngle = Math.Atan2(wy - _rotateCenterY, wx - _rotateCenterX);
+                _drag      = DragMode.Rotate;
+                _dragStart = pos;
+                e.Pointer.Capture(this);
+                TransformStarted?.Invoke();
+                return;
+            }
+        }
+
+        // ── Check resize handles ──────────────────────────────────────────
+        int hIdx = HitTestHandle(pos);
+        if (hIdx >= 0)
+        {
+            var part = _parts.FirstOrDefault(p => p.Id == _selectedId!.Value);
+            if (part is not null && _geometry.TryGetValue(part.FileId, out var geom))
+            {
+                var bounds = WorldBounds(part, geom);
+                SetResizeState(hIdx, bounds, part);
+                _partStartX   = part.X;
+                _partStartY   = part.Y;
+                _drag         = DragMode.Resize;
+                _dragStart    = pos;
+                e.Pointer.Capture(this);
+                TransformStarted?.Invoke();
+                return;
+            }
+        }
+
+        // ── Hit-test guides ───────────────────────────────────────────────
+        {
+            int gi = HitTestGuide(pos);
+            if (gi >= 0)
+            {
+                if (e.ClickCount == 2)
+                {
+                    GuideEditRequested?.Invoke(_userGuides[gi]);
+                    e.Handled = true;
+                    return;
+                }
+                if (!_userGuides[gi].IsLocked)
+                {
+                    _dragGuideIdx = gi;
+                    _drag = DragMode.MoveGuide;
+                    _dragStart = pos;
+                    e.Pointer.Capture(this);
+                    return;
+                }
+            }
+        }
+
+        // ── Hit-test parts ────────────────────────────────────────────────
+        double pwx = ToWX((float)pos.X);
+        double pwy = ToWY((float)pos.Y);
         Part? hit = null;
         for (int i = _parts.Count - 1; i >= 0; i--)
         {
@@ -230,33 +407,27 @@ public sealed class ViewportControl : Control
             var layer = _layers.FirstOrDefault(l => l.Id == part.LayerId);
             if (layer is { Visible: false } || layer is { Locked: true }) continue;
             if (!_geometry.TryGetValue(part.FileId, out var geom)) continue;
-            if (HitTestPart(part, geom, wx, wy))
-            {
-                hit = part;
-                break;
-            }
+            if (HitTestPart(part, geom, pwx, pwy)) { hit = part; break; }
         }
 
         if (hit is not null)
         {
             _selectedId = hit.Id;
             SelectionChanged?.Invoke(hit.Id);
-
-            // Begin move drag
-            _drag = DragMode.Move;
+            _drag         = DragMode.Move;
             _dragStart    = pos;
             _partStartX   = hit.X;
             _partStartY   = hit.Y;
             e.Pointer.Capture(this);
+            TransformStarted?.Invoke();
         }
         else
         {
-            // Click on empty → deselect and start pan
+            // Click on empty → deselect + rubber-band
             _selectedId = null;
             SelectionChanged?.Invoke(null);
-            _drag = DragMode.Pan;
+            _drag = DragMode.Select;
             _dragStart = pos;
-            _dragTx = _tx; _dragTy = _ty;
             e.Pointer.Capture(this);
         }
         InvalidateVisual();
@@ -269,27 +440,119 @@ public sealed class ViewportControl : Control
         _cursor = pos;
 
         if (_drag == DragMode.None) { InvalidateVisual(); return; }
+
         double dx = pos.X - _dragStart.X;
         double dy = pos.Y - _dragStart.Y;
 
-        if (_drag == DragMode.Pan)
+        switch (_drag)
         {
-            _tx = _dragTx + (float)dx;
-            _ty = _dragTy - (float)dy;  // screen Y flipped
-            InvalidateVisual();
-        }
-        else if (_drag == DragMode.Move && _selectedId.HasValue)
-        {
-            var part = _parts.FirstOrDefault(p => p.Id == _selectedId.Value);
-            if (part is not null)
+            case DragMode.Pan:
+                _tx = _dragTx + (float)dx;
+                _ty = _dragTy - (float)dy;
+                break;
+
+            case DragMode.Move when _selectedId.HasValue:
             {
-                part.X = _partStartX + dx / _scale;
-                part.Y = _partStartY - dy / _scale;  // screen Y flipped
-                ApplyDragAssist(part);               // snap-to-grid + alignment guides
-                PartMoved?.Invoke(part);
-                InvalidateVisual();
+                var part = _parts.FirstOrDefault(p => p.Id == _selectedId.Value);
+                if (part is not null)
+                {
+                    part.X = _partStartX + dx / _scale;
+                    part.Y = _partStartY - dy / _scale;
+                    ApplyDragAssist(part);
+                    PartMoved?.Invoke(part);
+                }
+                break;
             }
+
+            case DragMode.Resize when _selectedId.HasValue:
+            {
+                var part = _parts.FirstOrDefault(p => p.Id == _selectedId.Value);
+                if (part is not null) ApplyResize(part, pos);
+                break;
+            }
+
+            case DragMode.Rotate when _selectedId.HasValue:
+            {
+                var part = _parts.FirstOrDefault(p => p.Id == _selectedId.Value);
+                if (part is not null) ApplyRotate(part, pos, e.KeyModifiers);
+                break;
+            }
+
+            case DragMode.Select:
+                // no state update needed — just redraw the rubber-band
+                break;
+
+            case DragMode.MoveGuide when _dragGuideIdx >= 0:
+            {
+                var g = _userGuides[_dragGuideIdx];
+                // Vertical (≈90°): follow mouse X; Horizontal (≈0°): follow mouse Y;
+                // Angled: move pass-through point to mouse
+                double mwx = ToWX((float)pos.X), mwy = ToWY((float)pos.Y);
+                if (Math.Abs(g.AngleDeg - 90) < 1) g.X = mwx;
+                else if (g.AngleDeg < 1)            g.Y = mwy;
+                else { g.X = mwx; g.Y = mwy; }
+                break;
+            }
+            // CreateGuide: cursor position visible in render via _cursor — no extra state needed
         }
+        InvalidateVisual();
+    }
+
+    private void ApplyResize(Part part, Point pos)
+    {
+        if (_localW < 1e-9 || _localH < 1e-9) return;
+
+        double mouseWX = ToWX((float)pos.X);
+        double mouseWY = ToWY((float)pos.Y);
+        double halfW   = _localW / 2;
+        double halfH   = _localH / 2;
+
+        double newScaleX = Math.Abs(part.ScaleX);
+        double newScaleY = Math.Abs(part.ScaleY);
+        double newX = part.X;
+        double newY = part.Y;
+
+        if (_resizeAffectsX)
+        {
+            double newW = Math.Abs(mouseWX - _resizeAnchorX);
+            newScaleX   = Math.Max(0.01, newW / _localW);
+            // Ensure the anchor edge stays fixed in world space.
+            // bMax.X = Part.X + halfW * (1 + ScaleX)  →  newX = anchor - halfW*(1+newScaleX)
+            // bMin.X = Part.X + halfW * (1 - ScaleX)  →  newX = anchor - halfW*(1-newScaleX)
+            newX = _anchorXOnRight
+                ? _resizeAnchorX - halfW * (1 + newScaleX)
+                : _resizeAnchorX - halfW * (1 - newScaleX);
+        }
+
+        if (_resizeAffectsY)
+        {
+            double newH = Math.Abs(mouseWY - _resizeAnchorY);
+            newScaleY   = Math.Max(0.01, newH / _localH);
+            // bMax.Y = Part.Y + halfH * (1 + ScaleY)  →  newY = anchor - halfH*(1+newScaleY)
+            // bMin.Y = Part.Y + halfH * (1 - ScaleY)  →  newY = anchor - halfH*(1-newScaleY)
+            newY = _anchorYOnTop
+                ? _resizeAnchorY - halfH * (1 + newScaleY)
+                : _resizeAnchorY - halfH * (1 - newScaleY);
+        }
+
+        part.X      = newX;
+        part.Y      = newY;
+        part.ScaleX = newScaleX;
+        part.ScaleY = newScaleY;
+        PartMoved?.Invoke(part);
+    }
+
+    private void ApplyRotate(Part part, Point pos, KeyModifiers mods)
+    {
+        double wx = ToWX((float)pos.X);
+        double wy = ToWY((float)pos.Y);
+        double currentAngle = Math.Atan2(wy - _rotateCenterY, wx - _rotateCenterX);
+        double delta = (currentAngle - _rotateStartAngle) * 180 / Math.PI;
+        double newRot = (_origRotation + delta % 360 + 360) % 360;
+        if (mods.HasFlag(KeyModifiers.Control))
+            newRot = Math.Round(newRot / 15) * 15;
+        part.RotationDeg = newRot;
+        PartMoved?.Invoke(part);
     }
 
     protected override void OnPointerExited(PointerEventArgs e)
@@ -299,11 +562,6 @@ public sealed class ViewportControl : Control
         InvalidateVisual();
     }
 
-    /// <summary>
-    /// While a part is being dragged, nudge its position so edges/centre line
-    /// up with the sheet, the sheet centre, or other parts — and (optionally)
-    /// snap to the grid. Records the active guide lines for rendering.
-    /// </summary>
     private void ApplyDragAssist(Part part)
     {
         _guideX = _guideY = null;
@@ -311,11 +569,16 @@ public sealed class ViewportControl : Control
 
         var (mn, mx) = WorldBounds(part, geom);
         double cx = (mn.X + mx.X) / 2, cy = (mn.Y + mx.Y) / 2;
-        double tol = 6 / _scale;   // ~6 screen px regardless of zoom
+        double tol = 6 / _scale;
 
-        // Candidate target lines (sheet edges + centre, plus every other part)
         var targetsX = new List<double> { 0, _table.WidthMm / 2, _table.WidthMm };
         var targetsY = new List<double> { 0, _table.HeightMm / 2, _table.HeightMm };
+        // Add user-guide positions as snap targets
+        foreach (var g in _userGuides)
+        {
+            if (Math.Abs(g.AngleDeg - 90) < 1) targetsX.Add(g.X); // vertical guide
+            else if (g.AngleDeg < 1)            targetsY.Add(g.Y); // horizontal guide
+        }
         foreach (var other in _parts)
         {
             if (other.Id == part.Id) continue;
@@ -325,7 +588,6 @@ public sealed class ViewportControl : Control
             targetsY.Add(omn.Y); targetsY.Add((omn.Y + omx.Y) / 2); targetsY.Add(omx.Y);
         }
 
-        // X axis: try aligning left / centre / right to the nearest target.
         double bestDx = tol; bool foundX = false; double guideX = 0;
         foreach (var t in targetsX)
             foreach (var r in new[] { mn.X, cx, mx.X })
@@ -338,7 +600,6 @@ public sealed class ViewportControl : Control
                 if (Math.Abs(t - r) < bestDy) { bestDy = Math.Abs(t - r); part.Y += t - r; guideY = t; foundY = true; }
         if (foundY) _guideY = guideY;
 
-        // Grid snap (only on an axis with no stronger alignment match).
         if (_snap && _gridMinorMm > 0)
         {
             if (!foundX) part.X = Math.Round(part.X / _gridMinorMm) * _gridMinorMm;
@@ -349,36 +610,91 @@ public sealed class ViewportControl : Control
     protected override void OnPointerReleased(PointerReleasedEventArgs e)
     {
         base.OnPointerReleased(e);
-        if (_drag == DragMode.Move && _selectedId.HasValue)
+        var pos = e.GetPosition(this);
+
+        switch (_drag)
         {
-            var part = _parts.FirstOrDefault(p => p.Id == _selectedId.Value);
-            if (part is not null) PartCommitted?.Invoke(part);
+            case DragMode.Move:
+            case DragMode.Resize:
+            case DragMode.Rotate:
+                if (_selectedId.HasValue)
+                {
+                    var part = _parts.FirstOrDefault(p => p.Id == _selectedId.Value);
+                    if (part is not null) PartCommitted?.Invoke(part);
+                }
+                _guideX = _guideY = null;
+                break;
+
+            case DragMode.Select:
+                FinalizeRubberBand(pos);
+                break;
+
+            case DragMode.MoveGuide when _dragGuideIdx >= 0:
+                GuideMoved?.Invoke(_userGuides[_dragGuideIdx]);
+                _dragGuideIdx = -1;
+                break;
+
+            case DragMode.CreateGuide:
+                // Only create if mouse reached the canvas (past both rulers)
+                if (pos.X >= RULER_PX && pos.Y >= RULER_PX)
+                {
+                    double gx = _newGuideAngleDeg == 90 ? ToWX((float)pos.X) : 0;
+                    double gy = _newGuideAngleDeg == 0  ? ToWY((float)pos.Y) : 0;
+                    GuideCreateRequested?.Invoke(gx, gy, _newGuideAngleDeg);
+                }
+                break;
         }
+
         _drag = DragMode.None;
-        _guideX = _guideY = null;   // clear alignment guides
         e.Pointer.Capture(null);
         InvalidateVisual();
+    }
+
+    private void FinalizeRubberBand(Point endPos)
+    {
+        // Convert screen rect to world rect
+        double wx0 = Math.Min(ToWX((float)_dragStart.X), ToWX((float)endPos.X));
+        double wx1 = Math.Max(ToWX((float)_dragStart.X), ToWX((float)endPos.X));
+        double wy0 = Math.Min(ToWY((float)_dragStart.Y), ToWY((float)endPos.Y));
+        double wy1 = Math.Max(ToWY((float)_dragStart.Y), ToWY((float)endPos.Y));
+        double minSize = 3 / _scale;  // must drag at least 3px to count as selection
+
+        if (wx1 - wx0 < minSize && wy1 - wy0 < minSize) return;  // tiny drag → keep current selection
+
+        // Select topmost part whose AABB overlaps the band
+        Part? selected = null;
+        for (int i = _parts.Count - 1; i >= 0; i--)
+        {
+            var part = _parts[i];
+            var layer = _layers.FirstOrDefault(l => l.Id == part.LayerId);
+            if (layer is { Visible: false } || layer is { Locked: true }) continue;
+            if (!_geometry.TryGetValue(part.FileId, out var geom)) continue;
+            var (mn, mx) = WorldBounds(part, geom);
+            if (mx.X >= wx0 && mn.X <= wx1 && mx.Y >= wy0 && mn.Y <= wy1)
+            { selected = part; break; }
+        }
+
+        _selectedId = selected?.Id;
+        SelectionChanged?.Invoke(_selectedId);
     }
 
     protected override void OnKeyDown(KeyEventArgs e)
     {
         base.OnKeyDown(e);
 
-        // Node edit mode shortcuts
         if (_nodeEditMode)
         {
             switch (e.Key)
             {
                 case Key.Escape:
                     ExitNodeEditMode();
-                    _vm.StatusText = "Node edit exited";
+                    if (_vm is not null) _vm.StatusText = "Node edit exited";
                     e.Handled = true;
                     break;
                 case Key.Delete: case Key.Back:
                     if (_selectedNodeIndex.HasValue)
                     {
-                        // Note: full node deletion requires backend PATCH; deferred for now
-                        _vm.StatusText = "Node deletion not yet implemented";
+                        if (_vm is not null) _vm.StatusText = "Node deletion not yet implemented";
                         e.Handled = true;
                     }
                     break;
@@ -386,13 +702,11 @@ public sealed class ViewportControl : Control
             if (e.Handled) return;
         }
 
-        // Pen tool shortcuts
         if (_vm?.PenToolActive == true)
         {
             switch (e.Key)
             {
                 case Key.Return:
-                    // Enter = finish path (closed if Shift held)
                     bool closed = e.KeyModifiers.HasFlag(KeyModifiers.Shift);
                     _vm.CreatePathFromPoints(_penPoints, closed);
                     _penPoints.Clear();
@@ -400,43 +714,35 @@ public sealed class ViewportControl : Control
                     e.Handled = true;
                     break;
                 case Key.Escape:
-                    // Escape = cancel
                     _vm.CancelPenTool();
                     _penPoints.Clear();
                     InvalidateVisual();
                     e.Handled = true;
                     break;
                 case Key.Back: case Key.Delete:
-                    // Backspace = undo last point
-                    if (_penPoints.Count > 0)
-                    {
-                        _penPoints.RemoveAt(_penPoints.Count - 1);
-                        InvalidateVisual();
-                        e.Handled = true;
-                    }
+                    if (_penPoints.Count > 0) { _penPoints.RemoveAt(_penPoints.Count - 1); InvalidateVisual(); e.Handled = true; }
                     break;
             }
             if (e.Handled) return;
         }
 
-        var part = _selectedId.HasValue
+        var selPart = _selectedId.HasValue
             ? _parts.FirstOrDefault(p => p.Id == _selectedId.Value)
             : null;
-        if (part is null) return;
+        if (selPart is null) return;
         double step = e.KeyModifiers.HasFlag(KeyModifiers.Shift) ? 10 : 1;
         switch (e.Key)
         {
             case Key.Delete: case Key.Back:
                 _vm?.DeleteSelected();
                 break;
-            case Key.Left:  part.X -= step; PartCommitted?.Invoke(part); InvalidateVisual(); e.Handled = true; break;
-            case Key.Right: part.X += step; PartCommitted?.Invoke(part); InvalidateVisual(); e.Handled = true; break;
-            case Key.Up:    part.Y += step; PartCommitted?.Invoke(part); InvalidateVisual(); e.Handled = true; break;
-            case Key.Down:  part.Y -= step; PartCommitted?.Invoke(part); InvalidateVisual(); e.Handled = true; break;
+            case Key.Left:  selPart.X -= step; PartCommitted?.Invoke(selPart); InvalidateVisual(); e.Handled = true; break;
+            case Key.Right: selPart.X += step; PartCommitted?.Invoke(selPart); InvalidateVisual(); e.Handled = true; break;
+            case Key.Up:    selPart.Y += step; PartCommitted?.Invoke(selPart); InvalidateVisual(); e.Handled = true; break;
+            case Key.Down:  selPart.Y -= step; PartCommitted?.Invoke(selPart); InvalidateVisual(); e.Handled = true; break;
         }
     }
 
-    // ── layout ────────────────────────────────────────────────────────────
     protected override Size ArrangeOverride(Size finalSize)
     {
         if (!_fitted && finalSize.Width > 0) { _fitted = true; FitToView(); }
@@ -449,7 +755,6 @@ public sealed class ViewportControl : Control
 
     private void RenderScene(SKCanvas canvas, float w, float h)
     {
-        // ── colors ────────────────────────────────────────────────────────
         SKColor colBg     = _darkCanvas ? new(0x1a,0x1a,0x1a) : new(0xe8,0xe8,0xe8);
         SKColor colTable  = _darkCanvas ? new(0x28,0x28,0x28) : new(0xff,0xff,0xff);
         SKColor colGrid   = _darkCanvas ? new(0xff,0xff,0xff,0x14) : new(0x00,0x00,0x00,0x14);
@@ -461,10 +766,8 @@ public sealed class ViewportControl : Control
         SKColor colRuler  = _darkCanvas ? new(0x20,0x20,0x20) : new(0xd4,0xd4,0xd4);
         SKColor colMuted  = _darkCanvas ? new(0x60,0x60,0x60) : new(0x99,0x99,0x99);
 
-        // ── background ────────────────────────────────────────────────────
         canvas.Clear(colBg);
 
-        // ── table ─────────────────────────────────────────────────────────
         float tx0 = ToSX(0), ty0 = ToSY((float)_table.HeightMm);
         float tw  = (float)_table.WidthMm * _scale;
         float th  = (float)_table.HeightMm * _scale;
@@ -472,13 +775,12 @@ public sealed class ViewportControl : Control
         using var tablePaint = new SKPaint { Color = colTable, IsAntialias = false };
         canvas.DrawRect(tx0, ty0, tw, th, tablePaint);
 
-        // ── grid ──────────────────────────────────────────────────────────
         if (_showGrid && _scale > 0.05f)
         {
             float[] stepsM = [1, 2, 5, 10, 25, 50, 100, 250, 500];
             float minor = stepsM.FirstOrDefault(s => s * _scale >= 8, 500);
             float major = minor * 5;
-            _gridMinorMm = minor;   // remembered for snap-to-grid
+            _gridMinorMm = minor;
             using var gp = new SKPaint { Color = colGrid, StrokeWidth = 1, IsAntialias = false };
             for (float gx = 0; gx <= _table.WidthMm + 0.5; gx += minor)
             {
@@ -494,11 +796,9 @@ public sealed class ViewportControl : Control
             }
         }
 
-        // ── table border ──────────────────────────────────────────────────
         using var bdrP = new SKPaint { Color = colBorder, StrokeWidth = 1.5f, IsStroke = true, IsAntialias = true };
         canvas.DrawRect(tx0, ty0, tw, th, bdrP);
 
-        // ── origin marker ─────────────────────────────────────────────────
         float ox = ToSX(0), oy = ToSY(0);
         using var origP = new SKPaint { Color = colPrim, StrokeWidth = 1.5f, IsStroke = true, IsAntialias = true };
         canvas.DrawLine(ox - 7, oy, ox + 7, oy, origP);
@@ -515,30 +815,21 @@ public sealed class ViewportControl : Control
             bool selected  = part.Id == _selectedId;
             bool isCutout  = part.IsCutout;
             bool outBounds = IsOutOfBounds(part, geom);
-
             SKColor strokeCol = outBounds ? colRed : selected ? colPrim : colCyan;
-
             var pivot = LocalCenter(geom);
 
-            // Draw each path
             foreach (var pg in geom)
             {
                 if (pg.Polyline.Points.Count < 2) continue;
                 using var path = BuildPath(part, pivot, pg);
-                bool closed = pg.Polyline.IsClosed;
+                bool isClosed = pg.Polyline.IsClosed;
 
-                if (closed)
+                if (isClosed)
                 {
-                    // Fill
                     float fillAlpha = isCutout ? 0.06f : (selected ? 0.14f : 0.07f);
-                    using var fp = new SKPaint
-                    {
-                        Color = strokeCol.WithAlpha((byte)(fillAlpha * 255)),
-                        IsAntialias = true,
-                    };
+                    using var fp = new SKPaint { Color = strokeCol.WithAlpha((byte)(fillAlpha * 255)), IsAntialias = true };
                     canvas.DrawPath(path, fp);
 
-                    // Cutout hatch
                     if (isCutout)
                     {
                         canvas.Save();
@@ -546,32 +837,25 @@ public sealed class ViewportControl : Control
                         using var hp = new SKPaint { Color = strokeCol.WithAlpha(0x28), StrokeWidth = 1, IsStroke = true };
                         var bds = path.Bounds;
                         for (float d = -bds.Height; d < bds.Width + bds.Height; d += 7)
-                        {
-                            canvas.DrawLine(bds.Left + d, bds.Top,
-                                            bds.Left + d + bds.Height, bds.Bottom, hp);
-                        }
+                            canvas.DrawLine(bds.Left + d, bds.Top, bds.Left + d + bds.Height, bds.Bottom, hp);
                         canvas.Restore();
                     }
                 }
 
                 float lw = selected ? 2f : 1.25f;
-                using var sp = new SKPaint
-                {
-                    Color       = strokeCol,
-                    StrokeWidth = lw,
-                    IsStroke    = true,
-                    IsAntialias = true,
-                };
+                using var sp = new SKPaint { Color = strokeCol, StrokeWidth = lw, IsStroke = true, IsAntialias = true };
                 if (isCutout) sp.PathEffect = SKPathEffect.CreateDash([5f, 3f], 0);
                 canvas.DrawPath(path, sp);
             }
 
-            // Selection box + handles
+            // Selection box, resize handles, and rotation handle
             if (selected)
             {
                 var (bMin, bMax) = WorldBounds(part, geom);
                 float bx0 = ToSX(bMin.X), by0 = ToSY(bMax.Y);
                 float bx1 = ToSX(bMax.X), by1 = ToSY(bMin.Y);
+
+                // Dashed selection rect
                 using var selP = new SKPaint
                 {
                     Color = colFg.WithAlpha(0xaa), StrokeWidth = 1, IsStroke = true,
@@ -579,10 +863,10 @@ public sealed class ViewportControl : Control
                 };
                 canvas.DrawRect(SKRect.Create(bx0, by0, bx1 - bx0, by1 - by0), selP);
 
-                // Resize handles (corners + edge midpoints)
-                float mx = (bx0 + bx1) / 2, my = (by0 + by1) / 2;
-                float[] hx = [bx0, mx, bx1, bx0, bx1, bx0, mx, bx1];
-                float[] hy = [by0, by0, by0, my,  my,  by1, by1, by1];
+                // 8 resize handles (corners + edge midpoints)
+                float hmx = (bx0 + bx1) / 2, hmy = (by0 + by1) / 2;
+                float[] hx = [bx0, hmx, bx1, bx0, bx1, bx0, hmx, bx1];
+                float[] hy = [by0, by0, by0, hmy, hmy, by1, by1, by1];
                 using var hFill   = new SKPaint { Color = _darkCanvas ? new(0x30,0x30,0x30) : SKColors.White };
                 using var hStroke = new SKPaint { Color = colFg.WithAlpha(0xdd), StrokeWidth = 1.5f, IsStroke = true, IsAntialias = true };
                 for (int i = 0; i < 8; i++)
@@ -591,14 +875,22 @@ public sealed class ViewportControl : Control
                     canvas.DrawRect(r, hFill);
                     canvas.DrawRect(r, hStroke);
                 }
+
+                // Rotation handle: circle above top-center
+                float rx = hmx, ry = by0 - 22;
+                using var stemP = new SKPaint { Color = colFg.WithAlpha(0x88), StrokeWidth = 1, IsStroke = true };
+                canvas.DrawLine(rx, by0 - 5, rx, ry + 6, stemP);
+                using var rotFill   = new SKPaint { Color = _darkCanvas ? new(0x30,0x30,0x30) : SKColors.White, IsAntialias = true };
+                using var rotStroke = new SKPaint { Color = new(0xff,0xaa,0x00), StrokeWidth = 1.5f, IsStroke = true, IsAntialias = true };
+                canvas.DrawCircle(rx, ry, 6, rotFill);
+                canvas.DrawCircle(rx, ry, 6, rotStroke);
             }
         }
 
-        // ── simulation torch-head ─────────────────────────────────────────
+        // Simulation torch head
         if (SimState is { } ss)
         {
-            float sx = ToSX(ss.Position.X);
-            float sy = ToSY(ss.Position.Y);
+            float sx = ToSX(ss.Position.X), sy = ToSY(ss.Position.Y);
             using var torchPaint = new SKPaint { Color = new(0xff, 0x80, 0x00), IsAntialias = true };
             if (ss.TorchOn)
             {
@@ -616,46 +908,31 @@ public sealed class ViewportControl : Control
             }
         }
 
-        // ── pen tool points ───────────────────────────────────────────────
+        // Pen tool points
         if (_vm?.PenToolActive == true && _penPoints.Count > 0)
         {
-            using var penPaint = new SKPaint { Color = colPrim, StrokeWidth = 2, IsStroke = false, IsAntialias = true };
+            using var penPaint  = new SKPaint { Color = colPrim, StrokeWidth = 2, IsAntialias = true };
             using var linePaint = new SKPaint { Color = colPrim.WithAlpha(0x80), StrokeWidth = 1, IsStroke = true, IsAntialias = true };
-
-            // Draw lines connecting points
             for (int i = 1; i < _penPoints.Count; i++)
-            {
-                float x0 = ToSX(_penPoints[i - 1].x);
-                float y0 = ToSY(_penPoints[i - 1].y);
-                float x1 = ToSX(_penPoints[i].x);
-                float y1 = ToSY(_penPoints[i].y);
-                canvas.DrawLine(x0, y0, x1, y1, linePaint);
-            }
-
-            // Draw points as circles
+                canvas.DrawLine(ToSX(_penPoints[i-1].x), ToSY(_penPoints[i-1].y),
+                                ToSX(_penPoints[i].x),   ToSY(_penPoints[i].y), linePaint);
             foreach (var pt in _penPoints)
-            {
-                float sx = ToSX(pt.x);
-                float sy = ToSY(pt.y);
-                canvas.DrawCircle(sx, sy, 4, penPaint);
-            }
-
-            // Draw status text
+                canvas.DrawCircle(ToSX(pt.x), ToSY(pt.y), 4, penPaint);
             using var statusPaint = new SKPaint { Color = colPrim, TextSize = 12, IsAntialias = true };
-            canvas.DrawText($"Pen: {_penPoints.Count} points (Enter=finish, Shift+Enter=close, Esc=cancel)", 30, 45, statusPaint);
+            canvas.DrawText($"Pen: {_penPoints.Count} pts  (Enter=finish  Shift+Enter=close  Esc=cancel)", 30, 45, statusPaint);
         }
 
-        // ── node edit mode ─────────────────────────────────────────────────
+        // Node edit overlays
         if (_nodeEditMode && _editingPartId.HasValue)
         {
             var part = _parts.FirstOrDefault(p => p.Id == _editingPartId.Value);
             if (part is not null && _geometry.TryGetValue(part.FileId, out var geom))
             {
                 var pivot = LocalCenter(geom);
-                using var nodePaint = new SKPaint { Color = colPrim, StrokeWidth = 2, IsStroke = false, IsAntialias = true };
-                using var selectPaint = new SKPaint { Color = colRed, StrokeWidth = 2, IsStroke = false, IsAntialias = true };
+                using var nodePaint   = new SKPaint { Color = colPrim, IsAntialias = true };
+                using var selectPaint = new SKPaint { Color = colRed,  IsAntialias = true };
                 using var handlePaint = new SKPaint { Color = colCyan, StrokeWidth = 1, IsStroke = true, IsAntialias = true };
-                using var stemPaint = new SKPaint { Color = colCyan, StrokeWidth = 1, IsStroke = true, IsAntialias = true };
+                using var stemPaint   = new SKPaint { Color = colCyan, StrokeWidth = 1, IsStroke = true, IsAntialias = true };
 
                 int nodeIdx = 0;
                 foreach (var pg in geom)
@@ -664,147 +941,167 @@ public sealed class ViewportControl : Control
                     foreach (var local in pg.Polyline.Points)
                     {
                         var world = PartTransform.Apply(part, pivot, local);
-                        float sx = ToSX(world.X);
-                        float sy = ToSY(world.Y);
+                        float nsx = ToSX(world.X), nsy = ToSY(world.Y);
+                        bool isSel  = nodeIdx == _selectedNodeIndex;
+                        bool hasHdl = pg.Handles != null && pathNodeIdx < pg.Handles.Count && pg.Handles[pathNodeIdx] != null;
 
-                        bool selected = nodeIdx == _selectedNodeIndex;
-                        bool hasHandle = pg.Handles != null && pathNodeIdx < pg.Handles.Count && pg.Handles[pathNodeIdx] != null;
+                        if (hasHdl) canvas.DrawCircle(nsx, nsy, 5, isSel ? selectPaint : nodePaint);
+                        else        canvas.DrawRect(nsx - 4, nsy - 4, 8, 8, isSel ? selectPaint : nodePaint);
 
-                        // Render node: circle for smooth (has handle), square for sharp
-                        if (hasHandle)
+                        if (isSel && hasHdl && pg.Handles![pathNodeIdx] is { } handle)
                         {
-                            canvas.DrawCircle(sx, sy, 5, selected ? selectPaint : nodePaint);
-                        }
-                        else
-                        {
-                            canvas.DrawRect(sx - 4, sy - 4, 8, 8, selected ? selectPaint : nodePaint);
-                        }
-
-                        // Render handles if node is selected
-                        if (selected && hasHandle && pg.Handles[pathNodeIdx] is { } handle)
-                        {
-                            // In-handle (control point on left)
                             if (handle.Length >= 2)
                             {
-                                var ih = new Point2(handle[0], handle[1]);
-                                var inWorld = PartTransform.Apply(part, pivot, ih);
-                                float ihsx = ToSX(inWorld.X);
-                                float ihsy = ToSY(inWorld.Y);
-                                canvas.DrawLine(sx, sy, ihsx, ihsy, stemPaint);
-                                canvas.DrawRect(ihsx - 3, ihsy - 3, 6, 6, handlePaint);
+                                var ih = PartTransform.Apply(part, pivot, new(handle[0], handle[1]));
+                                canvas.DrawLine(nsx, nsy, ToSX(ih.X), ToSY(ih.Y), stemPaint);
+                                canvas.DrawRect(ToSX(ih.X)-3, ToSY(ih.Y)-3, 6, 6, handlePaint);
                             }
-
-                            // Out-handle (control point on right)
                             if (handle.Length >= 4)
                             {
-                                var oh = new Point2(handle[2], handle[3]);
-                                var outWorld = PartTransform.Apply(part, pivot, oh);
-                                float ohsx = ToSX(outWorld.X);
-                                float ohsy = ToSY(outWorld.Y);
-                                canvas.DrawLine(sx, sy, ohsx, ohsy, stemPaint);
-                                canvas.DrawRect(ohsx - 3, ohsy - 3, 6, 6, handlePaint);
+                                var oh = PartTransform.Apply(part, pivot, new(handle[2], handle[3]));
+                                canvas.DrawLine(nsx, nsy, ToSX(oh.X), ToSY(oh.Y), stemPaint);
+                                canvas.DrawRect(ToSX(oh.X)-3, ToSY(oh.Y)-3, 6, 6, handlePaint);
                             }
                         }
-
-                        nodeIdx++;
-                        pathNodeIdx++;
+                        nodeIdx++; pathNodeIdx++;
                     }
                 }
-
-                using var statusPaint2 = new SKPaint { Color = colPrim, TextSize = 12, IsAntialias = true };
-                canvas.DrawText($"Node edit: {nodeIdx} nodes (Esc to exit) | Selected: {(_selectedNodeIndex >= 0 ? _selectedNodeIndex.ToString() : "none")}", 30, 45, statusPaint2);
+                using var s2 = new SKPaint { Color = colPrim, TextSize = 12, IsAntialias = true };
+                canvas.DrawText($"Node edit: {nodeIdx} nodes  (Esc to exit)", 30, 45, s2);
             }
         }
 
-        // ── alignment guides + cursor crosshair ─────────────────────────────
+        // Rubber-band selection rect
+        if (_drag == DragMode.Select && _cursor is { } cur)
+        {
+            float sx0 = (float)Math.Min(_dragStart.X, cur.X);
+            float sy0 = (float)Math.Min(_dragStart.Y, cur.Y);
+            float sx1 = (float)Math.Max(_dragStart.X, cur.X);
+            float sy1 = (float)Math.Max(_dragStart.Y, cur.Y);
+            using var bandFill = new SKPaint { Color = new(0x3b,0x82,0xf6,0x30) };
+            canvas.DrawRect(sx0, sy0, sx1-sx0, sy1-sy0, bandFill);
+            using var bandLine = new SKPaint
+            {
+                Color = new(0x3b,0x82,0xf6,0xcc), StrokeWidth = 1, IsStroke = true,
+                PathEffect = SKPathEffect.CreateDash([4f,4f], 0),
+            };
+            canvas.DrawRect(sx0, sy0, sx1-sx0, sy1-sy0, bandLine);
+        }
+
         RenderGuidesAndCursor(canvas, w, h, colFg);
-
-        // ── rulers ────────────────────────────────────────────────────────
         RenderRulers(canvas, w, h, colRuler, colFg, colMuted);
-
-        // ── coordinate HUD (drawn last, over everything) ────────────────────
         RenderCoordinateHud(canvas, w, h, colFg);
     }
 
-    /// <summary>Draws magenta alignment guides (while dragging) and a faint
-    /// crosshair that follows the cursor — the "guide lines" of the editor.</summary>
     private void RenderGuidesAndCursor(SKCanvas canvas, float w, float h, SKColor colFg)
     {
-        // Active alignment guides (snap lines) take priority — bright magenta.
+        float cx = ToSX(_table.WidthMm  / 2);
+        float cy = ToSY(_table.HeightMm / 2);
+        using var centreP = new SKPaint
+        {
+            Color = new(0x3b,0x82,0xf6,0x44), StrokeWidth = 1, IsStroke = true, IsAntialias = false,
+            PathEffect = SKPathEffect.CreateDash([3f,5f], 0),
+        };
+        canvas.DrawLine(cx, RULER_PX, cx, h, centreP);
+        canvas.DrawLine(RULER_PX, cy, w, cy, centreP);
+
+        // ── Snap / alignment guides (magenta, shown during drag) ──────────
         SKColor colGuide = new(0xff, 0x3d, 0x9a);
         using var guideP = new SKPaint
         {
-            Color = colGuide, StrokeWidth = 1, IsStroke = true, IsAntialias = false,
+            Color = colGuide, StrokeWidth = 1.4f, IsStroke = true, IsAntialias = false,
+            PathEffect = SKPathEffect.CreateDash([5f,3f], 0),
+        };
+        if (_guideX is { } gx) { float sx = ToSX(gx); canvas.DrawLine(sx, RULER_PX, sx, h, guideP); }
+        if (_guideY is { } gy) { float sy = ToSY(gy); canvas.DrawLine(RULER_PX, sy, w, sy, guideP); }
+
+        // ── User-placed guide lines (cyan-blue, permanent) ─────────────────
+        float ext = Math.Max(w, h) * 2 + 100;
+        SKColor colUserGuide = new(0x00, 0x99, 0xff, 0xd0);
+        using var ugP = new SKPaint { Color = colUserGuide, StrokeWidth = 1f, IsStroke = true, IsAntialias = false };
+        using var ugLockedP = new SKPaint
+        {
+            Color = new(0x00, 0x99, 0xff, 0x70), StrokeWidth = 1f, IsStroke = true, IsAntialias = false,
             PathEffect = SKPathEffect.CreateDash([4f, 3f], 0),
         };
-        if (_guideX is { } gx)
+        using var ugLabelP = new SKPaint { Color = colUserGuide, TextSize = 10, IsAntialias = true };
+
+        canvas.Save();
+        canvas.ClipRect(new SKRect(RULER_PX, RULER_PX, w, h));
+        foreach (var g in _userGuides)
         {
-            float sx = ToSX(gx);
-            canvas.DrawLine(sx, RULER_PX, sx, h, guideP);
-        }
-        if (_guideY is { } gy)
-        {
-            float sy = ToSY(gy);
-            canvas.DrawLine(RULER_PX, sy, w, sy, guideP);
+            float gsx = ToSX(g.X), gsy = ToSY(g.Y);
+            float theta = (float)(g.AngleDeg * Math.PI / 180);
+            float ld = (float)Math.Cos(theta);
+            float ud = -(float)Math.Sin(theta); // screen Y is flipped
+            var paint = g.IsLocked ? ugLockedP : ugP;
+            canvas.DrawLine(gsx - ld * ext, gsy - ud * ext,
+                            gsx + ld * ext, gsy + ud * ext, paint);
+            if (!string.IsNullOrEmpty(g.Label))
+                canvas.DrawText(g.Label, gsx + 3, gsy - 3, ugLabelP);
+            // Small square at the reference point
+            canvas.DrawRect(gsx - 3, gsy - 3, 6, 6, ugP);
         }
 
-        // Cursor crosshair (only when idle/hovering inside the drawing area).
+        // Ghost guide while dragging from ruler
+        if (_drag == DragMode.CreateGuide && _cursor is { } cc && cc.X >= RULER_PX && cc.Y >= RULER_PX)
+        {
+            float pgx = _newGuideAngleDeg == 90 ? (float)cc.X : (float)(RULER_PX + 10);
+            float pgy = _newGuideAngleDeg == 0  ? (float)cc.Y : (float)(RULER_PX + 10);
+            float theta2 = (float)(_newGuideAngleDeg * Math.PI / 180);
+            float ld2 = (float)Math.Cos(theta2), ud2 = -(float)Math.Sin(theta2);
+            using var ghostP = new SKPaint
+            {
+                Color = new(0x00, 0x99, 0xff, 0x88), StrokeWidth = 1.5f, IsStroke = true,
+                PathEffect = SKPathEffect.CreateDash([6f, 3f], 0),
+            };
+            canvas.DrawLine(pgx - ld2 * ext, pgy - ud2 * ext,
+                            pgx + ld2 * ext, pgy + ud2 * ext, ghostP);
+        }
+        canvas.Restore();
+
+        // ── Cursor crosshair + ruler tick ─────────────────────────────────
         if (_cursor is { } c && _drag != DragMode.Pan
             && c.X >= RULER_PX && c.Y >= RULER_PX && c.X <= w && c.Y <= h)
         {
-            using var crossP = new SKPaint
-            {
-                Color = colFg.WithAlpha(0x33), StrokeWidth = 1, IsStroke = true, IsAntialias = false,
-            };
+            using var crossP = new SKPaint { Color = colFg.WithAlpha(0x55), StrokeWidth = 1, IsStroke = true };
             canvas.DrawLine((float)c.X, RULER_PX, (float)c.X, h, crossP);
             canvas.DrawLine(RULER_PX, (float)c.Y, w, (float)c.Y, crossP);
-
-            // tick markers on the rulers
-            using var tickP = new SKPaint { Color = new(0x3b, 0x82, 0xf6), StrokeWidth = 2, IsStroke = true };
+            using var tickP = new SKPaint { Color = new(0x3b,0x82,0xf6), StrokeWidth = 2, IsStroke = true };
             canvas.DrawLine((float)c.X, 0, (float)c.X, RULER_PX, tickP);
             canvas.DrawLine(0, (float)c.Y, RULER_PX, (float)c.Y, tickP);
         }
     }
 
-    /// <summary>Small live X/Y readout pinned to the bottom-right corner.</summary>
     private void RenderCoordinateHud(SKCanvas canvas, float w, float h, SKColor colFg)
     {
         if (_cursor is not { } c) return;
         if (c.X < RULER_PX || c.Y < RULER_PX || c.X > w || c.Y > h) return;
-
-        double wx = ToWX((float)c.X);
-        double wy = ToWY((float)c.Y);
+        double wx = ToWX((float)c.X), wy = ToWY((float)c.Y);
         string text = $"X {wx,7:0.0}   Y {wy,7:0.0} mm";
-
         using var txt = new SKPaint { Color = colFg, TextSize = 11.5f, IsAntialias = true };
-        float tw = txt.MeasureText(text);
-        float pad = 7f, bw = tw + pad * 2, bh = 21f;
+        float tw = txt.MeasureText(text), pad = 7f, bw = tw + pad*2, bh = 21f;
         float bx = w - bw - 10, by = h - bh - 10;
-
-        using var box = new SKPaint { Color = new(0xCC, 0x10, 0x10, 0x13), IsAntialias = true };
-        using var bdr = new SKPaint { Color = new(0x2a, 0x2a, 0x30), IsStroke = true, StrokeWidth = 1, IsAntialias = true };
-        var rect = new SKRect(bx, by, bx + bw, by + bh);
+        using var box = new SKPaint { Color = new(0xCC,0x10,0x10,0x13), IsAntialias = true };
+        using var bdr = new SKPaint { Color = new(0x2a,0x2a,0x30), IsStroke = true, StrokeWidth = 1, IsAntialias = true };
+        var rect = new SKRect(bx, by, bx+bw, by+bh);
         canvas.DrawRoundRect(rect, 4, 4, box);
         canvas.DrawRoundRect(rect, 4, 4, bdr);
         canvas.DrawText(text, bx + pad, by + bh - 6.5f, txt);
     }
 
-    private void RenderRulers(SKCanvas canvas, float w, float h,
-        SKColor colRuler, SKColor colFg, SKColor colMuted)
+    private void RenderRulers(SKCanvas canvas, float w, float h, SKColor colRuler, SKColor colFg, SKColor colMuted)
     {
         using var bg  = new SKPaint { Color = colRuler };
         using var txt = new SKPaint { Color = colFg.WithAlpha(0xaa), TextSize = 9f, IsAntialias = true };
         using var tk  = new SKPaint { Color = colFg.WithAlpha(0x66), StrokeWidth = 1, IsStroke = true };
-
-        // Background strips
         canvas.DrawRect(0, 0, w, RULER_PX, bg);
         canvas.DrawRect(0, 0, RULER_PX, h, bg);
-        canvas.DrawRect(0, 0, RULER_PX, RULER_PX, bg); // corner
+        canvas.DrawRect(0, 0, RULER_PX, RULER_PX, bg);
 
         float[] steps = [1, 2, 5, 10, 25, 50, 100, 250, 500, 1000];
         float tickStep = steps.FirstOrDefault(s => s * _scale >= 30, 1000);
 
-        // Horizontal (X axis → top ruler)
         for (float gx = 0; gx <= _table.WidthMm; gx += tickStep)
         {
             float sx = ToSX(gx);
@@ -812,8 +1109,6 @@ public sealed class ViewportControl : Control
             canvas.DrawLine(sx, RULER_PX - 5, sx, RULER_PX, tk);
             canvas.DrawText($"{(int)gx}", sx + 2, RULER_PX - 6, txt);
         }
-
-        // Vertical (Y axis → left ruler), labels rotated
         canvas.Save();
         for (float gy = 0; gy <= _table.HeightMm; gy += tickStep)
         {
@@ -827,8 +1122,6 @@ public sealed class ViewportControl : Control
             canvas.Restore();
         }
         canvas.Restore();
-
-        // Divider lines
         using var div = new SKPaint { Color = colMuted, StrokeWidth = 1, IsStroke = true };
         canvas.DrawLine(RULER_PX, RULER_PX, w, RULER_PX, div);
         canvas.DrawLine(RULER_PX, RULER_PX, RULER_PX, h, div);
@@ -864,9 +1157,7 @@ public sealed class ViewportControl : Control
             if (wp.X > maxX) maxX = wp.X;
             if (wp.Y > maxY) maxY = wp.Y;
         }
-        return minX > maxX
-            ? (new(0,0), new(0,0))
-            : (new(minX, minY), new(maxX, maxY));
+        return minX > maxX ? (new(0,0), new(0,0)) : (new(minX, minY), new(maxX, maxY));
     }
 
     private bool IsOutOfBounds(Part part, List<ModelPathGeometry> paths)
@@ -879,23 +1170,19 @@ public sealed class ViewportControl : Control
 
     private SKPath BuildPath(Part part, Point2 pivot, ModelPathGeometry pg)
     {
-        var pts   = pg.Polyline.Points;
-        var hdls  = pg.Handles;
-        var skp   = new SKPath();
+        var pts = pg.Polyline.Points;
+        var hdls = pg.Handles;
+        var skp = new SKPath();
         if (pts.Count == 0) return skp;
-
         var w0 = PartTransform.Apply(part, pivot, pts[0]);
         skp.MoveTo(ToSX(w0.X), ToSY(w0.Y));
-
         int n = pts.Count;
         int segCount = pg.Polyline.IsClosed ? n : n - 1;
         for (int i = 0; i < segCount; i++)
         {
             int j = (i + 1) % n;
-            var hOut = hdls?[i];
-            var hIn  = hdls?[j];
+            var hOut = hdls?[i]; var hIn = hdls?[j];
             var ancI = pts[i]; var ancJ = pts[j];
-
             bool hasCurve = (hOut is { Length: >= 4 } && (hOut[2] != 0 || hOut[3] != 0))
                          || (hIn  is { Length: >= 4 } && (hIn [0] != 0 || hIn [1] != 0));
             if (hasCurve)
@@ -919,8 +1206,7 @@ public sealed class ViewportControl : Control
     {
         var (mn, mx) = WorldBounds(part, paths);
         const double tol = 3;
-        return wx >= mn.X - tol && wx <= mx.X + tol
-            && wy >= mn.Y - tol && wy <= mx.Y + tol;
+        return wx >= mn.X - tol && wx <= mx.X + tol && wy >= mn.Y - tol && wy <= mx.Y + tol;
     }
 
     private Part? HitTestPartAtPoint(double wx, double wy)
@@ -936,16 +1222,36 @@ public sealed class ViewportControl : Control
         return null;
     }
 
+    /// <summary>Returns the index of the guide within 5px of the screen point, or -1.</summary>
+    private int HitTestGuide(Point screenPos)
+    {
+        const float TOL = 6f;
+        for (int i = 0; i < _userGuides.Count; i++)
+        {
+            var g   = _userGuides[i];
+            float gsx = ToSX(g.X), gsy = ToSY(g.Y);
+            float theta = (float)(g.AngleDeg * Math.PI / 180);
+            // Line direction in screen space (Y is flipped): (cos θ, –sin θ)
+            float ld = (float)Math.Cos(theta);
+            float ud = -(float)Math.Sin(theta);
+            // Normal to line = (-ud, ld)
+            float nx = -ud, ny = ld;
+            float px = (float)screenPos.X - gsx;
+            float py = (float)screenPos.Y - gsy;
+            float dist = Math.Abs(px * nx + py * ny);
+            if (dist <= TOL) return i;
+        }
+        return -1;
+    }
+
     private void HitTestNode(double wx, double wy)
     {
         if (_editingPartId is null) return;
         var part = _parts.FirstOrDefault(p => p.Id == _editingPartId.Value);
         if (part is null || !_geometry.TryGetValue(part.FileId, out var geom)) return;
-
         var pivot = LocalCenter(geom);
         double minDist = _nodeHitRadius / _scale;
         int? hitNode = null;
-
         for (int pathIdx = 0; pathIdx < geom.Count; pathIdx++)
         {
             var pg = geom[pathIdx];
@@ -953,24 +1259,11 @@ public sealed class ViewportControl : Control
             {
                 var local = pg.Polyline.Points[nodeIdx];
                 var world = PartTransform.Apply(part, pivot, local);
-                double dx = world.X - wx, dy = world.Y - wy;
-                double dist = Math.Sqrt(dx * dx + dy * dy);
-                if (dist < minDist)
-                {
-                    minDist = dist;
-                    hitNode = nodeIdx;
-                }
+                double d = Math.Sqrt(Math.Pow(world.X - wx, 2) + Math.Pow(world.Y - wy, 2));
+                if (d < minDist) { minDist = d; hitNode = nodeIdx; }
             }
         }
-
         _selectedNodeIndex = hitNode;
-        if (hitNode.HasValue)
-        {
-            _drag = DragMode.Move;  // Reuse Move drag for node dragging
-            _dragStart = new Point(ToSX(wx), ToSY(wy));
-            _partStartX = wx;
-            _partStartY = wy;
-        }
         InvalidateVisual();
     }
 
@@ -979,12 +1272,10 @@ public sealed class ViewportControl : Control
     {
         private readonly ViewportControl _owner;
         public Rect Bounds { get; }
-
         public DrawOp(ViewportControl owner, Rect bounds) { _owner = owner; Bounds = bounds; }
         public void Dispose() { }
         public bool HitTest(Point p) => Bounds.Contains(p);
         public bool Equals(ICustomDrawOperation? other) => false;
-
         public void Render(ImmediateDrawingContext context)
         {
             var skia = context.TryGetFeature(typeof(ISkiaSharpApiLeaseFeature)) as ISkiaSharpApiLeaseFeature;

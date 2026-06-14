@@ -964,74 +964,80 @@ public sealed class MainViewModel : ObservableObject
 
     // ── Bitmap Trace ──────────────────────────────────────────────────────
 
-    /// <summary>Trace bitmap to vector geometry.</summary>
-    public void TraceBitmap(ImportedFile file, dynamic traceDialog)
+    /// <summary>Trace bitmap to vector geometry using the real BitmapTracer backend.</summary>
+    public void TraceBitmap(ImportedFile file, Desktop.Views.BitmapTraceDialog dlg)
     {
-        if (file.Kind != ImportedFileKind.Bitmap)
+        if (file.Kind != ImportedFileKind.Bitmap || file.BitmapData is null)
         {
-            StatusText = "Not a bitmap file";
+            StatusText = "Not a bitmap file or no image data";
             return;
         }
 
         try
         {
-            string mode = traceDialog.Mode?.ToString() ?? "Outline";
-            int threshold = traceDialog.ThresholdValue ?? 128;
-            bool invert = traceDialog.InvertColors ?? false;
-            bool grayscale = traceDialog.Grayscale ?? false;
-            double simplify = traceDialog.SimplifyTolerance ?? 0.1;
+            StatusText = "Tracing…";
+            var settings = new Backend.Import.Bitmap.BitmapTraceSettings(
+                ThresholdPercent: (int)(dlg.ThresholdValue / 255.0 * 100),
+                Invert:           dlg.InvertColors,
+                Mode:             dlg.Mode == Desktop.Views.BitmapTraceDialog.TraceMode.Outline
+                                  ? Backend.Import.Bitmap.TraceMode.Outline
+                                  : Backend.Import.Bitmap.TraceMode.Centerline,
+                SimplifyToleranceMm: dlg.SimplifyTolerance
+            );
 
-            // Store trace settings in the file
-            file.BitmapTraceSettingsJson = System.Text.Json.JsonSerializer.Serialize(new
-            {
-                Mode = mode,
-                Threshold = threshold,
-                InvertColors = invert,
-                Grayscale = grayscale,
-                SimplifyTolerance = simplify,
-                TracedAt = DateTime.UtcNow
-            });
-
-            // Create a placeholder traced path (square boundary)
-            var points = new List<Point2>
-            {
-                new Point2(0, 0),
-                new Point2(100, 0),
-                new Point2(100, 100),
-                new Point2(0, 100),
-                new Point2(0, 0)
-            };
-
-            var tracedPath = new PathGeometry
-            {
-                Layer = "Trace",
-                Polyline = new Polyline2 { Points = points }
-            };
+            var (paths, widthMm, heightMm) = Backend.Import.Bitmap.BitmapTracer.Trace(file.BitmapData, settings);
 
             file.Paths.Clear();
-            file.Paths.Add(tracedPath);
+            foreach (var poly in paths)
+                file.Paths.Add(new PathGeometry { Polyline = poly });
 
-            // Create a part from the traced bitmap
-            _projects.Mutate(p =>
-            {
-                var part = new Part
-                {
-                    FileId = file.Id,
-                    X = 50,
-                    Y = 50,
-                    LayerId = p.Layers.FirstOrDefault()?.Id
-                };
-                p.Parts.Add(part);
-            });
+            file.BitmapTraceSettingsJson = System.Text.Json.JsonSerializer.Serialize(settings);
+
+            // Add a part if none exists yet for this file
+            bool hasPart = _projects.With(p => p.Parts.Any(pt => pt.FileId == file.Id));
+            if (!hasPart)
+                _projects.Mutate(p => p.Parts.Add(PartPlacer.PlaceNew(p, file)));
 
             RefreshGeometry(file);
             Refresh();
-
-            StatusText = $"Traced '{file.Name}' ({mode} mode, threshold {threshold}) - {simplify}mm simplification";
+            StatusText = paths.Count > 0
+                ? $"Traced '{file.Name}' — {paths.Count} paths  ({widthMm:F1}×{heightMm:F1} mm)"
+                : $"Trace produced no paths — try adjusting the threshold";
         }
         catch (Exception ex)
         {
             StatusText = $"Bitmap trace failed: {ex.Message}";
         }
+    }
+
+    // ── Guide lines ───────────────────────────────────────────────────────
+
+    public void AddGuide(Guide guide)
+    {
+        Checkpoint();
+        _projects.Mutate(p => p.Guides.Add(guide));
+        NotifyPartChanged();
+    }
+
+    public void UpdateGuide(Guide _)   => NotifyPartChanged(); // guide already mutated in-place
+    public void DeleteGuide(Guide guide)
+    {
+        Checkpoint();
+        _projects.Mutate(p => p.Guides.Remove(guide));
+        NotifyPartChanged();
+    }
+
+    public void DuplicateGuide(Guide guide)
+    {
+        Checkpoint();
+        _projects.Mutate(p => p.Guides.Add(new Guide
+        {
+            Label    = guide.Label,
+            X        = guide.X + (Math.Abs(guide.AngleDeg - 90) < 1 ? 10 : 0),
+            Y        = guide.Y + (guide.AngleDeg < 1 ? 10 : 0),
+            AngleDeg = guide.AngleDeg,
+            IsLocked = guide.IsLocked,
+        }));
+        NotifyPartChanged();
     }
 }

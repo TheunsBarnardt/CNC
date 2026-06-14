@@ -65,15 +65,24 @@ public enum ImportedFileKind
 /// lower-left sits at 0,0); placement on the table is a separate transform
 /// added in Task 2 (kept apart so auto-nesting can drive it later).
 /// </summary>
-public sealed class ImportedFile
+public sealed class ImportedFile : Observable
 {
     public Guid Id { get; init; } = Guid.NewGuid();
     /// <summary>Original file name (e.g. "bracket.svg").</summary>
     public required string FileName { get; init; }
+    private string _displayName = "";
     /// <summary>User-editable display name.</summary>
-    public required string DisplayName { get; set; }
+    public required string DisplayName
+    {
+        get => _displayName;
+        set => SetField(ref _displayName, value);
+    }
     /// <summary>Alias for DisplayName — used by UI bindings.</summary>
-    public string Name { get => DisplayName; set => DisplayName = value; }
+    public string Name
+    {
+        get => _displayName;
+        set => SetField(ref _displayName, value);
+    }
     public ImportedFileKind Kind { get; init; }
     /// <summary>Short string label for UI badge.</summary>
     public string KindLabel => Kind switch
@@ -86,7 +95,12 @@ public sealed class ImportedFile
     };
     /// <summary>True if this is a bitmap file that can be traced.</summary>
     public bool IsBitmap => Kind == ImportedFileKind.Bitmap;
-    public bool Visible { get; set; } = true;
+    private bool _visible = true;
+    public bool Visible
+    {
+        get => _visible;
+        set => SetField(ref _visible, value);
+    }
     public List<PathGeometry> Paths { get; init; } = [];
 
     /// <summary>Warnings produced during import (unsupported entities etc.).</summary>
@@ -111,6 +125,24 @@ public sealed class ImportedFile
         }
     }
 
+    public bool HasWarnings => Warnings.Count > 0;
+    public string WarningsSummary => Warnings.Count == 0 ? "" : string.Join("\n", Warnings);
+
+    public string SummaryLine
+    {
+        get
+        {
+            var bb  = BoundingBox;
+            var pts = Paths.Sum(p => p.Polyline.Points.Count);
+            var parts = new List<string>();
+            if (Paths.Count > 0)
+                parts.Add($"{Paths.Count} path{(Paths.Count == 1 ? "" : "s")} · {pts} pts");
+            if (bb.Width > 0 && bb.Height > 0)
+                parts.Add($"{bb.Width:F0}×{bb.Height:F0} mm");
+            return string.Join("  ", parts);
+        }
+    }
+
     // ---- Bitmap-only fields (null for vector files) ----
     /// <summary>Original raster bytes, served by GET /api/project/files/{id}/bitmap-image.</summary>
     public byte[]? BitmapData { get; set; }
@@ -129,24 +161,31 @@ public sealed class ImportedFile
 /// fields today; the auto-nester (Milestone 2) will set the same fields.
 /// Duplicating a part = a second Part referencing the same file geometry.
 /// </summary>
-public sealed class Part
+public sealed class Part : Observable
 {
     public Guid Id { get; init; } = Guid.NewGuid();
     public required Guid FileId { get; init; }
-    public double X { get; set; }
-    public double Y { get; set; }
-    public double RotationDeg { get; set; }
+    private double _x;
+    public double X { get => _x; set => SetField(ref _x, value); }
+    private double _y;
+    public double Y { get => _y; set => SetField(ref _y, value); }
+    private double _rotationDeg;
+    public double RotationDeg { get => _rotationDeg; set => SetField(ref _rotationDeg, value); }
+    private double _scaleX = 1.0;
     /// <summary>Horizontal scale factor (1 = natural, -1 = mirrored).</summary>
-    public double ScaleX { get; set; } = 1.0;
+    public double ScaleX { get => _scaleX; set => SetField(ref _scaleX, value); }
+    private double _scaleY = 1.0;
     /// <summary>Vertical scale factor (1 = natural, -1 = mirrored).</summary>
-    public double ScaleY { get; set; } = 1.0;
+    public double ScaleY { get => _scaleY; set => SetField(ref _scaleY, value); }
+    private Guid? _layerId;
     /// <summary>Layer this part belongs to. Null = default (first) layer.</summary>
-    public Guid? LayerId { get; set; }
+    public Guid? LayerId { get => _layerId; set => SetField(ref _layerId, value); }
+    private bool _isCutout;
     /// <summary>
     /// When true, CAM treats all paths of this part as inside cuts (holes),
     /// overriding the automatic containment-depth classification.
     /// </summary>
-    public bool IsCutout { get; set; }
+    public bool IsCutout { get => _isCutout; set => SetField(ref _isCutout, value); }
 }
 
 /// <summary>
@@ -164,20 +203,41 @@ public enum LayerOperationMode
 }
 
 /// <summary>A named layer that groups parts for visibility / lock control.</summary>
-public sealed class Layer
+public sealed class Layer : Observable
 {
     public Guid Id { get; set; } = Guid.NewGuid();
-    public string Name { get; set; } = "Layer 1";
+    private string _name = "Layer 1";
+    public string Name { get => _name; set => SetField(ref _name, value); }
+    private string _color = "#3b82f6";
     /// <summary>CSS colour string used as the layer accent in the UI.</summary>
-    public string Color { get; set; } = "#3b82f6";
-    public bool Visible { get; set; } = true;
-    public bool Locked { get; set; } = false;
+    public string Color { get => _color; set => SetField(ref _color, value); }
+    private bool _visible = true;
+    public bool Visible { get => _visible; set => SetField(ref _visible, value); }
+    private bool _locked = false;
+    public bool Locked { get => _locked; set => SetField(ref _locked, value); }
+    private LayerOperationMode _operationMode = LayerOperationMode.Cut;
     /// <summary>Processing mode for paths on this layer. Defaults to Cut.</summary>
-    public LayerOperationMode OperationMode { get; set; } = LayerOperationMode.Cut;
+    public LayerOperationMode OperationMode { get => _operationMode; set => SetField(ref _operationMode, value); }
     /// <summary>Per-layer feed rate override (mm/min). Null = use global CAM setting.</summary>
     public double? FeedRateMmMinOverride { get; set; }
     /// <summary>Per-layer laser power override (0–100 %). Null = use global CAM setting.</summary>
     public double? LaserPowerPercentOverride { get; set; }
+}
+
+/// <summary>
+/// A positioning guide line on the viewport canvas.
+/// AngleDeg 90 = vertical line (defined by X), 0 = horizontal line (defined by Y).
+/// For angled guides both X and Y define the pass-through point.
+/// </summary>
+public sealed class Guide
+{
+    public Guid   Id       { get; set; } = Guid.NewGuid();
+    public string Label    { get; set; } = "";
+    public double X        { get; set; }
+    public double Y        { get; set; }
+    /// <summary>Angle in degrees CCW from horizontal (0 = horizontal, 90 = vertical).</summary>
+    public double AngleDeg { get; set; } = 90;
+    public bool   IsLocked { get; set; }
 }
 
 /// <summary>A whole project: table setup + imported files. Saved as one JSON file.</summary>
@@ -192,6 +252,7 @@ public sealed class Project
     public List<ImportedFile> Files { get; init; } = [];
     public List<Part> Parts { get; init; } = [];
     public List<Layer> Layers { get; init; } = [new Layer()];
+    public List<Guide> Guides { get; init; } = [];
 
     // Convenience shortcuts used by desktop code
     public double TableWidthMm  => Table.WidthMm;

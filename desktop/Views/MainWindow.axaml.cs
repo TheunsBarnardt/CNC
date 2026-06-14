@@ -40,6 +40,17 @@ public partial class MainWindow : Window
             vm.CommitPartTransform(part, part.X, part.Y, part.RotationDeg, part.ScaleX, part.ScaleY);
         Viewport.TransformStarted += () => vm.Checkpoint();
 
+        // Guide events
+        Viewport.GuideCreateRequested += (x, y, angleDeg) =>
+            vm.AddGuide(new Backend.Models.Guide { X = x, Y = y, AngleDeg = angleDeg });
+        Viewport.GuideMoved    += guide => vm.UpdateGuide(guide);
+        Viewport.GuideEditRequested += async guide =>
+        {
+            var dlg = new GuideDialog();
+            dlg.Load(guide, vm);
+            await dlg.ShowDialog(this);
+        };
+
         // SimBar needs to hook into VM.InSimMode to rebuild the simulation
         SimBar.DataContext      = vm;
         EditBar.DataContext     = vm;

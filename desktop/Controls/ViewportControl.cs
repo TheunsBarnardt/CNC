@@ -41,8 +41,9 @@ public sealed class ViewportControl : Control
     // ── data ──────────────────────────────────────────────────────────────
     private MainViewModel? _vm;
     private TableSettings  _table  = new();
-    private List<Part>     _parts  = [];
-    private List<Layer>    _layers = [];
+    private List<Part>         _parts  = [];
+    private List<Layer>        _layers = [];
+    private List<ImportedFile> _files  = [];
     private Dictionary<Guid, List<ModelPathGeometry>> _geometry = new();
     private Guid? _selectedId;
 
@@ -182,6 +183,7 @@ public sealed class ViewportControl : Control
         _table      = p.Table;
         _parts      = [.. p.Parts];
         _layers     = [.. p.Layers];
+        _files      = [.. p.Files];
         _userGuides = [.. p.Guides];
         _noGoZones  = [.. p.NoGoZones];
         _geometry   = _vm.Geometry;
@@ -475,6 +477,7 @@ public sealed class ViewportControl : Control
             var part = _parts[i];
             var layer = _layers.FirstOrDefault(l => l.Id == part.LayerId);
             if (layer is { Visible: false } || layer is { Locked: true }) continue;
+            if (_files.FirstOrDefault(f => f.Id == part.FileId) is { Visible: false }) continue;
             if (!_geometry.TryGetValue(part.FileId, out var geom)) continue;
             if (HitTestPart(part, geom, pwx, pwy)) { hit = part; break; }
         }
@@ -763,6 +766,7 @@ public sealed class ViewportControl : Control
             var part = _parts[i];
             var layer = _layers.FirstOrDefault(l => l.Id == part.LayerId);
             if (layer is { Visible: false } || layer is { Locked: true }) continue;
+            if (_files.FirstOrDefault(f => f.Id == part.FileId) is { Visible: false }) continue;
             if (!_geometry.TryGetValue(part.FileId, out var geom)) continue;
             var (mn, mx) = WorldBounds(part, geom);
             if (mx.X >= wx0 && mn.X <= wx1 && mx.Y >= wy0 && mn.Y <= wy1)
@@ -915,6 +919,8 @@ public sealed class ViewportControl : Control
             if (!_geometry.TryGetValue(part.FileId, out var geom)) continue;
             var layer = _layers.FirstOrDefault(l => l.Id == part.LayerId);
             if (layer is { Visible: false }) continue;
+            var partFile = _files.FirstOrDefault(f => f.Id == part.FileId);
+            if (partFile is { Visible: false }) continue;
 
             bool selected  = part.Id == _selectedId;
             bool isCutout  = part.IsCutout;

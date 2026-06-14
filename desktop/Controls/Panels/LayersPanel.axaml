@@ -205,6 +205,26 @@
                       <PathIcon Data="{StaticResource Icon.Close}" Width="14" Height="14"/>
                     </MenuItem.Icon>
                   </MenuItem>
+                  <!-- Break Apart (Part rows only) -->
+                  <MenuItem Header="Break Apart"
+                            IsVisible="{Binding IsPartKind}"
+                            Click="OnCtxBreakApart"
+                            Tag="{Binding}"
+                            ToolTip.Tip="Split each path into its own independent object">
+                    <MenuItem.Icon>
+                      <PathIcon Data="{StaticResource Icon.Scissors}" Width="14" Height="14"/>
+                    </MenuItem.Icon>
+                  </MenuItem>
+                  <!-- Break Apart from an Object row — operates on the parent Part -->
+                  <MenuItem Header="Break Apart (split all paths)"
+                            IsVisible="{Binding IsObjectKind}"
+                            Click="OnCtxBreakApart"
+                            Tag="{Binding}"
+                            ToolTip.Tip="Split every path in the parent object into its own independent object">
+                    <MenuItem.Icon>
+                      <PathIcon Data="{StaticResource Icon.Scissors}" Width="14" Height="14"/>
+                    </MenuItem.Icon>
+                  </MenuItem>
                   <Separator IsVisible="{Binding IsPartKind}"/>
                   <!-- Visibility / Lock (all node types) -->
                   <MenuItem Header="Hide Selected Objects"

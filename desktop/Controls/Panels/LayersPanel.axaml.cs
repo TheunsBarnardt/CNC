@@ -241,6 +241,12 @@ public partial class LayersPanel : UserControl
         }
     }
 
+    private void OnCtxBreakApart(object? s, RoutedEventArgs e)
+    {
+        var node = TagFromSender<LayerTreeItem>(s);
+        if (node?.Part is not null) Vm?.BreakApartPart(node.Part);
+    }
+
     private void OnCtxUngroupFromPart(object? s, RoutedEventArgs e)
     {
         // Ungroup the whole group that contains this part

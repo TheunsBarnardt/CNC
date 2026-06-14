@@ -1354,6 +1354,74 @@ public sealed class MainViewModel : ObservableObject
         NotifyPartChanged();
     }
 
+    /// <summary>
+    /// Splits a multi-path Part into N individual single-path Parts (Inkscape "Break Apart").
+    /// Each resulting Part sits at the same canvas position and can be moved independently.
+    /// Use Group after breaking to make them move as a unit again.
+    /// </summary>
+    public void BreakApartPart(Part sourcePart)
+    {
+        var file = _projects.With(p => p.Files.FirstOrDefault(f => f.Id == sourcePart.FileId));
+        if (file is null || file.Paths.Count <= 1)
+        {
+            StatusText = "Already a single path — nothing to break apart";
+            return;
+        }
+
+        Checkpoint();
+        int pathCount = file.Paths.Count;
+        var newFiles  = new List<ImportedFile>();
+
+        _projects.Mutate(p =>
+        {
+            p.Parts.Remove(sourcePart);
+            if (!p.Parts.Any(pt => pt.FileId == file.Id))
+                p.Files.Remove(file);
+
+            for (int i = 0; i < file.Paths.Count; i++)
+            {
+                var pg = file.Paths[i];
+                var newFile = new ImportedFile
+                {
+                    FileName    = file.FileName,
+                    DisplayName = pg.Label ?? $"{file.DisplayName} — {i + 1}",
+                    Kind        = file.Kind,
+                };
+                newFile.Paths.Add(new PathGeometry
+                {
+                    Layer   = pg.Layer,
+                    Label   = pg.Label,
+                    Visible = pg.Visible,
+                    Polyline = new Polyline2
+                    {
+                        IsClosed = pg.Polyline.IsClosed,
+                        Points   = new List<Point2>(pg.Polyline.Points),
+                    },
+                    Handles = pg.Handles?.Select(h => h?.ToArray()).ToList(),
+                });
+
+                var newPart = new Part
+                {
+                    FileId      = newFile.Id,
+                    X           = sourcePart.X,
+                    Y           = sourcePart.Y,
+                    RotationDeg = sourcePart.RotationDeg,
+                    ScaleX      = sourcePart.ScaleX,
+                    ScaleY      = sourcePart.ScaleY,
+                    LayerId     = sourcePart.LayerId,
+                };
+                p.Files.Add(newFile);
+                p.Parts.Add(newPart);
+                newFiles.Add(newFile);
+            }
+        });
+
+        foreach (var nf in newFiles) RefreshGeometry(nf);
+        if (SelectedPart == sourcePart) SelectedPart = null;
+        Refresh();
+        StatusText = $"Break Apart — {pathCount} paths are now individual objects";
+    }
+
     /// <summary>Rename a group from the tree panel.</summary>
     public void RenameTreeGroup(LayerTreeItem node, string name)
     {

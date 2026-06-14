@@ -254,6 +254,25 @@ public sealed class Guide
     public bool   IsLocked { get; set; }
 }
 
+/// <summary>
+/// A rectangular exclusion zone on the table (machine clamp, fixture, hazard area).
+/// The post-processor warns if any rapid or cut path enters the zone.
+/// </summary>
+public sealed class NoGoZone : Observable
+{
+    public Guid Id { get; set; } = Guid.NewGuid();
+    private string _label = "No-go zone";
+    public string Label { get => _label; set => SetField(ref _label, value); }
+    private double _x;
+    public double X { get => _x; set => SetField(ref _x, value); }
+    private double _y;
+    public double Y { get => _y; set => SetField(ref _y, value); }
+    private double _width = 50;
+    public double Width { get => _width; set => SetField(ref _width, value); }
+    private double _height = 50;
+    public double Height { get => _height; set => SetField(ref _height, value); }
+}
+
 /// <summary>A whole project: table setup + imported files. Saved as one JSON file.</summary>
 public sealed class Project
 {
@@ -267,6 +286,7 @@ public sealed class Project
     public List<Part> Parts { get; init; } = [];
     public List<Layer> Layers { get; init; } = [new Layer()];
     public List<Guide> Guides { get; init; } = [];
+    public List<NoGoZone> NoGoZones { get; init; } = [];
 
     // Convenience shortcuts used by desktop code
     public double TableWidthMm  => Table.WidthMm;

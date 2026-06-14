@@ -33,6 +33,87 @@
                HorizontalAlignment="Center"
                Margin="0,12"/>
 
+    <!-- no-go zones section -->
+    <Border DockPanel.Dock="Bottom"
+            Background="{StaticResource Brush.Bg1}">
+      <StackPanel>
+        <Border Background="{StaticResource Brush.Bg2}"
+                BorderBrush="{StaticResource Brush.Border}"
+                BorderThickness="0,1,0,1"
+                Padding="10,5">
+          <Grid ColumnDefinitions="*,Auto">
+            <TextBlock Text="NO-GO ZONES"
+                       Classes="section"
+                       Margin="0"
+                       VerticalAlignment="Center"/>
+            <Button Grid.Column="1"
+                    Theme="{StaticResource Btn.Icon}"
+                    ToolTip.Tip="Add no-go zone"
+                    Click="OnAddNoGoZone">
+              <PathIcon Data="{StaticResource Icon.Plus}" Width="15" Height="15"/>
+            </Button>
+          </Grid>
+        </Border>
+        <ItemsControl x:Name="NoGoZonesList">
+          <ItemsControl.ItemTemplate>
+            <DataTemplate>
+              <Border BorderBrush="{StaticResource Brush.Border}"
+                      BorderThickness="0,0,0,1"
+                      Padding="8,4"
+                      Tag="{Binding}">
+                <Grid ColumnDefinitions="*,50,50,22" RowDefinitions="Auto,Auto" Margin="0,2">
+                  <TextBox Grid.Row="0" Grid.Column="0" Grid.ColumnSpan="3"
+                           Text="{Binding Label, Mode=TwoWay}"
+                           Background="Transparent"
+                           BorderThickness="0"
+                           Padding="2,0"
+                           FontSize="{StaticResource Font.Sm}"
+                           Foreground="{StaticResource Brush.Text}"
+                           LostFocus="OnZoneNameCommit"
+                           KeyDown="OnZoneKeyDown"
+                           Tag="{Binding}"/>
+                  <Button Grid.Row="0" Grid.Column="3"
+                          Theme="{StaticResource Btn.Icon}"
+                          Width="22" Height="22"
+                          Foreground="{StaticResource Brush.Danger}"
+                          ToolTip.Tip="Delete zone"
+                          Click="OnDeleteNoGoZone"
+                          Tag="{Binding}">
+                    <PathIcon Data="{StaticResource Icon.Close}" Width="11" Height="11"/>
+                  </Button>
+                  <Grid Grid.Row="1" Grid.Column="0" Grid.ColumnSpan="4"
+                        ColumnDefinitions="20,*,8,20,*,8,20,*,8,20,*"
+                        Margin="0,2,0,0">
+                    <TextBlock Grid.Column="0" Text="X" Classes="muted" FontSize="{StaticResource Font.Xs}" VerticalAlignment="Center"/>
+                    <TextBox Grid.Column="1" Text="{Binding X, Mode=TwoWay}"
+                             Height="20" FontSize="{StaticResource Font.Xs}"
+                             LostFocus="OnZoneDimsCommit" KeyDown="OnZoneKeyDown" Tag="{Binding}"/>
+                    <TextBlock Grid.Column="3" Text="Y" Classes="muted" FontSize="{StaticResource Font.Xs}" VerticalAlignment="Center"/>
+                    <TextBox Grid.Column="4" Text="{Binding Y, Mode=TwoWay}"
+                             Height="20" FontSize="{StaticResource Font.Xs}"
+                             LostFocus="OnZoneDimsCommit" KeyDown="OnZoneKeyDown" Tag="{Binding}"/>
+                    <TextBlock Grid.Column="6" Text="W" Classes="muted" FontSize="{StaticResource Font.Xs}" VerticalAlignment="Center"/>
+                    <TextBox Grid.Column="7" Text="{Binding Width, Mode=TwoWay}"
+                             Height="20" FontSize="{StaticResource Font.Xs}"
+                             LostFocus="OnZoneDimsCommit" KeyDown="OnZoneKeyDown" Tag="{Binding}"/>
+                    <TextBlock Grid.Column="9" Text="H" Classes="muted" FontSize="{StaticResource Font.Xs}" VerticalAlignment="Center"/>
+                    <TextBox Grid.Column="10" Text="{Binding Height, Mode=TwoWay}"
+                             Height="20" FontSize="{StaticResource Font.Xs}"
+                             LostFocus="OnZoneDimsCommit" KeyDown="OnZoneKeyDown" Tag="{Binding}"/>
+                  </Grid>
+                </Grid>
+              </Border>
+            </DataTemplate>
+          </ItemsControl.ItemTemplate>
+        </ItemsControl>
+        <TextBlock x:Name="ZonesEmptyHint"
+                   Text="No zones defined"
+                   Classes="muted"
+                   HorizontalAlignment="Center"
+                   Margin="0,6"/>
+      </StackPanel>
+    </Border>
+
     <ScrollViewer VerticalScrollBarVisibility="Auto">
       <ItemsControl x:Name="LayersList">
         <ItemsControl.ItemTemplate>

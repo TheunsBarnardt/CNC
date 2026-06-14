@@ -50,7 +50,8 @@ public sealed class ViewportControl : Control
     public SimState? SimState { get; set; }
 
     // ── user guides ───────────────────────────────────────────────────────
-    private List<Guide> _userGuides = [];
+    private List<Guide>     _userGuides = [];
+    private List<NoGoZone>  _noGoZones  = [];
 
     // ── drag state ────────────────────────────────────────────────────────
     private enum DragMode { None, Pan, Move, Resize, Rotate, Select, MoveGuide, CreateGuide }
@@ -182,6 +183,7 @@ public sealed class ViewportControl : Control
         _parts      = [.. p.Parts];
         _layers     = [.. p.Layers];
         _userGuides = [.. p.Guides];
+        _noGoZones  = [.. p.NoGoZones];
         _geometry   = _vm.Geometry;
         _selectedId = _vm.SelectedPart?.Id;
 
@@ -1172,9 +1174,57 @@ public sealed class ViewportControl : Control
             canvas.DrawLine(sx2, sy2 - 12, sx2, sy2 + 12, cross);
         }
 
+        RenderNoGoZones(canvas);
         RenderGuidesAndCursor(canvas, w, h, colFg);
         RenderRulers(canvas, w, h, colRuler, colFg, colMuted);
         RenderCoordinateHud(canvas, w, h, colFg);
+    }
+
+    private void RenderNoGoZones(SKCanvas canvas)
+    {
+        if (_noGoZones.Count == 0) return;
+        using var fill = new SKPaint
+        {
+            Color = new SKColor(0xff, 0x22, 0x22, 0x44),
+            IsStroke = false,
+            IsAntialias = false,
+        };
+        using var border = new SKPaint
+        {
+            Color = new SKColor(0xff, 0x44, 0x44, 0xcc),
+            StrokeWidth = 1.5f,
+            IsStroke = true,
+            IsAntialias = false,
+            PathEffect = SKPathEffect.CreateDash([6f, 4f], 0),
+        };
+        using var labelP = new SKPaint
+        {
+            Color = new SKColor(0xff, 0x88, 0x88, 0xff),
+            IsAntialias = true,
+        };
+        using var font = new SKFont(SKTypeface.Default, 11f);
+        foreach (var zone in _noGoZones)
+        {
+            float sx = ToSX(zone.X);
+            float sy = ToSY(zone.Y + zone.Height);
+            float ex = ToSX(zone.X + zone.Width);
+            float ey = ToSY(zone.Y);
+            var rect = new SKRect(sx, sy, ex, ey);
+            canvas.DrawRect(rect, fill);
+            canvas.DrawRect(rect, border);
+            // Hatch lines at 45°
+            using var hatch = new SKPaint { Color = new SKColor(0xff, 0x44, 0x44, 0x55), StrokeWidth = 1f, IsStroke = true };
+            float step = 12f;
+            float diag = rect.Width + rect.Height;
+            canvas.Save();
+            canvas.ClipRect(rect);
+            for (float d = -diag; d < diag; d += step)
+                canvas.DrawLine(rect.Left + d, rect.Top, rect.Left + d + rect.Height, rect.Bottom, hatch);
+            canvas.Restore();
+            // Label
+            if (!string.IsNullOrEmpty(zone.Label))
+                canvas.DrawText(zone.Label, sx + 4, sy + 13, font, labelP);
+        }
     }
 
     private void RenderGuidesAndCursor(SKCanvas canvas, float w, float h, SKColor colFg)

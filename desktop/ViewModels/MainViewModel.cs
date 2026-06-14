@@ -96,9 +96,10 @@ public sealed class MainViewModel : ObservableObject
 
     // ── Project collections (bound to right panel lists) ──────────────────
 
-    public ObservableCollection<ImportedFile> Files  { get; } = [];
-    public ObservableCollection<Layer>        Layers { get; } = [];
-    public ObservableCollection<Part>         Parts  { get; } = [];
+    public ObservableCollection<ImportedFile> Files     { get; } = [];
+    public ObservableCollection<Layer>        Layers    { get; } = [];
+    public ObservableCollection<Part>         Parts     { get; } = [];
+    public ObservableCollection<NoGoZone>     NoGoZones { get; } = [];
 
     public bool HasParts => Parts.Count > 0;
     public string PartCountText => $"{Parts.Count}";
@@ -569,6 +570,102 @@ public sealed class MainViewModel : ObservableObject
     public IReadOnlyList<(string Id, string Name, bool IsDefault)> GetPostProcessors() =>
         _posts.All.Select(p => (p.Id, p.DisplayName, p == _posts.Default)).ToList();
 
+    /// <summary>
+    /// Generate a test G-code matrix where rows vary Param1 and columns vary Param2.
+    /// Places the selected part R×C times, creates temporary layers with per-cell settings,
+    /// generates combined G-code, and saves it.
+    /// </summary>
+    public async Task GenerateTestGcodeAsync(dynamic panel, IStorageProvider storage)
+    {
+        if (SelectedPart is not { } sourcePart) return;
+        StatusText = "Generating test G-code…";
+        await Task.Yield();
+        try
+        {
+            int rows      = (int)(panel.TestRows ?? 4);
+            int cols      = (int)(panel.TestCols ?? 4);
+            string p1Tag  = (string)(panel.Param1Tag ?? "Power");
+            double p1From = (double)(panel.Param1From);
+            double p1To   = (double)(panel.Param1To);
+            string p2Tag  = (string)(panel.Param2Tag ?? "FeedRate");
+            double p2From = (double)(panel.Param2From);
+            double p2To   = (double)(panel.Param2To);
+
+            var proj = _projects.With(p => p);
+            var baseCam = proj.Cam;
+
+            // Build a temporary project snapshot with test grid parts + layers
+            var testProj = new Backend.Models.Project
+            {
+                Name  = $"{proj.Name} — Test",
+                Table = proj.Table,
+                Cam   = baseCam,
+                Units = proj.Units,
+            };
+            // Copy the source file
+            if (proj.Files.FirstOrDefault(f => f.Id == sourcePart.FileId) is { } srcFile)
+                testProj.Files.Add(srcFile);
+
+            if (proj.Files.FirstOrDefault(f => f.Id == sourcePart.FileId) is not { } file)
+            {
+                StatusText = "No file for selected part"; return;
+            }
+            var bb = file.BoundingBox;
+            double stepX = bb.Width  * Math.Abs(sourcePart.ScaleX) + 10;
+            double stepY = bb.Height * Math.Abs(sourcePart.ScaleY) + 10;
+
+            for (int r = 0; r < rows; r++)
+            {
+                double v1 = rows > 1 ? p1From + (p1To - p1From) * r / (rows - 1) : p1From;
+                for (int c = 0; c < cols; c++)
+                {
+                    double v2 = cols > 1 ? p2From + (p2To - p2From) * c / (cols - 1) : p2From;
+
+                    var layer = new Layer
+                    {
+                        Name  = $"R{r + 1}C{c + 1} {p1Tag}={v1:F0} {p2Tag}={v2:F0}",
+                        Color = "#3b82f6",
+                    };
+                    if (p1Tag == "FeedRate" || p2Tag == "FeedRate")
+                        layer.FeedRateMmMinOverride = p1Tag == "FeedRate" ? v1 : v2;
+                    if (p1Tag == "Power" || p2Tag == "Power")
+                        layer.LaserPowerPercentOverride = p1Tag == "Power" ? v1 : v2;
+                    testProj.Layers.Add(layer);
+
+                    var part = new Part
+                    {
+                        FileId      = file.Id,
+                        X           = sourcePart.X + c * stepX,
+                        Y           = sourcePart.Y + r * stepY,
+                        RotationDeg = sourcePart.RotationDeg,
+                        ScaleX      = sourcePart.ScaleX,
+                        ScaleY      = sourcePart.ScaleY,
+                        LayerId     = layer.Id,
+                    };
+                    // Override pierce delay via CamSettings copy if needed
+                    testProj.Parts.Add(part);
+                }
+            }
+
+            var tp   = CamEngine.Generate(testProj, testProj.Cam);
+            var post = _posts.Default ?? throw new InvalidOperationException("No post-processor");
+            var prog = post.Generate(tp, testProj);
+
+            var file2 = await storage.SaveFilePickerAsync(new FilePickerSaveOptions
+            {
+                Title             = "Save test G-code",
+                SuggestedFileName = $"{ProjectName}_test_{rows}x{cols}.nc",
+                DefaultExtension  = ".nc",
+            });
+            if (file2 is null) { StatusText = "Test G-code cancelled"; return; }
+            await using var stream = await file2.OpenWriteAsync();
+            await using var w = new StreamWriter(stream);
+            foreach (var line in prog.Lines) await w.WriteLineAsync(line);
+            StatusText = $"Test grid saved — {rows}×{cols} cells, {prog.Lines.Count} lines";
+        }
+        catch (Exception ex) { StatusText = $"Test G-code failed: {ex.Message}"; }
+    }
+
     // ── Simulation mode ───────────────────────────────────────────────────
 
     public void EnterSimMode()
@@ -803,6 +900,25 @@ public sealed class MainViewModel : ObservableObject
         StatusText = $"Offset applied — {newPaths.Count} path(s) created";
     }
 
+    // ── No-go zones ───────────────────────────────────────────────────────
+
+    public void AddNoGoZone()
+    {
+        var zone = new NoGoZone { Label = $"Zone {NoGoZones.Count + 1}" };
+        _projects.Mutate(p => p.NoGoZones.Add(zone));
+        NoGoZones.Add(zone);
+        ProjectChanged?.Invoke();
+    }
+
+    public void DeleteNoGoZone(NoGoZone zone)
+    {
+        _projects.Mutate(p => p.NoGoZones.Remove(zone));
+        NoGoZones.Remove(zone);
+        ProjectChanged?.Invoke();
+    }
+
+    public void RefreshNoGoZones() => ProjectChanged?.Invoke();
+
     // ── Internal helpers ──────────────────────────────────────────────────
 
     public void Refresh()
@@ -814,9 +930,10 @@ public sealed class MainViewModel : ObservableObject
                 p.Layers.Add(new Layer());
 
             ProjectName = p.Name;
-            Files.Clear();  foreach (var f in p.Files)  Files.Add(f);
-            Layers.Clear(); foreach (var l in p.Layers) Layers.Add(l);
-            Parts.Clear();  foreach (var pt in p.Parts) Parts.Add(pt);
+            Files.Clear();     foreach (var f  in p.Files)      Files.Add(f);
+            Layers.Clear();    foreach (var l  in p.Layers)     Layers.Add(l);
+            Parts.Clear();     foreach (var pt in p.Parts)      Parts.Add(pt);
+            NoGoZones.Clear(); foreach (var z  in p.NoGoZones)  NoGoZones.Add(z);
             return true;
         });
         OnPropertyChanged(nameof(HasParts));

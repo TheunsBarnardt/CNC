@@ -48,27 +48,52 @@
 
       <!-- Test Tab -->
       <TabItem Header="Test">
-        <StackPanel Spacing="12" Margin="12">
-          <TextBlock Text="Material Test Grid (creates optimized test pattern)"/>
-          <Grid ColumnDefinitions="Auto,*" RowDefinitions="Auto,Auto,Auto,Auto" ColumnSpacing="8" RowSpacing="8">
-            <TextBlock Grid.Row="0" Grid.Column="0" Text="Param 1:" VerticalAlignment="Center"/>
-            <ComboBox x:Name="CbParam1" Grid.Row="0" Grid.Column="1">
-              <ComboBoxItem>Feed Rate</ComboBoxItem>
-              <ComboBoxItem>Kerf Width</ComboBoxItem>
+        <StackPanel Spacing="10" Margin="12">
+          <TextBlock Text="Power × Speed test grid — each cell gets different settings"
+                     Classes="muted" FontSize="11" TextWrapping="Wrap"/>
+          <Grid ColumnDefinitions="90,*,14,*" RowDefinitions="Auto,Auto,Auto,Auto,Auto" ColumnSpacing="6" RowSpacing="8">
+            <!-- Row param (varies down) -->
+            <TextBlock Grid.Row="0" Grid.Column="0" Text="Row param:" VerticalAlignment="Center"/>
+            <ComboBox x:Name="CbParam1" Grid.Row="0" Grid.Column="1" Grid.ColumnSpan="3">
+              <ComboBoxItem Content="Feed Rate (mm/min)" Tag="FeedRate"/>
+              <ComboBoxItem Content="Pierce Delay (s)"   Tag="PierceDelay"/>
+              <ComboBoxItem Content="Power (%)"          Tag="Power" IsSelected="True"/>
             </ComboBox>
 
-            <TextBlock Grid.Row="1" Grid.Column="0" Text="Param 2:" VerticalAlignment="Center"/>
-            <ComboBox x:Name="CbParam2" Grid.Row="1" Grid.Column="1">
-              <ComboBoxItem>Pierce Delay</ComboBoxItem>
-              <ComboBoxItem>Power %</ComboBoxItem>
+            <!-- Row range -->
+            <TextBlock Grid.Row="1" Grid.Column="0" Text="  from → to:" VerticalAlignment="Center" Classes="muted"/>
+            <TextBox x:Name="TbParam1From" Grid.Row="1" Grid.Column="1" Text="20"/>
+            <TextBlock Grid.Row="1" Grid.Column="2" Text="–" VerticalAlignment="Center" HorizontalAlignment="Center"/>
+            <TextBox x:Name="TbParam1To"   Grid.Row="1" Grid.Column="3" Text="100"/>
+
+            <!-- Col param (varies across) -->
+            <TextBlock Grid.Row="2" Grid.Column="0" Text="Col param:" VerticalAlignment="Center"/>
+            <ComboBox x:Name="CbParam2" Grid.Row="2" Grid.Column="1" Grid.ColumnSpan="3">
+              <ComboBoxItem Content="Feed Rate (mm/min)" Tag="FeedRate" IsSelected="True"/>
+              <ComboBoxItem Content="Pierce Delay (s)"   Tag="PierceDelay"/>
+              <ComboBoxItem Content="Power (%)"          Tag="Power"/>
             </ComboBox>
 
-            <TextBlock Grid.Row="2" Grid.Column="0" Text="Rows:" VerticalAlignment="Center"/>
-            <TextBox x:Name="TbTestRows" Grid.Row="2" Grid.Column="1" Text="4"/>
+            <!-- Col range -->
+            <TextBlock Grid.Row="3" Grid.Column="0" Text="  from → to:" VerticalAlignment="Center" Classes="muted"/>
+            <TextBox x:Name="TbParam2From" Grid.Row="3" Grid.Column="1" Text="1000"/>
+            <TextBlock Grid.Row="3" Grid.Column="2" Text="–" VerticalAlignment="Center" HorizontalAlignment="Center"/>
+            <TextBox x:Name="TbParam2To"   Grid.Row="3" Grid.Column="3" Text="5000"/>
 
-            <TextBlock Grid.Row="3" Grid.Column="0" Text="Cols:" VerticalAlignment="Center"/>
-            <TextBox x:Name="TbTestCols" Grid.Row="3" Grid.Column="1" Text="4"/>
+            <!-- Grid size -->
+            <TextBlock Grid.Row="4" Grid.Column="0" Text="Rows × Cols:" VerticalAlignment="Center"/>
+            <TextBox x:Name="TbTestRows" Grid.Row="4" Grid.Column="1" Text="4"/>
+            <TextBlock Grid.Row="4" Grid.Column="2" Text="×" VerticalAlignment="Center" HorizontalAlignment="Center"/>
+            <TextBox x:Name="TbTestCols" Grid.Row="4" Grid.Column="3" Text="4"/>
           </Grid>
+          <!-- Download button for test tab -->
+          <Button x:Name="BtnDownloadTest" Content="Download test .nc"
+                  Theme="{StaticResource Btn.Primary}"
+                  HorizontalAlignment="Stretch"
+                  HorizontalContentAlignment="Center"
+                  Padding="10,6"
+                  Click="OnDownloadTest"
+                  ToolTip.Tip="Generate and save G-code for the test grid"/>
         </StackPanel>
       </TabItem>
     </TabControl>

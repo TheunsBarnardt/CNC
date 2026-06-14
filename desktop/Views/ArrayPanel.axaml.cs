@@ -1,5 +1,6 @@
 using Avalonia.Controls;
 using Avalonia.Interactivity;
+using Avalonia.Platform.Storage;
 
 namespace Desktop.Views;
 
@@ -21,10 +22,17 @@ public partial class ArrayPanel : Window
     public bool RotateWithArray { get; private set; }
 
     // Test
-    public string Param1 { get; private set; } = "";
-    public string Param2 { get; private set; } = "";
+    public string Param1Tag { get; private set; } = "Power";
+    public double Param1From { get; private set; }
+    public double Param1To { get; private set; }
+    public string Param2Tag { get; private set; } = "FeedRate";
+    public double Param2From { get; private set; }
+    public double Param2To { get; private set; }
     public int TestRows { get; private set; }
     public int TestCols { get; private set; }
+
+    // Set by the caller so OnDownloadTest can use it
+    public Func<ArrayPanel, Task>? TestDownloadHandler { get; set; }
 
     public ArrayPanel()
     {
@@ -68,23 +76,35 @@ public partial class ArrayPanel : Window
                     Close(true);
                 }
             }
-            else if (selectedIdx == 2) // Test
-            {
-                if (int.TryParse(TbTestRows.Text, out var rows2) && rows2 > 0 &&
-                    int.TryParse(TbTestCols.Text, out var cols2) && cols2 > 0)
-                {
-                    Type = ArrayType.Test;
-                    Param1 = (CbParam1.SelectedItem as string) ?? "";
-                    Param2 = (CbParam2.SelectedItem as string) ?? "";
-                    TestRows = rows2;
-                    TestCols = cols2;
-                    Close(true);
-                }
-            }
+            // Test tab has its own Download button — Create does nothing for it
         }
-        catch
-        {
-            // Validation will catch this
-        }
+        catch { }
+    }
+
+    private async void OnDownloadTest(object? s, RoutedEventArgs e)
+    {
+        if (!CollectTestParams()) return;
+        if (TestDownloadHandler is { } handler)
+            await handler(this);
+    }
+
+    private bool CollectTestParams()
+    {
+        if (!int.TryParse(TbTestRows.Text, out var rows) || rows < 1) return false;
+        if (!int.TryParse(TbTestCols.Text, out var cols) || cols < 1) return false;
+        if (!double.TryParse(TbParam1From.Text, out var p1from)) return false;
+        if (!double.TryParse(TbParam1To.Text, out var p1to)) return false;
+        if (!double.TryParse(TbParam2From.Text, out var p2from)) return false;
+        if (!double.TryParse(TbParam2To.Text, out var p2to)) return false;
+
+        TestRows = rows;
+        TestCols = cols;
+        Param1Tag = (CbParam1.SelectedItem as ComboBoxItem)?.Tag as string ?? "Power";
+        Param1From = p1from;
+        Param1To = p1to;
+        Param2Tag = (CbParam2.SelectedItem as ComboBoxItem)?.Tag as string ?? "FeedRate";
+        Param2From = p2from;
+        Param2To = p2to;
+        return true;
     }
 }

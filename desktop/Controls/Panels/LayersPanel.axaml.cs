@@ -28,6 +28,14 @@ public partial class LayersPanel : UserControl
         LayersEmptyHint.IsVisible = vm.Layers.Count == 0;
         vm.Layers.CollectionChanged += (_, _) =>
             LayersEmptyHint.IsVisible = _vm?.Layers.Count == 0;
+
+        if (NoGoZonesList is not null)
+        {
+            NoGoZonesList.ItemsSource = vm.NoGoZones;
+            ZonesEmptyHint.IsVisible = vm.NoGoZones.Count == 0;
+            vm.NoGoZones.CollectionChanged += (_, _) =>
+                ZonesEmptyHint.IsVisible = _vm?.NoGoZones.Count == 0;
+        }
     }
 
     private void OnDataContextSet(object? s, EventArgs e)
@@ -127,6 +135,36 @@ public partial class LayersPanel : UserControl
     {
         if (e.Key != Key.Enter || s is not TextBox tb) return;
         TopLevel.GetTopLevel(tb)?.Focus();   // move focus away → triggers LostFocus commit
+        e.Handled = true;
+    }
+
+    // ── No-go zones ───────────────────────────────────────────────────────
+
+    private void OnAddNoGoZone(object? s, RoutedEventArgs e) => Vm?.AddNoGoZone();
+
+    private void OnDeleteNoGoZone(object? s, RoutedEventArgs e)
+    {
+        if (s is Button btn && btn.Tag is NoGoZone zone)
+            Vm?.DeleteNoGoZone(zone);
+    }
+
+    private void OnZoneNameCommit(object? s, RoutedEventArgs e)
+    {
+        if (s is TextBox tb && tb.Tag is NoGoZone zone && !string.IsNullOrWhiteSpace(tb.Text))
+            zone.Label = tb.Text.Trim();
+    }
+
+    private void OnZoneDimsCommit(object? s, RoutedEventArgs e)
+    {
+        // Binding is TwoWay — values update the model automatically.
+        // Trigger viewport redraw by notifying project changed.
+        Vm?.RefreshNoGoZones();
+    }
+
+    private void OnZoneKeyDown(object? s, KeyEventArgs e)
+    {
+        if (e.Key != Key.Enter || s is not TextBox tb) return;
+        TopLevel.GetTopLevel(tb)?.Focus();
         e.Handled = true;
     }
 }

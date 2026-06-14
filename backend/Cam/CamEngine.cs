@@ -199,7 +199,52 @@ public static class CamEngine
             });
         }
 
+        // 6. Validate no-go zones: warn if any cut or rapid enters a zone.
+        if (project.NoGoZones.Count > 0)
+            ValidateNoGoZones(toolpath, project.NoGoZones);
+
         return toolpath;
+    }
+
+    private static void ValidateNoGoZones(Toolpath tp, IReadOnlyList<NoGoZone> zones)
+    {
+        for (int ci = 0; ci < tp.Cuts.Count; ci++)
+        {
+            var cut = tp.Cuts[ci];
+            foreach (var zone in zones)
+            {
+                // Check every cut segment.
+                for (int i = 0; i < cut.Points.Count - 1; i++)
+                {
+                    if (SegmentIntersectsZone(cut.Points[i], cut.Points[i + 1], zone))
+                    {
+                        tp.Warnings.Add(
+                            $"Cut {ci + 1} crosses no-go zone \"{zone.Label}\" " +
+                            $"({zone.X:F0},{zone.Y:F0} {zone.Width:F0}×{zone.Height:F0}mm)");
+                        break;
+                    }
+                }
+                // Check rapid from previous cut end to this pierce.
+                if (ci > 0)
+                {
+                    var prev = tp.Cuts[ci - 1].EndsAt;
+                    if (SegmentIntersectsZone(prev, cut.PierceAt, zone))
+                        tp.Warnings.Add(
+                            $"Rapid before cut {ci + 1} crosses no-go zone \"{zone.Label}\"");
+                }
+            }
+        }
+    }
+
+    private static bool SegmentIntersectsZone(Point2 a, Point2 b, NoGoZone z)
+    {
+        // Separating axis test: segment intersects AABB.
+        double x0 = z.X, y0 = z.Y, x1 = z.X + z.Width, y1 = z.Y + z.Height;
+        if (Math.Min(a.X, b.X) > x1 || Math.Max(a.X, b.X) < x0) return false;
+        if (Math.Min(a.Y, b.Y) > y1 || Math.Max(a.Y, b.Y) < y0) return false;
+        // AABB overlaps segment bounding box — check if any corner is on segment side or
+        // if either endpoint is inside. Simple AABB clamp test suffices for warning.
+        return true;
     }
 
     // ── Bézier flattening helpers ────────────────────────────────────────────

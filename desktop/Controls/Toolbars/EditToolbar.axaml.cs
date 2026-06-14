@@ -256,7 +256,18 @@ public partial class EditToolbar : UserControl
     {
         var dlg = new ArrayPanel();
         var owner = this.FindAncestorOfType<Window>();
-        if (owner is not null && await dlg.ShowDialog<bool>(owner))
+        if (owner is null) return;
+
+        // Wire test G-code download handler before showing dialog
+        dlg.TestDownloadHandler = async (panel) =>
+        {
+            if (Vm is null) return;
+            var picker = TopLevel.GetTopLevel(this)?.StorageProvider;
+            if (picker is null) return;
+            await Vm.GenerateTestGcodeAsync(panel, picker);
+        };
+
+        if (await dlg.ShowDialog<bool>(owner))
             Vm?.CreateArray(dlg.Type, dlg);
     }
 

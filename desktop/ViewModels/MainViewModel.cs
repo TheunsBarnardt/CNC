@@ -272,6 +272,7 @@ public sealed class MainViewModel : ObservableObject
         part.ScaleX      = scaleX;
         part.ScaleY      = scaleY;
         NotifyPartChanged();
+        OnPropertyChanged(nameof(SelectedPart)); // refreshes EditToolbar after drag
     }
 
     public void ToggleCutout(Part part)
@@ -349,6 +350,18 @@ public sealed class MainViewModel : ObservableObject
         if (visible        is not null) layer.Visible        = visible.Value;
         if (locked         is not null) layer.Locked         = locked.Value;
         if (operationMode  is not null) layer.OperationMode  = operationMode.Value;
+        NotifyPartChanged();
+    }
+
+    public void SetLayerFeedOverride(Layer layer, double? value)
+    {
+        layer.FeedRateMmMinOverride = value;
+        NotifyPartChanged();
+    }
+
+    public void SetLayerPowerOverride(Layer layer, double? value)
+    {
+        layer.LaserPowerPercentOverride = value;
         NotifyPartChanged();
     }
 
@@ -471,6 +484,108 @@ public sealed class MainViewModel : ObservableObject
     {
         InSimMode  = false;
         StatusText = "Ready";
+    }
+
+    // ── Undo / Redo ────────────────────────────────────────────────────────
+
+    private readonly List<string> _undoStack = new();
+    private readonly List<string> _redoStack = new();
+    private const int MaxUndoDepth = 50;
+    private Part? _clipboard;
+
+    public void Checkpoint()
+    {
+        var json = _projects.ExportJson();
+        _undoStack.Add(json);
+        if (_undoStack.Count > MaxUndoDepth) _undoStack.RemoveAt(0);
+        _redoStack.Clear();
+    }
+
+    public void Undo()
+    {
+        if (_undoStack.Count == 0) return;
+        _redoStack.Add(_projects.ExportJson());
+        var prev = _undoStack[^1];
+        _undoStack.RemoveAt(_undoStack.Count - 1);
+        RestoreSnapshot(prev);
+        StatusText = "Undo";
+    }
+
+    public void Redo()
+    {
+        if (_redoStack.Count == 0) return;
+        _undoStack.Add(_projects.ExportJson());
+        var next = _redoStack[^1];
+        _redoStack.RemoveAt(_redoStack.Count - 1);
+        RestoreSnapshot(next);
+        StatusText = "Redo";
+    }
+
+    private void RestoreSnapshot(string json)
+    {
+        using var ms = new System.IO.MemoryStream(System.Text.Encoding.UTF8.GetBytes(json));
+        _projects.LoadJson(ms);
+        Geometry.Clear();
+        _projects.With(p => { foreach (var f in p.Files) RefreshGeometry(f); return true; });
+        SelectedPart = null;
+        CutSettings.Reload();
+        Refresh();
+    }
+
+    public void CopySelected()
+    {
+        if (SelectedPart is not { } part) return;
+        _clipboard = new Part
+        {
+            FileId      = part.FileId,
+            X           = part.X,
+            Y           = part.Y,
+            RotationDeg = part.RotationDeg,
+            ScaleX      = part.ScaleX,
+            ScaleY      = part.ScaleY,
+            LayerId     = part.LayerId,
+            IsCutout    = part.IsCutout,
+        };
+        StatusText = "Copied";
+    }
+
+    public void PasteClipboard()
+    {
+        if (_clipboard is not { } src) return;
+        Checkpoint();
+        var copy = new Part
+        {
+            FileId      = src.FileId,
+            X           = src.X + 10,
+            Y           = src.Y + 10,
+            RotationDeg = src.RotationDeg,
+            ScaleX      = src.ScaleX,
+            ScaleY      = src.ScaleY,
+            LayerId     = src.LayerId,
+            IsCutout    = src.IsCutout,
+        };
+        _projects.Mutate(p => p.Parts.Add(copy));
+        Refresh();
+        SelectedPart = copy;
+        StatusText = "Pasted";
+    }
+
+    public void BringToFront()
+    {
+        if (SelectedPart is not { } part) return;
+        Checkpoint();
+        _projects.Mutate(p => { if (p.Parts.Remove(part)) p.Parts.Add(part); });
+        Refresh();
+        SelectedPart = part;
+    }
+
+    public void SendToBack()
+    {
+        if (SelectedPart is not { } part) return;
+        Checkpoint();
+        _projects.Mutate(p => { if (p.Parts.Remove(part)) p.Parts.Insert(0, part); });
+        Refresh();
+        SelectedPart = part;
     }
 
     // ── Internal helpers ──────────────────────────────────────────────────

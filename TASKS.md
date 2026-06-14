@@ -736,6 +736,119 @@ Deferred: text tool still disabled; stacking order / contour offset still `// TO
 
 ---
 
+---
+
+## Editor Feature Completion (Session 2026-06-14)
+
+### [x] Editor core — undo/redo, copy/paste, stacking order, transform sync
+
+**Status:** ✅ COMPLETE
+
+**Implemented:**
+- **Undo/Redo stack** (`MainViewModel`): JSON snapshot stack (50 deep); `Checkpoint()` saves state before every drag, delete, duplicate, bring-to-front, paste
+- **Copy/Paste** (`Ctrl+C` / `Ctrl+V`): copies selected part; paste adds offset +10mm
+- **Bring to Front / Send to Back**: reorders part in project Parts list
+- **TransformStarted wiring**: viewport fires event at start of any move/resize/rotate → auto-checkpoint
+- **EditToolbar sync after drag**: `CommitPartTransform` now fires `OnPropertyChanged(nameof(SelectedPart))` so toolbar refreshes after every drag
+- **Keyboard shortcuts**: `Ctrl+Z` Undo, `Ctrl+Y` Redo, `Ctrl+C` Copy, `Ctrl+V` Paste
+
+---
+
+## Milestone 7 — Reference CAM Feature Parity
+
+Features from Rayforge, bCNC, Candle, UGS, OpenBuilds research. Add before implementing.
+
+### [ ] Task 23 — Plasma-critical: pierce settings + lead verification in G-code
+
+**Priority: CRITICAL** — pierce delay/height/rapid height missing from post-processor output.
+
+- Add `G4 P{pierce_delay}` (dwell) after torch-on in GRBL plasma post-processor
+- Add `G0 Z{pierce_height}` before pierce, `G0 Z{cut_height}` after dwell
+- Add `G0 Z{rapid_height}` on all rapids between cuts
+- Verify `LeadBuilder` output actually appears in G-code moves
+- Test: generate G-code from plasma project; verify pierce dwell + height changes present
+
+### [ ] Task 24 — Holding tabs / bridges
+
+Prevent cut parts from falling through slat table or shifting during cut.
+
+- **TabBuilder** backend: insert tab segments (short uncut spans) at user-configurable spacing
+- **EditToolbar**: tab count + tab width inputs (per-part)
+- **Viewport render**: tab positions shown as small brackets on cut path
+- **G-code**: tabs = torch-off + rapid across span + torch-on resume
+
+### [ ] Task 25 — GRBL config read/write (`$$` / `$N`)
+
+(Rayforge, bCNC)
+
+- Read `$$` settings from machine; display in DevicePanel config tab with descriptions
+- Edit and write single `$N=value` or full config back
+- Export/import config as JSON
+
+### [ ] Task 26 — Work zero + work coordinates (G54-G59)
+
+(all reference tools)
+
+- "Set Zero Here" → `G92 X0 Y0 Z0`
+- WCS selector (G54-G59) in DevicePanel
+- Show active WCS in DRO
+
+### [ ] Task 27 — Editable G-code preview with syntax highlighting
+
+(bCNC, Candle)
+
+- Toggle GcodePanel preview between read-only and editable
+- Syntax highlight: rapid=grey, cut=green, comments=dim, errors=red
+- Line numbers; "Regenerate" discards edits; "Apply edits" routes to machine
+
+### [ ] Task 28 — Material test grid (power × speed matrix)
+
+(Rayforge)
+
+- Wire existing ArrayPanel Test tab to actual G-code output
+- Two CAM param selectors (Feed × Pierce delay, or Feed × Laser Power)
+- Generate combined G-code with engraved labels per cell
+
+### [ ] Task 29 — No-Go zones
+
+(Rayforge)
+
+- Draw rectangular/circular exclusion zones on viewport
+- Post-processor validates rapids don't enter any zone
+- Visual warning + highlight if path crosses a zone
+
+### [ ] Task 30 — True bin-packing nesting
+
+(Rayforge)
+
+- Upgrade Nester backend from simple placement to Bottom-Left Fill or NFP
+- Rotation candidates (0°/90°/180°/270° or arbitrary step)
+- Show utilization %, list unplaced parts
+
+### [ ] Task 31 — Pre-flight validation checklist
+
+(Rayforge)
+
+- Before "Run Job": check bounds, layer assignments, lead-in clearance, pierce count
+- Checklist dialog with pass/warn/fail per item; block run on fail
+
+### [ ] Task 32 — Cut order control + travel optimization
+
+(bCNC)
+
+- Manual reorder cuts by drag-drop in a cut-order list
+- Auto-optimize: nearest-neighbor tour to minimize rapid travel
+- Show total rapid distance before/after
+
+### [ ] Task 33 — PDF import
+
+(Rayforge)
+
+- Add `.pdf` to file picker; rasterize pages → bitmap trace pipeline
+- Or extract vector paths if PDF contains them
+
+---
+
 ## Final Verification Checklist
 
 After Task 21 (all tasks complete):

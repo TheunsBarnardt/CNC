@@ -162,19 +162,9 @@ public partial class EditToolbar : UserControl
         TbRot.Text = newRot.ToString("F1");
     }
 
-    private void OnBringToFront(object? s, RoutedEventArgs e)
-    {
-        if (Vm?.SelectedPart is not { } part) return;
-        // Stacking order feature deferred - requires part reordering implementation
-        Vm.StatusText = "Stacking order not yet implemented";
-    }
+    private void OnBringToFront(object? s, RoutedEventArgs e) => Vm?.BringToFront();
 
-    private void OnSendToBack(object? s, RoutedEventArgs e)
-    {
-        if (Vm?.SelectedPart is not { } part) return;
-        // Stacking order feature deferred - requires part reordering implementation
-        Vm.StatusText = "Stacking order not yet implemented";
-    }
+    private void OnSendToBack(object? s, RoutedEventArgs e) => Vm?.SendToBack();
 
     private void OnLayerChanged(object? s, RoutedEventArgs e)
     {

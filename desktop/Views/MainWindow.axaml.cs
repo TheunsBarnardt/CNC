@@ -38,6 +38,7 @@ public partial class MainWindow : Window
                 : vm.Project.Parts.FirstOrDefault(p => p.Id == id.Value);
         Viewport.PartCommitted += part =>
             vm.CommitPartTransform(part, part.X, part.Y, part.RotationDeg, part.ScaleX, part.ScaleY);
+        Viewport.TransformStarted += () => vm.Checkpoint();
 
         // SimBar needs to hook into VM.InSimMode to rebuild the simulation
         SimBar.DataContext      = vm;
@@ -302,7 +303,19 @@ public partial class MainWindow : Window
                 e.Handled = true;
                 break;
             case Key.Z when e.KeyModifiers.HasFlag(KeyModifiers.Control):
-                // Undo — CheckpointService wired in future task
+                _vm.Undo();
+                e.Handled = true;
+                break;
+            case Key.Y when e.KeyModifiers.HasFlag(KeyModifiers.Control):
+                _vm.Redo();
+                e.Handled = true;
+                break;
+            case Key.C when e.KeyModifiers.HasFlag(KeyModifiers.Control):
+                _vm.CopySelected();
+                e.Handled = true;
+                break;
+            case Key.V when e.KeyModifiers.HasFlag(KeyModifiers.Control):
+                _vm.PasteClipboard();
                 e.Handled = true;
                 break;
         }

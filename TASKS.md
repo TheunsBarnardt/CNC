@@ -769,7 +769,7 @@ Features from Rayforge, bCNC, Candle, UGS, OpenBuilds research. Add before imple
 - ✅ "Rapid height (mm)" field added to CutSettingsPanel (plasma-only, row 5)
 - ✅ G-code header comment lists all three heights for traceability
 
-### [ ] Task 24 — Holding tabs / bridges
+### [x] Task 24 — Holding tabs / bridges
 
 Prevent cut parts from falling through slat table or shifting during cut.
 
@@ -778,7 +778,7 @@ Prevent cut parts from falling through slat table or shifting during cut.
 - **Viewport render**: tab positions shown as small brackets on cut path
 - **G-code**: tabs = torch-off + rapid across span + torch-on resume
 
-### [ ] Task 25 — GRBL config read/write (`$$` / `$N`)
+### [x] Task 25 — GRBL config read/write (`$$` / `$N`)
 
 (Rayforge, bCNC)
 
@@ -786,7 +786,7 @@ Prevent cut parts from falling through slat table or shifting during cut.
 - Edit and write single `$N=value` or full config back
 - Export/import config as JSON
 
-### [ ] Task 26 — Work zero + work coordinates (G54-G59)
+### [x] Task 26 — Work zero + work coordinates (G54-G59)
 
 (all reference tools)
 
@@ -794,7 +794,7 @@ Prevent cut parts from falling through slat table or shifting during cut.
 - WCS selector (G54-G59) in DevicePanel
 - Show active WCS in DRO
 
-### [ ] Task 27 — Editable G-code preview with syntax highlighting
+### [x] Task 27 — Editable G-code preview with syntax highlighting
 
 (bCNC, Candle)
 
@@ -802,7 +802,7 @@ Prevent cut parts from falling through slat table or shifting during cut.
 - Syntax highlight: rapid=grey, cut=green, comments=dim, errors=red
 - Line numbers; "Regenerate" discards edits; "Apply edits" routes to machine
 
-### [ ] Task 28 — Material test grid (power × speed matrix)
+### [x] Task 28 — Material test grid (power × speed matrix)
 
 (Rayforge)
 
@@ -810,7 +810,7 @@ Prevent cut parts from falling through slat table or shifting during cut.
 - Two CAM param selectors (Feed × Pierce delay, or Feed × Laser Power)
 - Generate combined G-code with engraved labels per cell
 
-### [ ] Task 29 — No-Go zones
+### [x] Task 29 — No-Go zones
 
 (Rayforge)
 

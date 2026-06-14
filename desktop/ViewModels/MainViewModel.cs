@@ -42,6 +42,9 @@ public sealed class MainViewModel : ObservableObject
     /// <summary>All currently selected parts (superset of SelectedPart). Used by rubber-band and Ctrl+click.</summary>
     private readonly HashSet<Guid> _selectedPartIds = [];
 
+    /// <summary>The full set of selected part IDs — read by the viewport to draw multi-selection highlights.</summary>
+    public IReadOnlySet<Guid> SelectedPartIds => _selectedPartIds;
+
     public Part? SelectedPart
     {
         get => _selectedPart;
@@ -53,6 +56,7 @@ public sealed class MainViewModel : ObservableObject
             if (value?.LayerId is { } lid) SetActiveLayer(lid);
             else UpdateActiveLayer();
             SyncTreeSelectionHighlight();
+            NotifyPartChanged(); // keep canvas in sync when selection changes via tree
         }
     }
 
@@ -69,6 +73,7 @@ public sealed class MainViewModel : ObservableObject
         if (primary?.LayerId is { } lid) SetActiveLayer(lid);
         else UpdateActiveLayer();
         SyncTreeSelectionHighlight();
+        NotifyPartChanged();
         StatusText = $"{ids.Count} objects selected — click Group to link them";
     }
 
@@ -83,6 +88,7 @@ public sealed class MainViewModel : ObservableObject
         SetProperty(ref _selectedPart, primary, nameof(SelectedPart));
         if (primary?.LayerId is { } lid) SetActiveLayer(lid);
         SyncTreeSelectionHighlight();
+        NotifyPartChanged();
         StatusText = _selectedPartIds.Count > 1
             ? $"{_selectedPartIds.Count} objects selected — click Group to link them"
             : "Ready";

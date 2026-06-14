@@ -45,7 +45,8 @@ public sealed class ViewportControl : Control
     private List<Layer>        _layers = [];
     private List<ImportedFile> _files  = [];
     private Dictionary<Guid, List<ModelPathGeometry>> _geometry = new();
-    private Guid? _selectedId;
+    private Guid?          _selectedId;
+    private HashSet<Guid>  _multiSelectedIds = [];
 
     // ── simulation state ──────────────────────────────────────────────────
     public SimState? SimState { get; set; }
@@ -188,8 +189,9 @@ public sealed class ViewportControl : Control
         _files      = [.. p.Files];
         _userGuides = [.. p.Guides];
         _noGoZones  = [.. p.NoGoZones];
-        _geometry   = _vm.Geometry;
-        _selectedId = _vm.SelectedPart?.Id;
+        _geometry          = _vm.Geometry;
+        _selectedId        = _vm.SelectedPart?.Id;
+        _multiSelectedIds  = new HashSet<Guid>(_vm.SelectedPartIds);
 
         if (!_fitted && Bounds.Width > 0) { _fitted = true; FitToView(); }
         InvalidateVisual();
@@ -1015,11 +1017,12 @@ public sealed class ViewportControl : Control
             var partFile = _files.FirstOrDefault(f => f.Id == part.FileId);
             if (partFile is { Visible: false }) continue;
 
-            bool selected  = part.Id == _selectedId;
-            bool isCutout  = part.IsCutout;
-            bool outBounds = IsOutOfBounds(part, geom);
-            SKColor layerCol = ParseHexColor(layer?.Color) ?? colCyan;
-            SKColor strokeCol = outBounds ? colRed : selected ? colPrim : layerCol;
+            bool selected    = part.Id == _selectedId;
+            bool inMultiSel  = !selected && _multiSelectedIds.Contains(part.Id);
+            bool isCutout    = part.IsCutout;
+            bool outBounds   = IsOutOfBounds(part, geom);
+            SKColor layerCol  = ParseHexColor(layer?.Color) ?? colCyan;
+            SKColor strokeCol = outBounds ? colRed : (selected || inMultiSel) ? colPrim : layerCol;
             var pivot = LocalCenter(geom);
 
             foreach (var pg in geom)
@@ -1031,7 +1034,7 @@ public sealed class ViewportControl : Control
 
                 if (isClosed)
                 {
-                    float fillAlpha = isCutout ? 0.06f : (selected ? 0.14f : 0.07f);
+                    float fillAlpha = isCutout ? 0.06f : (selected ? 0.14f : inMultiSel ? 0.11f : 0.07f);
                     using var fp = new SKPaint { Color = strokeCol.WithAlpha((byte)(fillAlpha * 255)), IsAntialias = true };
                     canvas.DrawPath(path, fp);
 
@@ -1047,10 +1050,24 @@ public sealed class ViewportControl : Control
                     }
                 }
 
-                float lw = selected ? 2f : 1.25f;
+                float lw = (selected || inMultiSel) ? 2f : 1.25f;
                 using var sp = new SKPaint { Color = strokeCol, StrokeWidth = lw, IsStroke = true, IsAntialias = true };
                 if (isCutout) sp.PathEffect = SKPathEffect.CreateDash([5f, 3f], 0);
                 canvas.DrawPath(path, sp);
+            }
+
+            // Multi-selection bounding box (no handles — only primary gets handles)
+            if (inMultiSel)
+            {
+                var (bMin2, bMax2) = WorldBounds(part, geom);
+                float bx0 = ToSX(bMin2.X), by0 = ToSY(bMax2.Y);
+                float bx1 = ToSX(bMax2.X), by1 = ToSY(bMin2.Y);
+                using var mSelP = new SKPaint
+                {
+                    Color = colPrim.WithAlpha(0x99), StrokeWidth = 1.5f, IsStroke = true,
+                    PathEffect = SKPathEffect.CreateDash([4f, 4f], 0),
+                };
+                canvas.DrawRect(SKRect.Create(bx0, by0, bx1 - bx0, by1 - by0), mSelP);
             }
 
             // Selection box, resize handles, and rotation handle

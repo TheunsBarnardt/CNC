@@ -65,6 +65,11 @@ public partial class LayersPanel : UserControl
             case LayerTreeNodeKind.Part:
                 Vm.SelectTreePart(node);
                 break;
+
+            case LayerTreeNodeKind.Object:
+                // Clicking an object node selects its parent Part on the canvas
+                Vm.SelectTreePart(node);
+                break;
         }
     }
 

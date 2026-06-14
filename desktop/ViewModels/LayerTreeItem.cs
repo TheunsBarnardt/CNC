@@ -4,12 +4,12 @@ using Backend.Models;
 
 namespace Desktop.ViewModels;
 
-public enum LayerTreeNodeKind { Layer, Group, Part }
+public enum LayerTreeNodeKind { Layer, Group, Part, Object }
 
 /// <summary>
 /// One row in the flat layer-tree list. Depth drives the left-margin indent.
 /// Layers sit at depth 0; ungrouped parts and group-headers at depth 1;
-/// parts inside a group at depth 2.
+/// parts inside a group at depth 2; path objects at part.Depth+1.
 /// </summary>
 public sealed class LayerTreeItem : INotifyPropertyChanged
 {
@@ -33,14 +33,20 @@ public sealed class LayerTreeItem : INotifyPropertyChanged
 
     // --- Part node ---
     public Part? Part { get; init; }
+    public ImportedFile? File { get; init; }   // the file backing this Part
     public string PartDisplayName { get; init; } = "";
+
+    // --- Object node (individual PathGeometry) ---
+    public PathGeometry? PathObject { get; init; }
+    public int PathIndex { get; init; }         // 1-based index for default label
 
     // --- Common display ---
     public string DisplayName => Kind switch
     {
-        LayerTreeNodeKind.Layer => Layer?.Name ?? "",
-        LayerTreeNodeKind.Group => GroupName,
-        LayerTreeNodeKind.Part  => PartDisplayName,
+        LayerTreeNodeKind.Layer  => Layer?.Name ?? "",
+        LayerTreeNodeKind.Group  => GroupName,
+        LayerTreeNodeKind.Part   => PartDisplayName,
+        LayerTreeNodeKind.Object => PathObject?.Label ?? $"Path {PathIndex}",
         _ => ""
     };
 
@@ -50,7 +56,7 @@ public sealed class LayerTreeItem : INotifyPropertyChanged
     // Layer colour swatch
     public string LayerColor => Layer?.Color ?? "#3b82f6";
 
-    // Expand / collapse (layers and groups only)
+    // Expand / collapse (layers, groups, and parts)
     private bool _isExpanded = true;
     public bool IsExpanded
     {
@@ -80,7 +86,9 @@ public sealed class LayerTreeItem : INotifyPropertyChanged
     public bool IsLayerKind  => Kind == LayerTreeNodeKind.Layer;
     public bool IsGroupKind  => Kind == LayerTreeNodeKind.Group;
     public bool IsPartKind   => Kind == LayerTreeNodeKind.Part;
-    public bool IsExpandable => Kind != LayerTreeNodeKind.Part;
+    public bool IsObjectKind => Kind == LayerTreeNodeKind.Object;
+    /// <summary>Layers, groups, and parts are all expandable; Objects are leaf nodes.</summary>
+    public bool IsExpandable => Kind != LayerTreeNodeKind.Object;
     /// <summary>True for Part nodes that belong to a group (move together on canvas).</summary>
     public bool IsInGroup    => Kind == LayerTreeNodeKind.Part && Part?.GroupId != null;
     /// <summary>Show a link icon when the part moves with siblings.</summary>

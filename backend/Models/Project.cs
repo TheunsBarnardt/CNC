@@ -49,6 +49,10 @@ public sealed class PathGeometry
     /// Each entry is either null (sharp corner) or double[4] = [inX,inY,outX,outY].
     /// </summary>
     public List<double[]?>? Handles { get; set; }
+    /// <summary>User-editable display label for the object row in the Layers panel.</summary>
+    public string? Label { get; set; }
+    /// <summary>Controls visibility of this individual path. False = hidden from viewport.</summary>
+    public bool Visible { get; set; } = true;
 }
 
 public enum ImportedFileKind

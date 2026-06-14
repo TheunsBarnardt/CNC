@@ -931,6 +931,7 @@ public sealed class ViewportControl : Control
 
             foreach (var pg in geom)
             {
+                if (!pg.Visible) continue;
                 if (pg.Polyline.Points.Count < 2) continue;
                 using var path = BuildPath(part, pivot, pg);
                 bool isClosed = pg.Polyline.IsClosed;

@@ -48,7 +48,7 @@ public sealed class MainViewModel : ObservableObject
             // Selecting a part makes its layer the active drawing layer.
             if (value?.LayerId is { } lid) SetActiveLayer(lid);
             else UpdateActiveLayer();
-            // Sync tree selection highlight
+            // Sync tree selection highlight — Part and Object rows both follow the Part selection
             foreach (var node in LayerTree)
                 node.IsSelected = node.Part is not null && node.Part == value;
         }
@@ -111,6 +111,7 @@ public sealed class MainViewModel : ObservableObject
     // Persist expand state and user-assigned group names across Refresh() calls.
     private readonly Dictionary<Guid, bool>   _layerExpanded = [];
     private readonly Dictionary<Guid, bool>   _groupExpanded = [];
+    private readonly Dictionary<Guid, bool>   _partExpanded  = [];
     private readonly Dictionary<Guid, string> _groupNames    = [];
 
     public bool HasParts => Parts.Count > 0;
@@ -1146,7 +1147,7 @@ public sealed class MainViewModel : ObservableObject
         foreach (var layer in project.Layers)
         {
             bool layerExp = _layerExpanded.GetValueOrDefault(layer.Id, true);
-            var layerNode = new LayerTreeItem
+            LayerTree.Add(new LayerTreeItem
             {
                 Kind       = LayerTreeNodeKind.Layer,
                 Layer      = layer,
@@ -1154,12 +1155,10 @@ public sealed class MainViewModel : ObservableObject
                 Visible    = layer.Visible,
                 IsExpanded = layerExp,
                 IsSelected = false,
-            };
-            LayerTree.Add(layerNode);
+            });
 
             if (!layerExp) continue;
 
-            // Parts that belong to this layer (null LayerId → first layer)
             bool isFirst = project.Layers.IndexOf(layer) == 0;
             var layerParts = project.Parts
                 .Where(pt => pt.LayerId == layer.Id ||
@@ -1170,55 +1169,31 @@ public sealed class MainViewModel : ObservableObject
             foreach (var part in layerParts)
             {
                 var file = project.Files.FirstOrDefault(f => f.Id == part.FileId);
-                string partName = file?.DisplayName ?? "Part";
 
                 if (part.GroupId == null)
                 {
-                    // Ungrouped part — depth 1
-                    LayerTree.Add(new LayerTreeItem
-                    {
-                        Kind            = LayerTreeNodeKind.Part,
-                        Part            = part,
-                        Depth           = 1,
-                        PartDisplayName = partName,
-                        Visible         = file?.Visible ?? true,
-                        IsSelected      = part == _selectedPart,
-                    });
+                    EmitPartWithObjects(part, file, depth: 1);
                 }
                 else
                 {
                     var gid = part.GroupId.Value;
-                    if (!seenGroups.Add(gid)) continue; // already emitted this group
+                    if (!seenGroups.Add(gid)) continue;
 
-                    // Count how many parts with this GroupId live in THIS layer.
-                    // Multi-layer SVG imports: each sub-part is in its own dedicated layer,
-                    // so there is only 1 sibling per layer → show the part directly, no folder.
-                    // User-created groups: multiple parts share the same layer → show a folder.
                     var siblingsHere = layerParts.Where(pt => pt.GroupId == gid).ToList();
 
                     if (siblingsHere.Count == 1)
                     {
-                        // Only one grouped part in this layer — render directly (no folder).
                         var gfile = project.Files.FirstOrDefault(f => f.Id == siblingsHere[0].FileId);
-                        LayerTree.Add(new LayerTreeItem
-                        {
-                            Kind            = LayerTreeNodeKind.Part,
-                            Part            = siblingsHere[0],
-                            Depth           = 1,
-                            PartDisplayName = gfile?.DisplayName ?? "Part",
-                            Visible         = gfile?.Visible ?? true,
-                            IsSelected      = siblingsHere[0] == _selectedPart,
-                        });
+                        EmitPartWithObjects(siblingsHere[0], gfile, depth: 1);
                     }
                     else
                     {
-                        // Multiple grouped parts in this layer — show a collapsible folder.
                         bool groupExp = _groupExpanded.GetValueOrDefault(gid, true);
                         string groupName = _groupNames.TryGetValue(gid, out var n) ? n
                                          : (file != null
                                             ? System.IO.Path.GetFileNameWithoutExtension(file.FileName)
                                             : "Group");
-                        var groupNode = new LayerTreeItem
+                        LayerTree.Add(new LayerTreeItem
                         {
                             Kind       = LayerTreeNodeKind.Group,
                             GroupId    = gid,
@@ -1226,23 +1201,14 @@ public sealed class MainViewModel : ObservableObject
                             Depth      = 1,
                             Visible    = true,
                             IsExpanded = groupExp,
-                        };
-                        LayerTree.Add(groupNode);
+                        });
 
                         if (!groupExp) continue;
 
                         foreach (var gpart in siblingsHere)
                         {
                             var gfile = project.Files.FirstOrDefault(f => f.Id == gpart.FileId);
-                            LayerTree.Add(new LayerTreeItem
-                            {
-                                Kind            = LayerTreeNodeKind.Part,
-                                Part            = gpart,
-                                Depth           = 2,
-                                PartDisplayName = gfile?.DisplayName ?? "Part",
-                                Visible         = gfile?.Visible ?? true,
-                                IsSelected      = gpart == _selectedPart,
-                            });
+                            EmitPartWithObjects(gpart, gfile, depth: 2);
                         }
                     }
                 }
@@ -1250,10 +1216,47 @@ public sealed class MainViewModel : ObservableObject
         }
     }
 
+    /// <summary>
+    /// Emits a Part row followed by its individual PathGeometry Object rows (like Inkscape's
+    /// objects panel which shows each SVG element as a separate tree node).
+    /// </summary>
+    private void EmitPartWithObjects(Part part, ImportedFile? file, int depth)
+    {
+        bool partExp = _partExpanded.GetValueOrDefault(part.Id, true);
+        LayerTree.Add(new LayerTreeItem
+        {
+            Kind            = LayerTreeNodeKind.Part,
+            Part            = part,
+            File            = file,
+            Depth           = depth,
+            PartDisplayName = file?.DisplayName ?? "Part",
+            Visible         = file?.Visible ?? true,
+            IsSelected      = part == _selectedPart,
+            IsExpanded      = partExp,
+        });
+
+        if (!partExp || file is null || file.Paths.Count == 0) return;
+
+        for (int i = 0; i < file.Paths.Count; i++)
+        {
+            var pg = file.Paths[i];
+            LayerTree.Add(new LayerTreeItem
+            {
+                Kind       = LayerTreeNodeKind.Object,
+                Part       = part,     // parent part — clicking selects it on canvas
+                PathObject = pg,
+                PathIndex  = i + 1,
+                Depth      = depth + 1,
+                Visible    = pg.Visible,
+                IsSelected = part == _selectedPart,
+            });
+        }
+    }
+
     /// <summary>Public wrapper so the view can trigger a tree rebuild without a full Refresh.</summary>
     public void RebuildLayerTreePublic() => RebuildLayerTree();
 
-    /// <summary>Toggle expand/collapse of a layer or group tree node.</summary>
+    /// <summary>Toggle expand/collapse of a layer, group, or part tree node.</summary>
     public void ToggleTreeNodeExpanded(LayerTreeItem node)
     {
         node.IsExpanded = !node.IsExpanded;
@@ -1261,6 +1264,8 @@ public sealed class MainViewModel : ObservableObject
             _layerExpanded[node.Layer.Id] = node.IsExpanded;
         else if (node.Kind == LayerTreeNodeKind.Group)
             _groupExpanded[node.GroupId] = node.IsExpanded;
+        else if (node.Kind == LayerTreeNodeKind.Part && node.Part is not null)
+            _partExpanded[node.Part.Id] = node.IsExpanded;
         RebuildLayerTree();
     }
 
@@ -1297,9 +1302,13 @@ public sealed class MainViewModel : ObservableObject
                 node.Visible = file.Visible;
             }
         }
+        else if (node.Kind == LayerTreeNodeKind.Object && node.PathObject is not null)
+        {
+            node.PathObject.Visible = !node.PathObject.Visible;
+            node.Visible = node.PathObject.Visible;
+        }
         else if (node.Kind == LayerTreeNodeKind.Group)
         {
-            // Toggle all members of the group
             var members = _projects.With(p =>
                 p.Parts.Where(pt => pt.GroupId == node.GroupId)
                        .Select(pt => p.Files.FirstOrDefault(f => f.Id == pt.FileId))

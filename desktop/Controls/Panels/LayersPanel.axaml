@@ -145,7 +145,7 @@
                     Tag="{Binding}">
               <Border.ContextMenu>
                 <ContextMenu Tag="{Binding}">
-                  <!-- Part-only operations -->
+                  <!-- Part-only operations (hidden on Layer, Group, Object rows) -->
                   <MenuItem Header="Duplicate"
                             IsVisible="{Binding IsPartKind}"
                             Click="OnCtxDuplicate"
@@ -438,12 +438,22 @@
 
               <!-- ── PART ROW ── -->
               <Grid IsVisible="{Binding IsPartKind}"
-                    ColumnDefinitions="Auto,*,22"
+                    ColumnDefinitions="20,Auto,*,22"
                     Margin="{Binding IndentMargin}"
                     Height="24">
 
+                <!-- expand toggle (▼/▶) — collapses/expands path objects underneath -->
+                <Button Grid.Column="0"
+                        Theme="{StaticResource Btn.Icon}"
+                        Width="20" Height="20"
+                        FontSize="9"
+                        Content="{Binding ExpandIcon}"
+                        Foreground="{StaticResource Brush.TextMuted}"
+                        Click="OnExpandToggle"
+                        Tag="{Binding}"/>
+
                 <!-- chain-link icon: visible when part moves with siblings -->
-                <PathIcon Grid.Column="0"
+                <PathIcon Grid.Column="1"
                           Data="{StaticResource Icon.Link}"
                           Width="11" Height="11"
                           Foreground="{StaticResource Brush.TextMuted}"
@@ -453,7 +463,7 @@
                           VerticalAlignment="Center"/>
 
                 <!-- part name -->
-                <TextBlock Grid.Column="1"
+                <TextBlock Grid.Column="2"
                            Text="{Binding PartDisplayName}"
                            VerticalAlignment="Center"
                            FontSize="{StaticResource Font.Sm}"
@@ -463,7 +473,7 @@
                            Cursor="Hand"/>
 
                 <!-- visibility -->
-                <Button Grid.Column="2"
+                <Button Grid.Column="3"
                         Theme="{StaticResource Btn.Icon}"
                         Width="22" Height="22"
                         ToolTip.Tip="Toggle visibility"
@@ -471,6 +481,42 @@
                         Tag="{Binding}">
                   <PathIcon Data="{Binding Visible, Converter={x:Static conv:VisibilityIconConverter.Instance}}"
                             Width="14" Height="14"/>
+                </Button>
+              </Grid>
+
+              <!-- ── OBJECT ROW (individual PathGeometry — Inkscape-style leaf node) ── -->
+              <Grid IsVisible="{Binding IsObjectKind}"
+                    ColumnDefinitions="18,*,22"
+                    Margin="{Binding IndentMargin}"
+                    Height="21">
+
+                <!-- path icon -->
+                <PathIcon Grid.Column="0"
+                          Data="{StaticResource Icon.PathNode}"
+                          Width="11" Height="11"
+                          Foreground="{StaticResource Brush.TextMuted}"
+                          VerticalAlignment="Center"
+                          HorizontalAlignment="Center"/>
+
+                <!-- object name -->
+                <TextBlock Grid.Column="1"
+                           Text="{Binding DisplayName}"
+                           VerticalAlignment="Center"
+                           FontSize="{StaticResource Font.Xs}"
+                           Foreground="{StaticResource Brush.TextMuted}"
+                           TextTrimming="CharacterEllipsis"
+                           Margin="3,0"
+                           Cursor="Hand"/>
+
+                <!-- visibility -->
+                <Button Grid.Column="2"
+                        Theme="{StaticResource Btn.Icon}"
+                        Width="22" Height="22"
+                        ToolTip.Tip="Toggle path visibility"
+                        Click="OnToggleVisible"
+                        Tag="{Binding}">
+                  <PathIcon Data="{Binding Visible, Converter={x:Static conv:VisibilityIconConverter.Instance}}"
+                            Width="13" Height="13"/>
                 </Button>
               </Grid>
 

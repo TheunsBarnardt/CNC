@@ -2,7 +2,7 @@
              xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
              x:Class="Desktop.Controls.Toolbars.NodeEditToolbar"
              x:CompileBindings="False"
-             IsVisible="{Binding NodeEditMode}">
+             IsVisible="False">
 
   <Border Background="{StaticResource Brush.Bg2}"
           BorderBrush="{StaticResource Brush.Border}"
@@ -21,20 +21,28 @@
         <Separator Theme="{StaticResource Sep.Vertical}"/>
 
         <!-- Smooth/Sharp toggle -->
-        <Button x:Name="BtnSmooth" Content="⌣" Theme="{StaticResource Btn.Icon}"
-                ToolTip.Tip="Smooth corner (Bézier)" Click="OnToggleSmooth"/>
-        <Button x:Name="BtnSharp" Content="⌊" Theme="{StaticResource Btn.Icon}"
-                ToolTip.Tip="Sharp corner" Click="OnToggleSharp"/>
+        <Button x:Name="BtnSmooth" Theme="{StaticResource Btn.Icon}"
+                ToolTip.Tip="Smooth corner (Bézier)" Click="OnToggleSmooth">
+          <PathIcon Data="{StaticResource Icon.Smooth}" Width="16" Height="16"/>
+        </Button>
+        <Button x:Name="BtnSharp" Theme="{StaticResource Btn.Icon}"
+                ToolTip.Tip="Sharp corner" Click="OnToggleSharp">
+          <PathIcon Data="{StaticResource Icon.Sharp}" Width="16" Height="16"/>
+        </Button>
 
         <!-- Auto-smooth -->
-        <Button x:Name="BtnAutoSmooth" Content="↗" Theme="{StaticResource Btn.Icon}"
-                ToolTip.Tip="Auto-smooth (Catmull-Rom)" Click="OnAutoSmooth"/>
+        <Button x:Name="BtnAutoSmooth" Theme="{StaticResource Btn.Icon}"
+                ToolTip.Tip="Auto-smooth (Catmull-Rom)" Click="OnAutoSmooth">
+          <PathIcon Data="{StaticResource Icon.AutoSmooth}" Width="16" Height="16"/>
+        </Button>
 
         <Separator Theme="{StaticResource Sep.Vertical}"/>
 
         <!-- Scissors (split path) -->
-        <Button x:Name="BtnScissors" Content="✂" Theme="{StaticResource Btn.Icon}"
-                ToolTip.Tip="Split path at node" Click="OnScissors"/>
+        <Button x:Name="BtnScissors" Theme="{StaticResource Btn.Icon}"
+                ToolTip.Tip="Split path at node" Click="OnScissors">
+          <PathIcon Data="{StaticResource Icon.Scissors}" Width="16" Height="16"/>
+        </Button>
 
         <Separator Theme="{StaticResource Sep.Vertical}"/>
 

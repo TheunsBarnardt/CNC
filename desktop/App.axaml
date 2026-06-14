@@ -5,16 +5,32 @@
 
     <Application.Styles>
         <FluentTheme />
-        <!-- TextBlock class helpers (Tailwind-equivalent for text nodes) -->
+
+        <!-- PathIcon: default size + follow the host button's foreground so
+             hover / active recolouring applies to the glyph automatically. -->
+        <Style Selector="PathIcon">
+            <Setter Property="Width"  Value="18"/>
+            <Setter Property="Height" Value="18"/>
+        </Style>
+        <Style Selector="Button PathIcon">
+            <Setter Property="Foreground" Value="{Binding $parent[Button].Foreground}"/>
+        </Style>
+
+        <!-- TextBlock class helpers -->
         <Style Selector="TextBlock.muted">
-            <Setter Property="Foreground" Value="#888888"/>
+            <Setter Property="Foreground" Value="{DynamicResource Brush.TextMuted}"/>
             <Setter Property="FontSize"   Value="11"/>
         </Style>
         <Style Selector="TextBlock.section">
-            <Setter Property="Foreground" Value="#888888"/>
+            <Setter Property="Foreground" Value="{DynamicResource Brush.TextMuted}"/>
             <Setter Property="FontSize"   Value="10"/>
             <Setter Property="FontWeight" Value="SemiBold"/>
             <Setter Property="Margin"     Value="0,8,0,4"/>
+        </Style>
+        <Style Selector="TextBlock.title">
+            <Setter Property="Foreground" Value="{DynamicResource Brush.Text}"/>
+            <Setter Property="FontSize"   Value="15"/>
+            <Setter Property="FontWeight" Value="SemiBold"/>
         </Style>
     </Application.Styles>
 
@@ -22,6 +38,7 @@
       <ResourceDictionary>
         <ResourceDictionary.MergedDictionaries>
           <ResourceInclude Source="/Themes/AppTheme.axaml"/>
+          <ResourceInclude Source="/Themes/Icons.axaml"/>
         </ResourceDictionary.MergedDictionaries>
       </ResourceDictionary>
     </Application.Resources>

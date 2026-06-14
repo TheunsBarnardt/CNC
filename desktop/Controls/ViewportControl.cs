@@ -29,7 +29,13 @@ public sealed class ViewportControl : Control
     // ── display options ───────────────────────────────────────────────────
     private bool _darkCanvas = true;
     private bool _showGrid   = true;
+    private bool _snap;                 // snap part position to grid while dragging
     private const int RULER_PX = 20;
+
+    // ── live cursor + alignment-guide state ───────────────────────────────
+    private Point? _cursor;             // last pointer position, screen px
+    private double? _guideX, _guideY;   // active alignment guides (world mm)
+    private float _gridMinorMm = 10;    // current grid minor spacing (mm)
 
     // ── data (set by MainWindow when ViewModel changes) ───────────────────
     private MainViewModel? _vm;
@@ -79,6 +85,9 @@ public sealed class ViewportControl : Control
 
     public void SetDarkCanvas(bool dark) { _darkCanvas = dark; InvalidateVisual(); }
     public void SetShowGrid(bool show)   { _showGrid   = show;  InvalidateVisual(); }
+
+    public bool SnapEnabled => _snap;
+    public void SetSnap(bool snap)       { _snap = snap; InvalidateVisual(); }
 
     public void FitToView()
     {
@@ -256,8 +265,10 @@ public sealed class ViewportControl : Control
     protected override void OnPointerMoved(PointerEventArgs e)
     {
         base.OnPointerMoved(e);
-        if (_drag == DragMode.None) return;
         var pos = e.GetPosition(this);
+        _cursor = pos;
+
+        if (_drag == DragMode.None) { InvalidateVisual(); return; }
         double dx = pos.X - _dragStart.X;
         double dy = pos.Y - _dragStart.Y;
 
@@ -274,9 +285,64 @@ public sealed class ViewportControl : Control
             {
                 part.X = _partStartX + dx / _scale;
                 part.Y = _partStartY - dy / _scale;  // screen Y flipped
+                ApplyDragAssist(part);               // snap-to-grid + alignment guides
                 PartMoved?.Invoke(part);
                 InvalidateVisual();
             }
+        }
+    }
+
+    protected override void OnPointerExited(PointerEventArgs e)
+    {
+        base.OnPointerExited(e);
+        _cursor = null;
+        InvalidateVisual();
+    }
+
+    /// <summary>
+    /// While a part is being dragged, nudge its position so edges/centre line
+    /// up with the sheet, the sheet centre, or other parts — and (optionally)
+    /// snap to the grid. Records the active guide lines for rendering.
+    /// </summary>
+    private void ApplyDragAssist(Part part)
+    {
+        _guideX = _guideY = null;
+        if (!_geometry.TryGetValue(part.FileId, out var geom)) return;
+
+        var (mn, mx) = WorldBounds(part, geom);
+        double cx = (mn.X + mx.X) / 2, cy = (mn.Y + mx.Y) / 2;
+        double tol = 6 / _scale;   // ~6 screen px regardless of zoom
+
+        // Candidate target lines (sheet edges + centre, plus every other part)
+        var targetsX = new List<double> { 0, _table.WidthMm / 2, _table.WidthMm };
+        var targetsY = new List<double> { 0, _table.HeightMm / 2, _table.HeightMm };
+        foreach (var other in _parts)
+        {
+            if (other.Id == part.Id) continue;
+            if (!_geometry.TryGetValue(other.FileId, out var og)) continue;
+            var (omn, omx) = WorldBounds(other, og);
+            targetsX.Add(omn.X); targetsX.Add((omn.X + omx.X) / 2); targetsX.Add(omx.X);
+            targetsY.Add(omn.Y); targetsY.Add((omn.Y + omx.Y) / 2); targetsY.Add(omx.Y);
+        }
+
+        // X axis: try aligning left / centre / right to the nearest target.
+        double bestDx = tol; bool foundX = false; double guideX = 0;
+        foreach (var t in targetsX)
+            foreach (var r in new[] { mn.X, cx, mx.X })
+                if (Math.Abs(t - r) < bestDx) { bestDx = Math.Abs(t - r); part.X += t - r; guideX = t; foundX = true; }
+        if (foundX) _guideX = guideX;
+
+        double bestDy = tol; bool foundY = false; double guideY = 0;
+        foreach (var t in targetsY)
+            foreach (var r in new[] { mn.Y, cy, mx.Y })
+                if (Math.Abs(t - r) < bestDy) { bestDy = Math.Abs(t - r); part.Y += t - r; guideY = t; foundY = true; }
+        if (foundY) _guideY = guideY;
+
+        // Grid snap (only on an axis with no stronger alignment match).
+        if (_snap && _gridMinorMm > 0)
+        {
+            if (!foundX) part.X = Math.Round(part.X / _gridMinorMm) * _gridMinorMm;
+            if (!foundY) part.Y = Math.Round(part.Y / _gridMinorMm) * _gridMinorMm;
         }
     }
 
@@ -289,7 +355,9 @@ public sealed class ViewportControl : Control
             if (part is not null) PartCommitted?.Invoke(part);
         }
         _drag = DragMode.None;
+        _guideX = _guideY = null;   // clear alignment guides
         e.Pointer.Capture(null);
+        InvalidateVisual();
     }
 
     protected override void OnKeyDown(KeyEventArgs e)
@@ -410,6 +478,7 @@ public sealed class ViewportControl : Control
             float[] stepsM = [1, 2, 5, 10, 25, 50, 100, 250, 500];
             float minor = stepsM.FirstOrDefault(s => s * _scale >= 8, 500);
             float major = minor * 5;
+            _gridMinorMm = minor;   // remembered for snap-to-grid
             using var gp = new SKPaint { Color = colGrid, StrokeWidth = 1, IsAntialias = false };
             for (float gx = 0; gx <= _table.WidthMm + 0.5; gx += minor)
             {
@@ -647,8 +716,77 @@ public sealed class ViewportControl : Control
             }
         }
 
+        // ── alignment guides + cursor crosshair ─────────────────────────────
+        RenderGuidesAndCursor(canvas, w, h, colFg);
+
         // ── rulers ────────────────────────────────────────────────────────
         RenderRulers(canvas, w, h, colRuler, colFg, colMuted);
+
+        // ── coordinate HUD (drawn last, over everything) ────────────────────
+        RenderCoordinateHud(canvas, w, h, colFg);
+    }
+
+    /// <summary>Draws magenta alignment guides (while dragging) and a faint
+    /// crosshair that follows the cursor — the "guide lines" of the editor.</summary>
+    private void RenderGuidesAndCursor(SKCanvas canvas, float w, float h, SKColor colFg)
+    {
+        // Active alignment guides (snap lines) take priority — bright magenta.
+        SKColor colGuide = new(0xff, 0x3d, 0x9a);
+        using var guideP = new SKPaint
+        {
+            Color = colGuide, StrokeWidth = 1, IsStroke = true, IsAntialias = false,
+            PathEffect = SKPathEffect.CreateDash([4f, 3f], 0),
+        };
+        if (_guideX is { } gx)
+        {
+            float sx = ToSX(gx);
+            canvas.DrawLine(sx, RULER_PX, sx, h, guideP);
+        }
+        if (_guideY is { } gy)
+        {
+            float sy = ToSY(gy);
+            canvas.DrawLine(RULER_PX, sy, w, sy, guideP);
+        }
+
+        // Cursor crosshair (only when idle/hovering inside the drawing area).
+        if (_cursor is { } c && _drag != DragMode.Pan
+            && c.X >= RULER_PX && c.Y >= RULER_PX && c.X <= w && c.Y <= h)
+        {
+            using var crossP = new SKPaint
+            {
+                Color = colFg.WithAlpha(0x33), StrokeWidth = 1, IsStroke = true, IsAntialias = false,
+            };
+            canvas.DrawLine((float)c.X, RULER_PX, (float)c.X, h, crossP);
+            canvas.DrawLine(RULER_PX, (float)c.Y, w, (float)c.Y, crossP);
+
+            // tick markers on the rulers
+            using var tickP = new SKPaint { Color = new(0x3b, 0x82, 0xf6), StrokeWidth = 2, IsStroke = true };
+            canvas.DrawLine((float)c.X, 0, (float)c.X, RULER_PX, tickP);
+            canvas.DrawLine(0, (float)c.Y, RULER_PX, (float)c.Y, tickP);
+        }
+    }
+
+    /// <summary>Small live X/Y readout pinned to the bottom-right corner.</summary>
+    private void RenderCoordinateHud(SKCanvas canvas, float w, float h, SKColor colFg)
+    {
+        if (_cursor is not { } c) return;
+        if (c.X < RULER_PX || c.Y < RULER_PX || c.X > w || c.Y > h) return;
+
+        double wx = ToWX((float)c.X);
+        double wy = ToWY((float)c.Y);
+        string text = $"X {wx,7:0.0}   Y {wy,7:0.0} mm";
+
+        using var txt = new SKPaint { Color = colFg, TextSize = 11.5f, IsAntialias = true };
+        float tw = txt.MeasureText(text);
+        float pad = 7f, bw = tw + pad * 2, bh = 21f;
+        float bx = w - bw - 10, by = h - bh - 10;
+
+        using var box = new SKPaint { Color = new(0xCC, 0x10, 0x10, 0x13), IsAntialias = true };
+        using var bdr = new SKPaint { Color = new(0x2a, 0x2a, 0x30), IsStroke = true, StrokeWidth = 1, IsAntialias = true };
+        var rect = new SKRect(bx, by, bx + bw, by + bh);
+        canvas.DrawRoundRect(rect, 4, 4, box);
+        canvas.DrawRoundRect(rect, 4, 4, bdr);
+        canvas.DrawText(text, bx + pad, by + bh - 6.5f, txt);
     }
 
     private void RenderRulers(SKCanvas canvas, float w, float h,

@@ -2,7 +2,7 @@
              xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
              x:Class="Desktop.Controls.Toolbars.EditToolbar"
              x:CompileBindings="False"
-             IsVisible="{Binding SelectedPart, Converter={x:Static ObjectConverters.IsNotNull}}">
+             IsVisible="False">
 
   <Border Background="{StaticResource Brush.Bg2}"
           BorderBrush="{StaticResource Brush.Border}"
@@ -23,8 +23,10 @@
         <!-- Width / Height -->
         <TextBlock Text="W" Classes="muted" VerticalAlignment="Center" Margin="4,0,2,0"/>
         <TextBox x:Name="TbW" Width="60" LostFocus="OnSizeChanged"/>
-        <Button Content="🔒" Theme="{StaticResource Btn.Icon}" Width="24" Height="24"
-                x:Name="BtnLock" Click="OnToggleLock" ToolTip.Tip="Lock aspect ratio"/>
+        <Button Theme="{StaticResource Btn.Icon}" Width="24" Height="24"
+                x:Name="BtnLock" Click="OnToggleLock" ToolTip.Tip="Lock aspect ratio">
+          <PathIcon Data="{StaticResource Icon.Lock}" Width="13" Height="13"/>
+        </Button>
         <TextBlock Text="H" Classes="muted" VerticalAlignment="Center" Margin="2,0,2,0"/>
         <TextBox x:Name="TbH" Width="60" LostFocus="OnSizeChanged"/>
 
@@ -37,29 +39,51 @@
         <Separator Theme="{StaticResource Sep.Vertical}"/>
 
         <!-- Mirror -->
-        <Button Content="⇆" Theme="{StaticResource Btn.Icon}" Click="OnMirrorH" ToolTip.Tip="Mirror horizontal"/>
-        <Button Content="⇅" Theme="{StaticResource Btn.Icon}" Click="OnMirrorV" ToolTip.Tip="Mirror vertical"/>
+        <Button Theme="{StaticResource Btn.Icon}" Click="OnMirrorH" ToolTip.Tip="Mirror horizontal">
+          <PathIcon Data="{StaticResource Icon.MirrorH}" Width="16" Height="16"/>
+        </Button>
+        <Button Theme="{StaticResource Btn.Icon}" Click="OnMirrorV" ToolTip.Tip="Mirror vertical">
+          <PathIcon Data="{StaticResource Icon.MirrorV}" Width="16" Height="16"/>
+        </Button>
 
         <Separator Theme="{StaticResource Sep.Vertical}"/>
 
         <!-- Align -->
-        <Button Content="⊢" Theme="{StaticResource Btn.Icon}" Click="OnAlignLeft"   ToolTip.Tip="Align left"/>
-        <Button Content="⊣" Theme="{StaticResource Btn.Icon}" Click="OnAlignRight"  ToolTip.Tip="Align right"/>
-        <Button Content="⊤" Theme="{StaticResource Btn.Icon}" Click="OnAlignTop"    ToolTip.Tip="Align top"/>
-        <Button Content="⊥" Theme="{StaticResource Btn.Icon}" Click="OnAlignBottom" ToolTip.Tip="Align bottom"/>
-        <Button Content="⊞" Theme="{StaticResource Btn.Icon}" Click="OnCenter"      ToolTip.Tip="Center on sheet"/>
+        <Button Theme="{StaticResource Btn.Icon}" Click="OnAlignLeft"   ToolTip.Tip="Align left">
+          <PathIcon Data="{StaticResource Icon.AlignLeft}" Width="16" Height="16"/>
+        </Button>
+        <Button Theme="{StaticResource Btn.Icon}" Click="OnAlignRight"  ToolTip.Tip="Align right">
+          <PathIcon Data="{StaticResource Icon.AlignRight}" Width="16" Height="16"/>
+        </Button>
+        <Button Theme="{StaticResource Btn.Icon}" Click="OnAlignTop"    ToolTip.Tip="Align top">
+          <PathIcon Data="{StaticResource Icon.AlignTop}" Width="16" Height="16"/>
+        </Button>
+        <Button Theme="{StaticResource Btn.Icon}" Click="OnAlignBottom" ToolTip.Tip="Align bottom">
+          <PathIcon Data="{StaticResource Icon.AlignBottom}" Width="16" Height="16"/>
+        </Button>
+        <Button Theme="{StaticResource Btn.Icon}" Click="OnCenter"      ToolTip.Tip="Center on sheet">
+          <PathIcon Data="{StaticResource Icon.Center}" Width="16" Height="16"/>
+        </Button>
 
         <Separator Theme="{StaticResource Sep.Vertical}"/>
 
         <!-- Rotate quick -->
-        <Button Content="↻90" Theme="{StaticResource Btn.Icon}" Click="OnRotate90CW" ToolTip.Tip="Rotate 90°"/>
-        <Button Content="↻-90" Theme="{StaticResource Btn.Icon}" Click="OnRotate90CCW" ToolTip.Tip="Rotate -90°"/>
+        <Button Theme="{StaticResource Btn.Icon}" Click="OnRotate90CW" ToolTip.Tip="Rotate 90° CW">
+          <PathIcon Data="{StaticResource Icon.RotateCW}" Width="16" Height="16"/>
+        </Button>
+        <Button Theme="{StaticResource Btn.Icon}" Click="OnRotate90CCW" ToolTip.Tip="Rotate 90° CCW">
+          <PathIcon Data="{StaticResource Icon.RotateCCW}" Width="16" Height="16"/>
+        </Button>
 
         <Separator Theme="{StaticResource Sep.Vertical}"/>
 
         <!-- Stacking -->
-        <Button Content="⬆" Theme="{StaticResource Btn.Icon}" Click="OnBringToFront" ToolTip.Tip="Bring to front"/>
-        <Button Content="⬇" Theme="{StaticResource Btn.Icon}" Click="OnSendToBack" ToolTip.Tip="Send to back"/>
+        <Button Theme="{StaticResource Btn.Icon}" Click="OnBringToFront" ToolTip.Tip="Bring to front">
+          <PathIcon Data="{StaticResource Icon.Front}" Width="16" Height="16"/>
+        </Button>
+        <Button Theme="{StaticResource Btn.Icon}" Click="OnSendToBack" ToolTip.Tip="Send to back">
+          <PathIcon Data="{StaticResource Icon.Back}" Width="16" Height="16"/>
+        </Button>
 
         <Separator Theme="{StaticResource Sep.Vertical}"/>
 
@@ -73,19 +97,27 @@
         <!-- Contour offset -->
         <TextBlock Text="Offset" Classes="muted" VerticalAlignment="Center" Margin="4,0,2,0"/>
         <TextBox x:Name="TbOffset" Width="50" Watermark="mm" ToolTip.Tip="Offset contour (±mm)"/>
-        <Button Content="✓" Theme="{StaticResource Btn.Icon}" Click="OnApplyOffset" ToolTip.Tip="Apply offset"/>
+        <Button Theme="{StaticResource Btn.Icon}" Click="OnApplyOffset" ToolTip.Tip="Apply offset">
+          <PathIcon Data="{StaticResource Icon.Check}" Width="16" Height="16"/>
+        </Button>
 
         <Separator Theme="{StaticResource Sep.Vertical}"/>
 
         <!-- Array -->
-        <Button x:Name="BtnArray" Content="⊞" Theme="{StaticResource Btn.Icon}" ToolTip.Tip="Create array"/>
+        <Button x:Name="BtnArray" Theme="{StaticResource Btn.Icon}" ToolTip.Tip="Create array">
+          <PathIcon Data="{StaticResource Icon.Array}" Width="16" Height="16"/>
+        </Button>
 
         <Separator Theme="{StaticResource Sep.Vertical}"/>
 
         <!-- Duplicate / Delete -->
-        <Button Content="⧉" Theme="{StaticResource Btn.Icon}" Click="OnDuplicate" ToolTip.Tip="Duplicate"/>
-        <Button Content="✕" Theme="{StaticResource Btn.Icon}" Click="OnDelete"
-                Foreground="{StaticResource Brush.Danger}" ToolTip.Tip="Delete"/>
+        <Button Theme="{StaticResource Btn.Icon}" Click="OnDuplicate" ToolTip.Tip="Duplicate">
+          <PathIcon Data="{StaticResource Icon.Duplicate}" Width="16" Height="16"/>
+        </Button>
+        <Button Theme="{StaticResource Btn.Icon}" Click="OnDelete"
+                Foreground="{StaticResource Brush.Danger}" ToolTip.Tip="Delete">
+          <PathIcon Data="{StaticResource Icon.Trash}" Width="15" Height="15"/>
+        </Button>
 
       </StackPanel>
     </ScrollViewer>

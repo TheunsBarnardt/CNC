@@ -30,9 +30,19 @@ public partial class MainWindow : Window
         // Viewport: needs the VM to draw parts + guidelines
         Viewport.Attach(vm);
 
+        // Canvas selection / drag → drive the view-model (so the edit toolbar,
+        // part inspector and persistence all track what's selected on the sheet).
+        Viewport.SelectionChanged += id =>
+            vm.SelectedPart = id is null
+                ? null
+                : vm.Project.Parts.FirstOrDefault(p => p.Id == id.Value);
+        Viewport.PartCommitted += part =>
+            vm.CommitPartTransform(part, part.X, part.Y, part.RotationDeg, part.ScaleX, part.ScaleY);
+
         // SimBar needs to hook into VM.InSimMode to rebuild the simulation
-        SimBar.DataContext  = vm;
-        EditBar.DataContext = vm;
+        SimBar.DataContext      = vm;
+        EditBar.DataContext     = vm;
+        NodeEditBar.DataContext = vm;
 
         // All panels inherit DataContext from the window automatically,
         // but set explicitly to be safe
@@ -43,17 +53,15 @@ public partial class MainWindow : Window
         PnlGcode.DataContext   = vm;
         PnlDevice.DataContext  = vm;
 
-        // Canvas option checkboxes
-        CbDarkCanvas.IsCheckedChanged += (_, _) =>
-        {
-            vm.DarkCanvas = CbDarkCanvas.IsChecked ?? true;
-            Viewport.InvalidateVisual();
-        };
-        CbShowGrid.IsCheckedChanged += (_, _) =>
-        {
-            vm.ShowGrid = CbShowGrid.IsChecked ?? true;
-            Viewport.InvalidateVisual();
-        };
+        // Sync initial canvas display state from the VM into the viewport
+        Viewport.SetDarkCanvas(vm.DarkCanvas);
+        Viewport.SetShowGrid(vm.ShowGrid);
+        SetToggle(BtnCanvasDark, vm.DarkCanvas);
+        SetToggle(BtnGridToggle, vm.ShowGrid);
+        SetToggle(BtnSnapToggle, false);
+
+        // Default-select the Files tab
+        SelectTab(TabFiles, PnlFiles);
 
         // Header buttons
         BtnNew.Click      += (_, _)       => vm.NewProject();
@@ -61,7 +69,6 @@ public partial class MainWindow : Window
         BtnSave.Click     += async (_, _) => await vm.SaveAsync(StorageProvider);
         BtnGcode.Click    += async (_, _) => await vm.GenerateGcodeAsync(StorageProvider);
         BtnSimMode.Click  += (_, _)       => vm.EnterSimMode();
-        BtnFit.Click      += (_, _)       => Viewport.FitToView();
         BtnTemplates.Click += (_, _)      => OpenTemplates();
         BtnSettings.Click  += (_, _)      => OpenSettings();
 
@@ -122,12 +129,12 @@ public partial class MainWindow : Window
         BtnPen.Click += (_, _) => vm.ActivatePenTool();
 
         // Tab switching
-        TabFiles.Click  += (_, _) => ShowPanel(PnlFiles);
-        TabLayers.Click += (_, _) => ShowPanel(PnlLayers);
-        TabCut.Click    += (_, _) => ShowPanel(PnlCut);
-        TabNest.Click   += (_, _) => ShowPanel(PnlNest);
-        TabGcode.Click  += (_, _) => ShowPanel(PnlGcode);
-        TabDevice.Click += (_, _) => ShowPanel(PnlDevice);
+        TabFiles.Click  += (_, _) => SelectTab(TabFiles,  PnlFiles);
+        TabLayers.Click += (_, _) => SelectTab(TabLayers, PnlLayers);
+        TabCut.Click    += (_, _) => SelectTab(TabCut,    PnlCut);
+        TabNest.Click   += (_, _) => SelectTab(TabNest,   PnlNest);
+        TabGcode.Click  += (_, _) => SelectTab(TabGcode,  PnlGcode);
+        TabDevice.Click += (_, _) => SelectTab(TabDevice, PnlDevice);
 
         // Simulation: sim time changes → viewport redraw
         SimBar.SimTimeChanged += (_, state) =>
@@ -136,11 +143,24 @@ public partial class MainWindow : Window
             Viewport.InvalidateVisual();
         };
 
-        // VM mode changes → show/hide sim vs edit toolbar
+        // Drive the contextual bottom toolbars from VM state (deterministic).
+        UpdateToolbars();
         vm.PropertyChanged += (_, args) =>
         {
-            if (args.PropertyName == nameof(vm.InSimMode))
-                Viewport.InvalidateVisual();
+            switch (args.PropertyName)
+            {
+                case nameof(vm.InSimMode):
+                    Viewport.InvalidateVisual();
+                    UpdateToolbars();
+                    break;
+                case nameof(vm.SelectedPart):
+                case nameof(vm.NodeEditMode):
+                    UpdateToolbars();
+                    break;
+                case nameof(vm.PenToolActive):
+                    SetActive(BtnPen, vm.PenToolActive);
+                    break;
+            }
         };
 
         // Drag-drop onto viewport
@@ -154,6 +174,13 @@ public partial class MainWindow : Window
 
     // ── tab switching ─────────────────────────────────────────────────────
 
+    private void SelectTab(Button tab, Control target)
+    {
+        ShowPanel(target);
+        foreach (var b in new[] { TabFiles, TabLayers, TabCut, TabNest, TabGcode, TabDevice })
+            SetActive(b, b == tab);
+    }
+
     private void ShowPanel(Control target)
     {
         PnlFiles.IsVisible  = target == PnlFiles;
@@ -162,6 +189,28 @@ public partial class MainWindow : Window
         PnlNest.IsVisible   = target == PnlNest;
         PnlGcode.IsVisible  = target == PnlGcode;
         PnlDevice.IsVisible = target == PnlDevice;
+    }
+
+    // ── small helpers for the ".active" visual state class ────────────────
+
+    private static void SetActive(Button b, bool active)
+    {
+        if (active) { if (!b.Classes.Contains("active")) b.Classes.Add("active"); }
+        else        { b.Classes.Remove("active"); }
+    }
+
+    private static void SetToggle(Button b, bool on) => SetActive(b, on);
+
+    /// <summary>Shows exactly the one contextual bottom toolbar that applies to
+    /// the current mode (sim / node-edit / part-selected), or none.</summary>
+    private void UpdateToolbars()
+    {
+        if (_vm is null) return;
+        bool sim  = _vm.InSimMode;
+        bool node = _vm.NodeEditMode;
+        SimBar.IsVisible      = sim;
+        NodeEditBar.IsVisible = !sim && node;
+        EditBar.IsVisible     = !sim && !node && _vm.SelectedPart is not null;
     }
 
     // ── drag-drop ────────────────────────────────────────────────────────
@@ -200,23 +249,31 @@ public partial class MainWindow : Window
 
     // ── keyboard shortcuts ────────────────────────────────────────────────
 
+    private void OnFitClick(object? sender, RoutedEventArgs e) => Viewport.FitToView();
+
     private void OnToggleGrid(object? sender, RoutedEventArgs e)
     {
         if (_vm is null) return;
         _vm.ShowGrid = !_vm.ShowGrid;
-        BtnGridToggle.Background = _vm.ShowGrid ? null : new SolidColorBrush(Color.FromArgb(50, 100, 100, 100));
+        Viewport.SetShowGrid(_vm.ShowGrid);
+        SetToggle(BtnGridToggle, _vm.ShowGrid);
     }
 
     private void OnToggleSnap(object? sender, RoutedEventArgs e)
     {
         if (_vm is null) return;
-        _vm.StatusText = "Snap-to-grid: not fully implemented";
+        bool on = !Viewport.SnapEnabled;
+        Viewport.SetSnap(on);
+        SetToggle(BtnSnapToggle, on);
+        _vm.StatusText = on ? "Snap-to-grid on" : "Snap-to-grid off";
     }
 
     private void OnToggleCanvasDark(object? sender, RoutedEventArgs e)
     {
         if (_vm is null) return;
         _vm.DarkCanvas = !_vm.DarkCanvas;
+        Viewport.SetDarkCanvas(_vm.DarkCanvas);
+        SetToggle(BtnCanvasDark, _vm.DarkCanvas);
     }
 
     private void OnKeyDown(object? sender, KeyEventArgs e)

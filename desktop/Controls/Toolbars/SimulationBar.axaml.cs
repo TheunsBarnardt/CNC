@@ -1,6 +1,7 @@
 using Avalonia;
 using Avalonia.Controls;
 using Avalonia.Interactivity;
+using Avalonia.Media;
 using Avalonia.Threading;
 using Backend.Cam;
 using Backend.Simulation;
@@ -11,6 +12,13 @@ namespace Desktop.Controls.Toolbars;
 public partial class SimulationBar : UserControl
 {
     private MainViewModel? Vm => DataContext as MainViewModel;
+
+    /// <summary>Builds a 14×14 PathIcon from a geometry resource key.</summary>
+    private PathIcon Glyph(string resourceKey)
+    {
+        this.TryFindResource(resourceKey, out var geo);
+        return new PathIcon { Data = geo as Geometry, Width = 14, Height = 14 };
+    }
 
     private Simulation?       _sim;
     private DispatcherTimer?  _timer;
@@ -49,7 +57,7 @@ public partial class SimulationBar : UserControl
             var tp   = Backend.Cam.CamEngine.Generate(proj, proj.Cam);
             _sim     = SimulationBuilder.Build(tp, proj);
             TbStats.Text = $"{_sim.TotalTimeSec:F1}s · {_sim.TotalCutMm:F0}mm";
-            BtnPlay.Content = "▶";
+            BtnPlay.Content = Glyph("Icon.Play");
         }
         catch (Exception ex)
         {
@@ -67,7 +75,7 @@ public partial class SimulationBar : UserControl
     {
         if (_sim is null) return;
         _playing = true;
-        BtnPlay.Content = "⏸";
+        BtnPlay.Content = Glyph("Icon.Pause");
         _timer = new DispatcherTimer { Interval = TimeSpan.FromMilliseconds(16) };
         _timer.Tick += OnTick;
         _timer.Start();
@@ -76,7 +84,7 @@ public partial class SimulationBar : UserControl
     private void Pause()
     {
         _playing = false;
-        BtnPlay.Content = "▶";
+        BtnPlay.Content = Glyph("Icon.Play");
         _timer?.Stop();
         _timer = null;
     }

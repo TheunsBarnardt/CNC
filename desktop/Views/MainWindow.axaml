@@ -9,26 +9,33 @@
         x:Class="Desktop.Views.MainWindow"
         x:CompileBindings="False"
         d:DesignWidth="1400" d:DesignHeight="900"
-        Width="1400" Height="900" MinWidth="900" MinHeight="600"
+        Width="1400" Height="900" MinWidth="960" MinHeight="600"
         Title="DIY GRBL Cutting CAM"
         Background="{StaticResource Brush.Bg1}">
 
-  <Grid RowDefinitions="Auto,*">
+  <Grid RowDefinitions="48,*">
 
     <!-- ═══ HEADER ══════════════════════════════════════════════════ -->
     <Border Grid.Row="0"
             Background="{StaticResource Brush.Bg2}"
             BorderBrush="{StaticResource Brush.Border}"
             BorderThickness="0,0,0,1"
-            Padding="12,6">
+            Padding="12,0">
       <DockPanel>
         <!-- Logo + project name -->
         <StackPanel DockPanel.Dock="Left"
-                    Orientation="Horizontal" Spacing="10" VerticalAlignment="Center">
-          <TextBlock Text="✂ DIY GRBL Cutting CAM"
-                     FontSize="{StaticResource Font.Xl}"
-                     FontWeight="SemiBold"
-                     Foreground="{StaticResource Brush.Text}"/>
+                    Orientation="Horizontal" Spacing="9" VerticalAlignment="Center">
+          <Border Background="{StaticResource Brush.Accent}"
+                  CornerRadius="{StaticResource Radius.Md}"
+                  Width="28" Height="28">
+            <PathIcon Data="{StaticResource Icon.Scissors}"
+                      Foreground="{StaticResource Brush.AccentFg}"
+                      Width="17" Height="17"/>
+          </Border>
+          <TextBlock Text="GRBL CAM"
+                     Classes="title"
+                     VerticalAlignment="Center"/>
+          <Border Width="1" Height="18" Background="{StaticResource Brush.Border}" Margin="3,0"/>
           <TextBlock Text="{Binding ProjectName}"
                      FontSize="{StaticResource Font.Lg}"
                      Foreground="{StaticResource Brush.TextMuted}"
@@ -37,46 +44,102 @@
 
         <!-- Right: action buttons -->
         <StackPanel DockPanel.Dock="Right"
-                    Orientation="Horizontal" Spacing="4"
+                    Orientation="Horizontal" Spacing="2"
                     HorizontalAlignment="Right" VerticalAlignment="Center">
-          <Button x:Name="BtnNew"   Content="New"    Theme="{StaticResource Btn.Ghost}" Padding="10,4"/>
-          <Button x:Name="BtnOpen"  Content="Open"   Theme="{StaticResource Btn.Ghost}" Padding="10,4"/>
-          <Button x:Name="BtnSave"  Content="Save"   Theme="{StaticResource Btn.Ghost}" Padding="10,4"/>
-          <Button x:Name="BtnTemplates" Content="Templates" Theme="{StaticResource Btn.Ghost}" Padding="10,4"/>
-          <Button x:Name="BtnSettings"  Content="Settings"  Theme="{StaticResource Btn.Ghost}" Padding="10,4"/>
-          <Separator Theme="{StaticResource Sep.Vertical}"/>
-          <Button x:Name="BtnSimMode" Content="Simulate"
-                  Theme="{StaticResource Btn.Ghost}"  Padding="10,4"
-                  IsEnabled="{Binding HasParts}"/>
-          <Button x:Name="BtnGcode"   Content="Generate G-code"
-                  Theme="{StaticResource Btn.Primary}" Padding="10,4"/>
+          <Button x:Name="BtnNew" Theme="{StaticResource Btn.Header}" ToolTip.Tip="New project">
+            <StackPanel Orientation="Horizontal" Spacing="6">
+              <PathIcon Data="{StaticResource Icon.New}" Width="15" Height="15"/>
+              <TextBlock Text="New" VerticalAlignment="Center"/>
+            </StackPanel>
+          </Button>
+          <Button x:Name="BtnOpen" Theme="{StaticResource Btn.Header}" ToolTip.Tip="Open project">
+            <StackPanel Orientation="Horizontal" Spacing="6">
+              <PathIcon Data="{StaticResource Icon.Folder}" Width="15" Height="15"/>
+              <TextBlock Text="Open" VerticalAlignment="Center"/>
+            </StackPanel>
+          </Button>
+          <Button x:Name="BtnSave" Theme="{StaticResource Btn.Header}" ToolTip.Tip="Save project">
+            <StackPanel Orientation="Horizontal" Spacing="6">
+              <PathIcon Data="{StaticResource Icon.Save}" Width="15" Height="15"/>
+              <TextBlock Text="Save" VerticalAlignment="Center"/>
+            </StackPanel>
+          </Button>
+
+          <Border Width="1" Height="20" Background="{StaticResource Brush.Border}" Margin="6,0"/>
+
+          <Button x:Name="BtnTemplates" Theme="{StaticResource Btn.Header}" ToolTip.Tip="Templates">
+            <StackPanel Orientation="Horizontal" Spacing="6">
+              <PathIcon Data="{StaticResource Icon.Grid}" Width="15" Height="15"/>
+              <TextBlock Text="Templates" VerticalAlignment="Center"/>
+            </StackPanel>
+          </Button>
+          <Button x:Name="BtnSettings" Theme="{StaticResource Btn.Header}" ToolTip.Tip="Settings">
+            <StackPanel Orientation="Horizontal" Spacing="6">
+              <PathIcon Data="{StaticResource Icon.Sliders}" Width="15" Height="15"/>
+              <TextBlock Text="Settings" VerticalAlignment="Center"/>
+            </StackPanel>
+          </Button>
+
+          <Border Width="1" Height="20" Background="{StaticResource Brush.Border}" Margin="6,0"/>
+
+          <Button x:Name="BtnSimMode" Theme="{StaticResource Btn.Ghost}"
+                  Padding="11,6" Margin="2,0,0,0"
+                  IsEnabled="{Binding HasParts}" ToolTip.Tip="Simulate the cut">
+            <StackPanel Orientation="Horizontal" Spacing="6">
+              <PathIcon Data="{StaticResource Icon.Play}" Width="14" Height="14"/>
+              <TextBlock Text="Simulate" VerticalAlignment="Center"/>
+            </StackPanel>
+          </Button>
+          <Button x:Name="BtnGcode" Theme="{StaticResource Btn.Primary}"
+                  Padding="12,6" Margin="2,0,0,0" ToolTip.Tip="Generate G-code">
+            <StackPanel Orientation="Horizontal" Spacing="6">
+              <PathIcon Data="{StaticResource Icon.Code}" Width="14" Height="14"/>
+              <TextBlock Text="Generate G-code" VerticalAlignment="Center"/>
+            </StackPanel>
+          </Button>
         </StackPanel>
       </DockPanel>
     </Border>
 
     <!-- ═══ MAIN ════════════════════════════════════════════════════ -->
-    <Grid Grid.Row="1" ColumnDefinitions="48,*,300">
+    <Grid Grid.Row="1" ColumnDefinitions="52,*,308">
 
       <!-- ── LEFT TOOL RAIL ─────────────────────────────────────── -->
       <Border Grid.Column="0"
               Background="{StaticResource Brush.Bg2}"
               BorderBrush="{StaticResource Brush.Border}"
               BorderThickness="0,0,1,0">
-        <StackPanel Spacing="2" Margin="6,8">
-          <Button x:Name="BtnImport"
-                  Content="📂"
-                  Theme="{StaticResource Btn.ToolRail}"
-                  ToolTip.Tip="Import file (SVG / DXF / PNG…)"/>
+        <StackPanel Spacing="3" Margin="7,10" HorizontalAlignment="Center">
+          <Button x:Name="BtnImport" Theme="{StaticResource Btn.ToolRail}"
+                  ToolTip.Tip="Import file (SVG / DXF / PNG…)">
+            <PathIcon Data="{StaticResource Icon.Import}" Width="21" Height="21"/>
+          </Button>
           <Separator Theme="{StaticResource Sep.Horizontal}"/>
-          <!-- Shape tools -->
-          <Button x:Name="BtnLine"      Content="╱" Theme="{StaticResource Btn.ToolRail}" ToolTip.Tip="Line"/>
-          <Button x:Name="BtnRectangle" Content="▭" Theme="{StaticResource Btn.ToolRail}" ToolTip.Tip="Rectangle"/>
-          <Button x:Name="BtnCircle"    Content="◯" Theme="{StaticResource Btn.ToolRail}" ToolTip.Tip="Circle"/>
-          <Button x:Name="BtnEllipse"   Content="⬭" Theme="{StaticResource Btn.ToolRail}" ToolTip.Tip="Ellipse"/>
-          <Button x:Name="BtnPolygon"   Content="⬟" Theme="{StaticResource Btn.ToolRail}" ToolTip.Tip="Polygon"/>
-          <Button x:Name="BtnStar"      Content="✦" Theme="{StaticResource Btn.ToolRail}" ToolTip.Tip="Star"/>
-          <Button x:Name="BtnPen"       Content="✏" Theme="{StaticResource Btn.ToolRail}" ToolTip.Tip="Pen tool"/>
-          <Button x:Name="BtnText"      Content="T"  Theme="{StaticResource Btn.ToolRail}" ToolTip.Tip="Text (coming soon)" IsEnabled="False"/>
+          <Button x:Name="BtnLine" Theme="{StaticResource Btn.ToolRail}" ToolTip.Tip="Line">
+            <PathIcon Data="{StaticResource Icon.Line}" Width="20" Height="20"/>
+          </Button>
+          <Button x:Name="BtnRectangle" Theme="{StaticResource Btn.ToolRail}" ToolTip.Tip="Rectangle">
+            <PathIcon Data="{StaticResource Icon.Square}" Width="20" Height="20"/>
+          </Button>
+          <Button x:Name="BtnCircle" Theme="{StaticResource Btn.ToolRail}" ToolTip.Tip="Circle">
+            <PathIcon Data="{StaticResource Icon.Circle}" Width="20" Height="20"/>
+          </Button>
+          <Button x:Name="BtnEllipse" Theme="{StaticResource Btn.ToolRail}" ToolTip.Tip="Ellipse">
+            <PathIcon Data="{StaticResource Icon.Ellipse}" Width="20" Height="20"/>
+          </Button>
+          <Button x:Name="BtnPolygon" Theme="{StaticResource Btn.ToolRail}" ToolTip.Tip="Polygon">
+            <PathIcon Data="{StaticResource Icon.Hexagon}" Width="20" Height="20"/>
+          </Button>
+          <Button x:Name="BtnStar" Theme="{StaticResource Btn.ToolRail}" ToolTip.Tip="Star">
+            <PathIcon Data="{StaticResource Icon.Star}" Width="20" Height="20"/>
+          </Button>
+          <Button x:Name="BtnPen" Theme="{StaticResource Btn.ToolRail}" ToolTip.Tip="Pen tool">
+            <PathIcon Data="{StaticResource Icon.Pen}" Width="20" Height="20"/>
+          </Button>
+          <Button x:Name="BtnText" Theme="{StaticResource Btn.ToolRail}"
+                  ToolTip.Tip="Text (coming soon)" IsEnabled="False">
+            <PathIcon Data="{StaticResource Icon.Text}" Width="20" Height="20"/>
+          </Button>
         </StackPanel>
       </Border>
 
@@ -92,36 +155,55 @@
         <!-- node edit toolbar at bottom (visible only in node edit mode) -->
         <toolbars:NodeEditToolbar x:Name="NodeEditBar" DockPanel.Dock="Bottom"/>
 
-        <!-- canvas controls bar -->
+        <!-- consolidated canvas controls bar -->
         <Border DockPanel.Dock="Bottom"
                 Background="{StaticResource Brush.Bg2}"
                 BorderBrush="{StaticResource Brush.Border}"
                 BorderThickness="0,1,0,0"
-                Padding="8,4">
-          <StackPanel Orientation="Horizontal" Spacing="12">
-            <!-- Grid toggle -->
-            <Button x:Name="BtnGridToggle" Content="⊞ Grid" Theme="{StaticResource Btn.Ghost}"
-                    Click="OnToggleGrid" Padding="8,4" ToolTip.Tip="Toggle grid visibility"/>
+                Padding="10,6">
+          <Grid ColumnDefinitions="Auto,*,Auto">
+            <StackPanel Grid.Column="0" Orientation="Horizontal" Spacing="6">
+              <Button x:Name="BtnFit" Theme="{StaticResource Btn.Toggle}"
+                      Click="OnFitClick" ToolTip.Tip="Fit to view (F)">
+                <StackPanel Orientation="Horizontal" Spacing="6">
+                  <PathIcon Data="{StaticResource Icon.Fit}" Width="14" Height="14"/>
+                  <TextBlock Text="Fit" VerticalAlignment="Center"/>
+                </StackPanel>
+              </Button>
+              <Border Width="1" Height="18" Background="{StaticResource Brush.Border}" Margin="2,0"/>
+              <Button x:Name="BtnGridToggle" Theme="{StaticResource Btn.Toggle}"
+                      Click="OnToggleGrid" ToolTip.Tip="Toggle grid">
+                <StackPanel Orientation="Horizontal" Spacing="6">
+                  <PathIcon Data="{StaticResource Icon.GridLines}" Width="14" Height="14"/>
+                  <TextBlock Text="Grid" VerticalAlignment="Center"/>
+                </StackPanel>
+              </Button>
+              <Button x:Name="BtnSnapToggle" Theme="{StaticResource Btn.Toggle}"
+                      Click="OnToggleSnap" ToolTip.Tip="Toggle snap-to-grid">
+                <StackPanel Orientation="Horizontal" Spacing="6">
+                  <PathIcon Data="{StaticResource Icon.Snap}" Width="14" Height="14"/>
+                  <TextBlock Text="Snap" VerticalAlignment="Center"/>
+                </StackPanel>
+              </Button>
+              <Button x:Name="BtnCanvasDark" Theme="{StaticResource Btn.Toggle}"
+                      Click="OnToggleCanvasDark" ToolTip.Tip="Toggle canvas background">
+                <StackPanel Orientation="Horizontal" Spacing="6">
+                  <PathIcon Data="{StaticResource Icon.Moon}" Width="14" Height="14"/>
+                  <TextBlock Text="Dark" VerticalAlignment="Center"/>
+                </StackPanel>
+              </Button>
+            </StackPanel>
 
-            <!-- Snap toggle -->
-            <Button x:Name="BtnSnapToggle" Content="⊕ Snap" Theme="{StaticResource Btn.Ghost}"
-                    Click="OnToggleSnap" Padding="8,4" ToolTip.Tip="Toggle snap-to-grid"/>
-
-            <!-- Canvas dark/light -->
-            <Button x:Name="BtnCanvasDark" Content="◐" Theme="{StaticResource Btn.Ghost}"
-                    Click="OnToggleCanvasDark" Padding="8,4" ToolTip.Tip="Toggle canvas background"/>
-
-            <Separator Theme="{StaticResource Sep.Vertical}"/>
-
-            <!-- Complexity indicator -->
-            <TextBlock x:Name="ComplexityText" Text="Complexity: —"
-                      VerticalAlignment="Center" FontSize="12" Foreground="#999"
-                      Margin="8,0"/>
-
-            <!-- Parts counter -->
-            <TextBlock Text="{Binding PartCountText, StringFormat='Parts: {0}'}"
-                      VerticalAlignment="Center" FontSize="12" Foreground="#999"/>
-          </StackPanel>
+            <!-- Right: live readouts -->
+            <StackPanel Grid.Column="2" Orientation="Horizontal" Spacing="14" VerticalAlignment="Center">
+              <TextBlock x:Name="ComplexityText" Text="Complexity —"
+                        VerticalAlignment="Center" FontSize="{StaticResource Font.Md}"
+                        Foreground="{StaticResource Brush.TextMuted}"/>
+              <TextBlock Text="{Binding PartCountText, StringFormat='Parts {0}'}"
+                        VerticalAlignment="Center" FontSize="{StaticResource Font.Md}"
+                        Foreground="{StaticResource Brush.TextMuted}"/>
+            </StackPanel>
+          </Grid>
         </Border>
 
         <!-- canvas fills remaining space -->
@@ -130,12 +212,14 @@
 
           <!-- status bar overlay -->
           <Border VerticalAlignment="Bottom" HorizontalAlignment="Left"
-                  Margin="24,0,0,8" Padding="8,3"
-                  Background="#AA1a1a1a"
+                  Margin="28,0,0,10" Padding="9,4"
+                  Background="#CC101013"
+                  BorderBrush="{StaticResource Brush.Border}"
+                  BorderThickness="1"
                   CornerRadius="{StaticResource Radius.Sm}">
             <TextBlock Text="{Binding StatusText}"
                        FontSize="{StaticResource Font.Sm}"
-                       Foreground="{StaticResource Brush.TextMuted}"/>
+                       Foreground="{StaticResource Brush.Text}"/>
           </Border>
         </Panel>
       </DockPanel>
@@ -152,27 +236,43 @@
                   Background="{StaticResource Brush.Bg2}"
                   BorderBrush="{StaticResource Brush.Border}"
                   BorderThickness="0,0,0,1">
-            <StackPanel Orientation="Horizontal">
-              <Button x:Name="TabFiles"     Content="Files"    Theme="{StaticResource Btn.Ghost}" Padding="10,6"/>
-              <Button x:Name="TabLayers"    Content="Layers"   Theme="{StaticResource Btn.Ghost}" Padding="10,6"/>
-              <Button x:Name="TabCut"       Content="Cut"      Theme="{StaticResource Btn.Ghost}" Padding="10,6"/>
-              <Button x:Name="TabNest"      Content="Nest"     Theme="{StaticResource Btn.Ghost}" Padding="10,6"/>
-              <Button x:Name="TabGcode"     Content="G-code"   Theme="{StaticResource Btn.Ghost}" Padding="10,6"/>
-              <Button x:Name="TabDevice"    Content="Device"   Theme="{StaticResource Btn.Ghost}" Padding="10,6"/>
-            </StackPanel>
-          </Border>
-
-          <!-- Canvas options (always visible thin strip) -->
-          <Border DockPanel.Dock="Top"
-                  Background="{StaticResource Brush.Bg2}"
-                  BorderBrush="{StaticResource Brush.Border}"
-                  BorderThickness="0,0,0,1"
-                  Padding="10,4">
-            <StackPanel Orientation="Horizontal" Spacing="12">
-              <CheckBox x:Name="CbDarkCanvas" Content="Dark" IsChecked="True"/>
-              <CheckBox x:Name="CbShowGrid"   Content="Grid" IsChecked="True"/>
-              <Button   x:Name="BtnFit"       Content="Fit (F)"
-                        Theme="{StaticResource Btn.Ghost}" Padding="6,3"/>
+            <StackPanel Orientation="Horizontal" HorizontalAlignment="Center">
+              <Button x:Name="TabFiles" Theme="{StaticResource Btn.Tab}">
+                <StackPanel Spacing="3">
+                  <PathIcon Data="{StaticResource Icon.Folder}" Width="18" Height="18" HorizontalAlignment="Center"/>
+                  <TextBlock Text="Files" FontSize="10" HorizontalAlignment="Center"/>
+                </StackPanel>
+              </Button>
+              <Button x:Name="TabLayers" Theme="{StaticResource Btn.Tab}">
+                <StackPanel Spacing="3">
+                  <PathIcon Data="{StaticResource Icon.Layers}" Width="18" Height="18" HorizontalAlignment="Center"/>
+                  <TextBlock Text="Layers" FontSize="10" HorizontalAlignment="Center"/>
+                </StackPanel>
+              </Button>
+              <Button x:Name="TabCut" Theme="{StaticResource Btn.Tab}">
+                <StackPanel Spacing="3">
+                  <PathIcon Data="{StaticResource Icon.Scissors}" Width="18" Height="18" HorizontalAlignment="Center"/>
+                  <TextBlock Text="Cut" FontSize="10" HorizontalAlignment="Center"/>
+                </StackPanel>
+              </Button>
+              <Button x:Name="TabNest" Theme="{StaticResource Btn.Tab}">
+                <StackPanel Spacing="3">
+                  <PathIcon Data="{StaticResource Icon.Array}" Width="18" Height="18" HorizontalAlignment="Center"/>
+                  <TextBlock Text="Nest" FontSize="10" HorizontalAlignment="Center"/>
+                </StackPanel>
+              </Button>
+              <Button x:Name="TabGcode" Theme="{StaticResource Btn.Tab}">
+                <StackPanel Spacing="3">
+                  <PathIcon Data="{StaticResource Icon.Code}" Width="18" Height="18" HorizontalAlignment="Center"/>
+                  <TextBlock Text="G-code" FontSize="10" HorizontalAlignment="Center"/>
+                </StackPanel>
+              </Button>
+              <Button x:Name="TabDevice" Theme="{StaticResource Btn.Tab}">
+                <StackPanel Spacing="3">
+                  <PathIcon Data="{StaticResource Icon.Device}" Width="18" Height="18" HorizontalAlignment="Center"/>
+                  <TextBlock Text="Device" FontSize="10" HorizontalAlignment="Center"/>
+                </StackPanel>
+              </Button>
             </StackPanel>
           </Border>
 

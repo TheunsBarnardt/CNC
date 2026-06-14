@@ -18,10 +18,11 @@
                    Margin="0"
                    VerticalAlignment="Center"/>
         <Button Grid.Column="1"
-                Content="＋"
                 Theme="{StaticResource Btn.Icon}"
                 ToolTip.Tip="Import file"
-                Click="OnImportClick"/>
+                Click="OnImportClick">
+          <PathIcon Data="{StaticResource Icon.Plus}" Width="15" Height="15"/>
+        </Button>
       </Grid>
     </Border>
 
@@ -45,12 +46,14 @@
               <Grid ColumnDefinitions="Auto,*,Auto,Auto,Auto,Auto">
                 <!-- visibility eye -->
                 <Button Grid.Column="0"
-                        Content="{Binding Visible, Converter={x:Static conv:VisibilityIconConverter.Instance}}"
                         Theme="{StaticResource Btn.Icon}"
                         Width="22" Height="22"
                         ToolTip.Tip="Toggle visibility"
                         Click="OnToggleVisible"
-                        Tag="{Binding}"/>
+                        Tag="{Binding}">
+                  <PathIcon Data="{Binding Visible, Converter={x:Static conv:VisibilityIconConverter.Instance}}"
+                            Width="15" Height="15"/>
+                </Button>
 
                 <!-- file name -->
                 <TextBlock Grid.Column="1"
@@ -75,32 +78,35 @@
 
                 <!-- trace bitmap (only for bitmaps) -->
                 <Button Grid.Column="3"
-                        Content="⟳"
                         Theme="{StaticResource Btn.Icon}"
                         Width="22" Height="22"
                         ToolTip.Tip="Trace to vector"
                         Click="OnTraceBitmap"
                         Tag="{Binding}"
-                        IsVisible="{Binding IsBitmap}"/>
+                        IsVisible="{Binding IsBitmap}">
+                  <PathIcon Data="{StaticResource Icon.Refresh}" Width="14" Height="14"/>
+                </Button>
 
                 <!-- add to table -->
                 <Button Grid.Column="4"
-                        Content="⊕"
                         Theme="{StaticResource Btn.Icon}"
                         Width="22" Height="22"
                         ToolTip.Tip="Add copy to table"
                         Click="OnAddToTable"
-                        Tag="{Binding}"/>
+                        Tag="{Binding}">
+                  <PathIcon Data="{StaticResource Icon.AddBox}" Width="15" Height="15"/>
+                </Button>
 
                 <!-- delete -->
                 <Button Grid.Column="5"
-                        Content="✕"
                         Theme="{StaticResource Btn.Icon}"
                         Width="22" Height="22"
                         Foreground="{StaticResource Brush.Danger}"
                         ToolTip.Tip="Remove file"
                         Click="OnRemoveFile"
-                        Tag="{Binding}"/>
+                        Tag="{Binding}">
+                  <PathIcon Data="{StaticResource Icon.Trash}" Width="14" Height="14"/>
+                </Button>
               </Grid>
             </Border>
           </DataTemplate>

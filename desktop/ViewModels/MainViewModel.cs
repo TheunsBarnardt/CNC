@@ -486,6 +486,7 @@ public sealed class MainViewModel : ObservableObject
             return true;
         });
         OnPropertyChanged(nameof(HasParts));
+        OnPropertyChanged(nameof(PartCountText));
         ProjectChanged?.Invoke();
     }
 

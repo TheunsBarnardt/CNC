@@ -667,6 +667,37 @@ All tasks from skeleton through auto-nesting verified working in AvaloniaUI UI. 
 
 ---
 
+## UI Production Pass — Visual overhaul (req. #6 "Stunning AvaloniaUI Design")
+
+### [x] Production UI polish — vector icon system, active states, editor guides
+
+**Status:** ✅ VERIFIED in running app (window screen-captured at each step).
+
+What changed:
+- **Vector icon system** (`desktop/Themes/Icons.axaml`): ~45 hand-authored monochrome
+  `StreamGeometry` glyphs replacing all emoji/font glyphs (header, tool rail, panel tabs,
+  Files/Layers panels, Edit/NodeEdit/Simulation toolbars). Crisp + identical cross-platform.
+- **Theme refresh** (`AppTheme.axaml`): zinc-neutral palette, `Btn.Tab` (icon+label tabs with
+  active accent underline), `Btn.ToolRail` + `Btn.Toggle` with `.active` states, refined
+  buttons / inputs. `App.axaml` adds `PathIcon` foreground-follows-button styling.
+- **Header**: app-mark logo, icon+label actions, primary "Generate G-code" CTA.
+- **Right panel**: vertical icon+label tabs with a visible selected state (was indistinct).
+- **Canvas chrome**: consolidated the duplicated grid/dark controls into one bottom bar
+  (Fit / Grid / Snap / Dark toggles + live Complexity/Parts readout).
+- **Viewport "guide lines"** (`ViewportControl.cs`): live X/Y coordinate HUD, cursor crosshair,
+  and **smart alignment guides** — dragging a part shows magenta guides + snaps its
+  edges/centre to the sheet edges, sheet centre, and other parts; plus a working snap-to-grid toggle.
+- **Fix:** wired `Viewport.SelectionChanged`/`PartCommitted` → VM (canvas selection now sets
+  `SelectedPart`); contextual bottom toolbars (Edit/NodeEdit/Sim) now show/hide deterministically
+  instead of always rendering.
+
+Also fixed: parts counter (`PartCountText`) now refreshes after shape creation (missing
+change-notification in `Refresh()`).
+
+Deferred: text tool still disabled; stacking order / contour offset still `// TODO` (pre-existing).
+
+---
+
 ## Final Verification Checklist
 
 After Task 21 (all tasks complete):

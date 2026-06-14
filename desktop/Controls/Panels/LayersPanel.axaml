@@ -17,10 +17,11 @@
                    Margin="0"
                    VerticalAlignment="Center"/>
         <Button Grid.Column="1"
-                Content="＋"
                 Theme="{StaticResource Btn.Icon}"
                 ToolTip.Tip="Add layer"
-                Click="OnAddLayer"/>
+                Click="OnAddLayer">
+          <PathIcon Data="{StaticResource Icon.Plus}" Width="15" Height="15"/>
+        </Button>
       </Grid>
     </Border>
 
@@ -68,22 +69,25 @@
 
                 <!-- visibility -->
                 <Button Grid.Column="3"
-                        Content="{Binding Visible, Converter={x:Static conv:VisibilityIconConverter.Instance}}"
                         Theme="{StaticResource Btn.Icon}"
                         Width="22" Height="22"
                         ToolTip.Tip="Toggle visibility"
                         Click="OnToggleVisible"
-                        Tag="{Binding}"/>
+                        Tag="{Binding}">
+                  <PathIcon Data="{Binding Visible, Converter={x:Static conv:VisibilityIconConverter.Instance}}"
+                            Width="15" Height="15"/>
+                </Button>
 
                 <!-- delete -->
                 <Button Grid.Column="4"
-                        Content="✕"
                         Theme="{StaticResource Btn.Icon}"
                         Width="22" Height="22"
                         Foreground="{StaticResource Brush.Danger}"
                         ToolTip.Tip="Delete layer"
                         Click="OnDeleteLayer"
-                        Tag="{Binding}"/>
+                        Tag="{Binding}">
+                  <PathIcon Data="{StaticResource Icon.Close}" Width="13" Height="13"/>
+                </Button>
               </Grid>
             </Border>
           </DataTemplate>

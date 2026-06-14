@@ -13,7 +13,7 @@
                   VerticalScrollBarVisibility="Disabled">
       <StackPanel Orientation="Horizontal" Spacing="4">
 
-        <!-- X / Y coordinates -->
+        <!-- X / Y -->
         <TextBlock Text="X" Classes="muted" VerticalAlignment="Center" Margin="4,0,2,0"/>
         <TextBox x:Name="TbX" Width="60" LostFocus="OnTransformChanged"/>
         <TextBlock Text="Y" Classes="muted" VerticalAlignment="Center" Margin="8,0,2,0"/>
@@ -34,73 +34,158 @@
         <Separator Theme="{StaticResource Sep.Vertical}"/>
 
         <!-- Rotation -->
-        <TextBlock Text="°" Classes="muted" VerticalAlignment="Center"/>
+        <PathIcon Data="{StaticResource Icon.Angle}" Width="13" Height="13" Classes="muted" VerticalAlignment="Center"/>
         <TextBox x:Name="TbRot" Width="50" LostFocus="OnRotChanged"/>
 
         <Separator Theme="{StaticResource Sep.Vertical}"/>
 
-        <!-- Mirror -->
-        <Button Theme="{StaticResource Btn.Icon}" Click="OnMirrorH" ToolTip.Tip="Mirror horizontal">
-          <PathIcon Data="{StaticResource Icon.MirrorH}" Width="16" Height="16"/>
-        </Button>
-        <Button Theme="{StaticResource Btn.Icon}" Click="OnMirrorV" ToolTip.Tip="Mirror vertical">
-          <PathIcon Data="{StaticResource Icon.MirrorV}" Width="16" Height="16"/>
-        </Button>
-
-        <Separator Theme="{StaticResource Sep.Vertical}"/>
-
-        <!-- Align -->
-        <Button Theme="{StaticResource Btn.Icon}" Click="OnAlignLeft"   ToolTip.Tip="Align left">
-          <PathIcon Data="{StaticResource Icon.AlignLeft}" Width="16" Height="16"/>
-        </Button>
-        <Button Theme="{StaticResource Btn.Icon}" Click="OnAlignRight"  ToolTip.Tip="Align right">
-          <PathIcon Data="{StaticResource Icon.AlignRight}" Width="16" Height="16"/>
-        </Button>
-        <Button Theme="{StaticResource Btn.Icon}" Click="OnAlignTop"    ToolTip.Tip="Align top">
-          <PathIcon Data="{StaticResource Icon.AlignTop}" Width="16" Height="16"/>
-        </Button>
-        <Button Theme="{StaticResource Btn.Icon}" Click="OnAlignBottom" ToolTip.Tip="Align bottom">
-          <PathIcon Data="{StaticResource Icon.AlignBottom}" Width="16" Height="16"/>
-        </Button>
-        <Button Theme="{StaticResource Btn.Icon}" Click="OnCenter"      ToolTip.Tip="Center on sheet">
-          <PathIcon Data="{StaticResource Icon.Center}" Width="16" Height="16"/>
+        <!-- ── Arrange flyout ── -->
+        <Button x:Name="BtnArrange" Theme="{StaticResource Btn.Ghost}" Padding="8,5">
+          <StackPanel Orientation="Horizontal" Spacing="4">
+            <PathIcon Data="{StaticResource Icon.Front}" Width="14" Height="14"/>
+            <TextBlock Text="Arrange" VerticalAlignment="Center"/>
+            <TextBlock Text="▾" FontSize="9" VerticalAlignment="Center" Opacity="0.6"/>
+          </StackPanel>
+          <Button.Flyout>
+            <MenuFlyout Placement="Bottom">
+              <MenuItem Header="Bring to front" Click="OnBringToFront">
+                <MenuItem.InputGesture><KeyGesture>OemCloseBrackets</KeyGesture></MenuItem.InputGesture>
+              </MenuItem>
+              <MenuItem Header="Send backward"  Click="OnSendBackward">
+                <MenuItem.InputGesture><KeyGesture>Ctrl+OemOpenBrackets</KeyGesture></MenuItem.InputGesture>
+              </MenuItem>
+              <MenuItem Header="Bring forward"  Click="OnBringForward">
+                <MenuItem.InputGesture><KeyGesture>Ctrl+OemCloseBrackets</KeyGesture></MenuItem.InputGesture>
+              </MenuItem>
+              <MenuItem Header="Send to back"   Click="OnSendToBack">
+                <MenuItem.InputGesture><KeyGesture>OemOpenBrackets</KeyGesture></MenuItem.InputGesture>
+              </MenuItem>
+            </MenuFlyout>
+          </Button.Flyout>
         </Button>
 
-        <Separator Theme="{StaticResource Sep.Vertical}"/>
-
-        <!-- Rotate quick -->
-        <Button Theme="{StaticResource Btn.Icon}" Click="OnRotate90CW" ToolTip.Tip="Rotate 90° CW">
-          <PathIcon Data="{StaticResource Icon.RotateCW}" Width="16" Height="16"/>
+        <!-- ── Align flyout ── -->
+        <Button x:Name="BtnAlign" Theme="{StaticResource Btn.Ghost}" Padding="8,5">
+          <StackPanel Orientation="Horizontal" Spacing="4">
+            <PathIcon Data="{StaticResource Icon.AlignLeft}" Width="14" Height="14"/>
+            <TextBlock Text="Align" VerticalAlignment="Center"/>
+            <TextBlock Text="▾" FontSize="9" VerticalAlignment="Center" Opacity="0.6"/>
+          </StackPanel>
+          <Button.Flyout>
+            <MenuFlyout Placement="Bottom">
+              <MenuItem Header="Align left"               Click="OnAlignLeft"/>
+              <MenuItem Header="Horizontal align center"  Click="OnAlignHCenter"/>
+              <MenuItem Header="Align right"              Click="OnAlignRight"/>
+              <Separator/>
+              <MenuItem Header="Align top"                Click="OnAlignTop"/>
+              <MenuItem Header="Vertical align center"    Click="OnAlignVCenter"/>
+              <MenuItem Header="Align bottom"             Click="OnAlignBottom"/>
+              <Separator/>
+              <MenuItem Header="Align center (sheet)"     Click="OnCenter"/>
+            </MenuFlyout>
+          </Button.Flyout>
         </Button>
-        <Button Theme="{StaticResource Btn.Icon}" Click="OnRotate90CCW" ToolTip.Tip="Rotate 90° CCW">
-          <PathIcon Data="{StaticResource Icon.RotateCCW}" Width="16" Height="16"/>
+
+        <!-- ── Reflect flyout ── -->
+        <Button x:Name="BtnReflect" Theme="{StaticResource Btn.Ghost}" Padding="8,5">
+          <StackPanel Orientation="Horizontal" Spacing="4">
+            <PathIcon Data="{StaticResource Icon.MirrorH}" Width="14" Height="14"/>
+            <TextBlock Text="Reflect" VerticalAlignment="Center"/>
+            <TextBlock Text="▾" FontSize="9" VerticalAlignment="Center" Opacity="0.6"/>
+          </StackPanel>
+          <Button.Flyout>
+            <MenuFlyout Placement="Bottom">
+              <MenuItem Header="Reflect horizontally" Click="OnReflectH"/>
+              <MenuItem Header="Reflect vertically"   Click="OnReflectV"/>
+            </MenuFlyout>
+          </Button.Flyout>
         </Button>
 
-        <Separator Theme="{StaticResource Sep.Vertical}"/>
-
-        <!-- Stacking -->
-        <Button Theme="{StaticResource Btn.Icon}" Click="OnBringToFront" ToolTip.Tip="Bring to front">
-          <PathIcon Data="{StaticResource Icon.Front}" Width="16" Height="16"/>
+        <!-- ── Edit (node editing) ── -->
+        <Button x:Name="BtnEdit" Theme="{StaticResource Btn.Ghost}" Padding="8,5"
+                Click="OnEnterNodeEdit" ToolTip.Tip="Edit nodes">
+          <StackPanel Orientation="Horizontal" Spacing="4">
+            <PathIcon Data="{StaticResource Icon.Pen}" Width="14" Height="14"/>
+            <TextBlock Text="Edit" VerticalAlignment="Center"/>
+          </StackPanel>
         </Button>
-        <Button Theme="{StaticResource Btn.Icon}" Click="OnSendToBack" ToolTip.Tip="Send to back">
-          <PathIcon Data="{StaticResource Icon.Back}" Width="16" Height="16"/>
+
+        <!-- ── Offset flyout ── -->
+        <Button x:Name="BtnOffset" Theme="{StaticResource Btn.Ghost}" Padding="8,5">
+          <StackPanel Orientation="Horizontal" Spacing="4">
+            <PathIcon Data="{StaticResource Icon.Offset}" Width="14" Height="14"/>
+            <TextBlock Text="Offset" VerticalAlignment="Center"/>
+            <TextBlock Text="▾" FontSize="9" VerticalAlignment="Center" Opacity="0.6"/>
+          </StackPanel>
+          <Button.Flyout>
+            <Flyout Placement="Bottom" ShowMode="TransientWithDismissOnPointerMoveAway">
+              <Border Width="270" Padding="14,12" CornerRadius="{StaticResource Radius.Md}"
+                      Background="{StaticResource Brush.Bg1}"
+                      BorderBrush="{StaticResource Brush.Border}"
+                      BorderThickness="1">
+                <StackPanel Spacing="10">
+
+                  <!-- Direction -->
+                  <TextBlock Text="Direction" Classes="muted" FontSize="{StaticResource Font.Xs}"/>
+                  <StackPanel Orientation="Horizontal" Spacing="12">
+                    <CheckBox x:Name="CbExternal" Content="External" IsChecked="True" Click="OnOffsetDirectionChanged"/>
+                    <CheckBox x:Name="CbInner"    Content="Inner"    IsChecked="False" Click="OnOffsetDirectionChanged"/>
+                  </StackPanel>
+
+                  <!-- Corner style -->
+                  <TextBlock Text="Corner style" Classes="muted" FontSize="{StaticResource Font.Xs}"/>
+                  <StackPanel Orientation="Horizontal" Spacing="6">
+                    <Button x:Name="BtnCornerMiter" Width="48" Height="32" Padding="0"
+                            ToolTip.Tip="Sharp corners (miter)"
+                            Click="OnCornerMiter">
+                      <PathIcon Data="{StaticResource Icon.CornerMiter}" Width="18" Height="18"/>
+                    </Button>
+                    <Button x:Name="BtnCornerRound" Width="48" Height="32" Padding="0"
+                            ToolTip.Tip="Round corners"
+                            Click="OnCornerRound">
+                      <PathIcon Data="{StaticResource Icon.CornerRound}" Width="18" Height="18"/>
+                    </Button>
+                    <Button x:Name="BtnCornerBevel" Width="48" Height="32" Padding="0"
+                            ToolTip.Tip="Bevel corners"
+                            Click="OnCornerBevel">
+                      <PathIcon Data="{StaticResource Icon.CornerBevel}" Width="18" Height="18"/>
+                    </Button>
+                  </StackPanel>
+
+                  <!-- Offset distance -->
+                  <TextBlock Text="Offset distance (mm)" Classes="muted" FontSize="{StaticResource Font.Xs}"/>
+                  <Grid ColumnDefinitions="*,60">
+                    <Slider Grid.Column="0" x:Name="SliderOffset" Minimum="0.1" Maximum="50"
+                            Value="2" TickFrequency="0.1"
+                            VerticalAlignment="Center" Margin="0,0,8,0"
+                            ValueChanged="OnOffsetSliderChanged"/>
+                    <TextBox Grid.Column="1" x:Name="TbOffsetDist" Text="2"
+                             LostFocus="OnOffsetDistChanged" TextAlignment="Right"/>
+                  </Grid>
+
+                  <!-- Outer shapes only -->
+                  <CheckBox x:Name="CbOuterOnly" Content="Outer shapes only"/>
+
+                  <!-- Buttons -->
+                  <Grid ColumnDefinitions="*,Auto,Auto" Margin="0,4,0,0">
+                    <Button Grid.Column="1" Content="Cancel" Padding="12,6" Margin="0,0,6,0"
+                            Click="OnOffsetCancel"/>
+                    <Button Grid.Column="2" Content="Confirm" Padding="12,6"
+                            Theme="{StaticResource Btn.Primary}"
+                            Click="OnOffsetConfirm"/>
+                  </Grid>
+
+                </StackPanel>
+              </Border>
+            </Flyout>
+          </Button.Flyout>
         </Button>
 
         <Separator Theme="{StaticResource Sep.Vertical}"/>
 
         <!-- Layer -->
         <TextBlock Text="Layer" Classes="muted" VerticalAlignment="Center" Margin="4,0,2,0"/>
-        <ComboBox x:Name="CbLayer" Width="100" SelectionChanged="OnLayerChanged"
-                  HorizontalAlignment="Stretch"/>
-
-        <Separator Theme="{StaticResource Sep.Vertical}"/>
-
-        <!-- Contour offset -->
-        <TextBlock Text="Offset" Classes="muted" VerticalAlignment="Center" Margin="4,0,2,0"/>
-        <TextBox x:Name="TbOffset" Width="50" Watermark="mm" ToolTip.Tip="Offset contour (±mm)"/>
-        <Button Theme="{StaticResource Btn.Icon}" Click="OnApplyOffset" ToolTip.Tip="Apply offset">
-          <PathIcon Data="{StaticResource Icon.Check}" Width="16" Height="16"/>
-        </Button>
+        <ComboBox x:Name="CbLayer" Width="100" SelectionChanged="OnLayerChanged"/>
 
         <Separator Theme="{StaticResource Sep.Vertical}"/>
 

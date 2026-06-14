@@ -252,14 +252,31 @@ public sealed class ViewportControl : Control
     protected override void OnPointerWheelChanged(PointerWheelEventArgs e)
     {
         base.OnPointerWheelChanged(e);
-        var pos    = e.GetPosition(this);
-        float factor = e.Delta.Y > 0 ? 1.12f : 0.89f;
-        float newScale = Math.Clamp(_scale * factor, 0.02f, 100f);
-        float wx   = (float)(pos.X - _tx) / _scale;
-        float wy   = (float)(Bounds.Height - pos.Y - _ty) / _scale;
-        _tx = (float)pos.X - wx * newScale;
-        _ty = (float)(Bounds.Height - pos.Y) - wy * newScale;
-        _scale = newScale;
+        var mods = e.KeyModifiers;
+
+        if (mods.HasFlag(KeyModifiers.Control))
+        {
+            // Ctrl + wheel → zoom toward cursor
+            var pos = e.GetPosition(this);
+            float factor   = e.Delta.Y > 0 ? 1.12f : 0.89f;
+            float newScale = Math.Clamp(_scale * factor, 0.02f, 100f);
+            float wx = (float)(pos.X - _tx) / _scale;
+            float wy = (float)(Bounds.Height - pos.Y - _ty) / _scale;
+            _tx = (float)pos.X - wx * newScale;
+            _ty = (float)(Bounds.Height - pos.Y) - wy * newScale;
+            _scale = newScale;
+        }
+        else if (mods.HasFlag(KeyModifiers.Shift))
+        {
+            // Shift + wheel → pan left/right
+            _tx += (float)(e.Delta.Y * 60);
+        }
+        else
+        {
+            // Plain wheel → pan up/down (Y-up world: positive delta scrolls up)
+            _ty += (float)(e.Delta.Y * 60);
+        }
+
         InvalidateVisual();
     }
 

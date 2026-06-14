@@ -71,6 +71,15 @@ public sealed class NotNullConverter : IValueConverter
         throw new NotSupportedException();
 }
 
+/// <summary>Object → bool (true if null, false if not null). Inverse of NotNullConverter.</summary>
+public sealed class NullConverter : IValueConverter
+{
+    public static readonly NullConverter Instance = new();
+    public object Convert(object? v, Type t, object? p, CultureInfo c) => v is null;
+    public object ConvertBack(object? v, Type t, object? p, CultureInfo c) =>
+        throw new NotSupportedException();
+}
+
 /// <summary>Bool → lock / unlock vector geometry (matching Icon.Lock / Icon.Unlock in Icons.axaml).</summary>
 public sealed class LockIconConverter : IValueConverter
 {

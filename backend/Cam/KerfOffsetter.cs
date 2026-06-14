@@ -45,6 +45,25 @@ public static class KerfOffsetter
         return result;
     }
 
+    /// <summary>
+    /// Offsets a closed contour by <paramref name="delta"/> mm with an explicit
+    /// join style (Miter = sharp corners, Round, Bevel).
+    /// </summary>
+    public static List<Polyline2> OffsetClosed(Polyline2 contour, double delta, JoinType joinType)
+    {
+        var path = new PathD(contour.Points.Count);
+        foreach (var p in contour.Points) path.Add(new PointD(p.X, p.Y));
+        var solution = Clipper.InflatePaths(
+            [path], delta, joinType, EndType.Polygon, miterLimit: 2.0, precision: Precision);
+        var result = new List<Polyline2>(solution.Count);
+        foreach (var s in solution)
+        {
+            if (s.Count < 3) continue;
+            result.Add(new Polyline2 { IsClosed = true, Points = s.Select(pt => new Point2(pt.x, pt.y)).ToList() });
+        }
+        return result;
+    }
+
     /// <summary>Signed area (positive = counter-clockwise in our Y-up world).</summary>
     public static double SignedArea(Polyline2 contour)
     {

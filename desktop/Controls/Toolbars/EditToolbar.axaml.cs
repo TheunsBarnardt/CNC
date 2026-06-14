@@ -1,4 +1,5 @@
 using Avalonia.Controls;
+using Avalonia.Controls.Primitives;
 using Avalonia.Interactivity;
 using Avalonia.VisualTree;
 using Backend.Models;
@@ -12,11 +13,13 @@ public partial class EditToolbar : UserControl
     private MainViewModel? Vm => DataContext as MainViewModel;
     private bool _loading;
     private bool _lockAspect;
+    private string _cornerStyle = "miter";
 
     public EditToolbar()
     {
         InitializeComponent();
         DataContextChanged += (_, _) => SubscribeToVm();
+        SetCornerActive(BtnCornerMiter);
     }
 
     private void SubscribeToVm()
@@ -40,8 +43,8 @@ public partial class EditToolbar : UserControl
         CbLayer.Items?.Clear();
         foreach (var lyr in Vm.AllLayers)
             CbLayer.Items?.Add(lyr);
-        if (Vm.SelectedPart is { } part && Vm.AllLayers.FirstOrDefault(l => l.Id == part.LayerId) is { } selectedLayer)
-            CbLayer.SelectedItem = selectedLayer;
+        if (Vm.SelectedPart is { } part && Vm.AllLayers.FirstOrDefault(l => l.Id == part.LayerId) is { } sel)
+            CbLayer.SelectedItem = sel;
     }
 
     private void LoadFromPart(Part? part)
@@ -51,7 +54,6 @@ public partial class EditToolbar : UserControl
         TbX.Text   = part.X.ToString("F2");
         TbY.Text   = part.Y.ToString("F2");
         TbRot.Text = part.RotationDeg.ToString("F1");
-        // W/H: use bounding box of the file geometry if available
         if (Vm?.FileById(part.FileId) is { } file)
         {
             var bb = file.BoundingBox;
@@ -61,11 +63,12 @@ public partial class EditToolbar : UserControl
         _loading = false;
     }
 
+    // ── Transform inputs ──────────────────────────────────────────────────
+
     private void OnTransformChanged(object? s, RoutedEventArgs e)
     {
         if (_loading || Vm?.SelectedPart is not { } part) return;
-        if (double.TryParse(TbX.Text, out var x) &&
-            double.TryParse(TbY.Text, out var y))
+        if (double.TryParse(TbX.Text, out var x) && double.TryParse(TbY.Text, out var y))
             Vm.CommitPartTransform(part, x, y, part.RotationDeg, part.ScaleX, part.ScaleY);
     }
 
@@ -75,8 +78,7 @@ public partial class EditToolbar : UserControl
         if (Vm.FileById(part.FileId) is not { } file) return;
         var bb = file.BoundingBox;
         if (bb.Width == 0 || bb.Height == 0) return;
-        if (double.TryParse(TbW.Text, out var w) &&
-            double.TryParse(TbH.Text, out var h))
+        if (double.TryParse(TbW.Text, out var w) && double.TryParse(TbH.Text, out var h))
         {
             if (_lockAspect)
             {
@@ -87,8 +89,7 @@ public partial class EditToolbar : UserControl
                 TbH.Text = h.ToString("F2");
                 _loading = false;
             }
-            Vm.CommitPartTransform(part, part.X, part.Y, part.RotationDeg,
-                w / bb.Width, h / bb.Height);
+            Vm.CommitPartTransform(part, part.X, part.Y, part.RotationDeg, w / bb.Width, h / bb.Height);
         }
     }
 
@@ -102,28 +103,25 @@ public partial class EditToolbar : UserControl
     private void OnToggleLock(object? s, RoutedEventArgs e)
     {
         _lockAspect = !_lockAspect;
-        BtnLock.Foreground = _lockAspect
-            ? Avalonia.Media.Brushes.DodgerBlue
-            : null;
+        BtnLock.Foreground = _lockAspect ? Avalonia.Media.Brushes.DodgerBlue : null;
     }
 
-    private void OnMirrorH(object? s, RoutedEventArgs e)
-    {
-        if (Vm?.SelectedPart is not { } p) return;
-        Vm.CommitPartTransform(p, p.X, p.Y, p.RotationDeg, -p.ScaleX, p.ScaleY);
-    }
+    // ── Arrange ───────────────────────────────────────────────────────────
 
-    private void OnMirrorV(object? s, RoutedEventArgs e)
-    {
-        if (Vm?.SelectedPart is not { } p) return;
-        Vm.CommitPartTransform(p, p.X, p.Y, p.RotationDeg, p.ScaleX, -p.ScaleY);
-    }
+    private void OnBringToFront(object? s, RoutedEventArgs e) => Vm?.BringToFront();
+    private void OnSendToBack  (object? s, RoutedEventArgs e) => Vm?.SendToBack();
+    private void OnBringForward(object? s, RoutedEventArgs e) => Vm?.BringForward();
+    private void OnSendBackward(object? s, RoutedEventArgs e) => Vm?.SendBackward();
 
-    private void OnAlignLeft  (object? s, RoutedEventArgs e) => AlignEdge("left");
-    private void OnAlignRight (object? s, RoutedEventArgs e) => AlignEdge("right");
-    private void OnAlignTop   (object? s, RoutedEventArgs e) => AlignEdge("top");
-    private void OnAlignBottom(object? s, RoutedEventArgs e) => AlignEdge("bottom");
-    private void OnCenter     (object? s, RoutedEventArgs e) => AlignEdge("center");
+    // ── Align ─────────────────────────────────────────────────────────────
+
+    private void OnAlignLeft   (object? s, RoutedEventArgs e) => AlignEdge("left");
+    private void OnAlignRight  (object? s, RoutedEventArgs e) => AlignEdge("right");
+    private void OnAlignTop    (object? s, RoutedEventArgs e) => AlignEdge("top");
+    private void OnAlignBottom (object? s, RoutedEventArgs e) => AlignEdge("bottom");
+    private void OnCenter      (object? s, RoutedEventArgs e) => AlignEdge("center");
+    private void OnAlignHCenter(object? s, RoutedEventArgs e) => Vm?.AlignHCenter();
+    private void OnAlignVCenter(object? s, RoutedEventArgs e) => Vm?.AlignVCenter();
 
     private void AlignEdge(string edge)
     {
@@ -131,8 +129,8 @@ public partial class EditToolbar : UserControl
         var proj = Vm.Project;
         double sw = proj.TableWidthMm, sh = proj.TableHeightMm;
         if (Vm.FileById(part.FileId) is not { } file) return;
-        var bb  = file.BoundingBox;
-        double w = bb.Width * part.ScaleX, h = bb.Height * part.ScaleY;
+        var bb = file.BoundingBox;
+        double w = bb.Width * Math.Abs(part.ScaleX), h = bb.Height * Math.Abs(part.ScaleY);
         (double nx, double ny) = edge switch
         {
             "left"   => (0,          part.Y),
@@ -146,25 +144,65 @@ public partial class EditToolbar : UserControl
         LoadFromPart(part);
     }
 
-    private void OnRotate90CW(object? s, RoutedEventArgs e)
+    // ── Reflect ───────────────────────────────────────────────────────────
+
+    private void OnReflectH(object? s, RoutedEventArgs e) => Vm?.ReflectH();
+    private void OnReflectV(object? s, RoutedEventArgs e) => Vm?.ReflectV();
+
+    // ── Edit (node editing) ───────────────────────────────────────────────
+
+    private void OnEnterNodeEdit(object? s, RoutedEventArgs e) => Vm?.EnterNodeEditMode();
+
+    // ── Offset flyout ─────────────────────────────────────────────────────
+
+    private void OnOffsetDirectionChanged(object? s, RoutedEventArgs e)
     {
-        if (Vm?.SelectedPart is not { } p) return;
-        double newRot = (p.RotationDeg + 90) % 360;
-        Vm.CommitPartTransform(p, p.X, p.Y, newRot, p.ScaleX, p.ScaleY);
-        TbRot.Text = newRot.ToString("F1");
+        if (s == CbExternal && CbExternal.IsChecked == true)
+            CbInner.IsChecked = false;
+        else if (s == CbInner && CbInner.IsChecked == true)
+            CbExternal.IsChecked = false;
+        else
+            CbExternal.IsChecked = true; // at least one must be checked
     }
 
-    private void OnRotate90CCW(object? s, RoutedEventArgs e)
+    private void OnCornerMiter(object? s, RoutedEventArgs e) { _cornerStyle = "miter"; SetCornerActive(BtnCornerMiter); }
+    private void OnCornerRound(object? s, RoutedEventArgs e) { _cornerStyle = "round"; SetCornerActive(BtnCornerRound); }
+    private void OnCornerBevel(object? s, RoutedEventArgs e) { _cornerStyle = "bevel"; SetCornerActive(BtnCornerBevel); }
+
+    private void SetCornerActive(Button active)
     {
-        if (Vm?.SelectedPart is not { } p) return;
-        double newRot = (p.RotationDeg - 90 + 360) % 360;
-        Vm.CommitPartTransform(p, p.X, p.Y, newRot, p.ScaleX, p.ScaleY);
-        TbRot.Text = newRot.ToString("F1");
+        if (BtnCornerMiter is null) return; // called from ctor before InitializeComponent
+        foreach (var b in new[] { BtnCornerMiter, BtnCornerRound, BtnCornerBevel })
+        {
+            if (b.Classes.Contains("active")) b.Classes.Remove("active");
+        }
+        if (!active.Classes.Contains("active")) active.Classes.Add("active");
     }
 
-    private void OnBringToFront(object? s, RoutedEventArgs e) => Vm?.BringToFront();
+    private void OnOffsetSliderChanged(object? s, Avalonia.Controls.Primitives.RangeBaseValueChangedEventArgs e)
+    {
+        if (TbOffsetDist is not null)
+            TbOffsetDist.Text = SliderOffset.Value.ToString("F1");
+    }
 
-    private void OnSendToBack(object? s, RoutedEventArgs e) => Vm?.SendToBack();
+    private void OnOffsetDistChanged(object? s, RoutedEventArgs e)
+    {
+        if (double.TryParse(TbOffsetDist.Text, out var v))
+            SliderOffset.Value = Math.Clamp(v, 0.1, 50);
+    }
+
+    private void OnOffsetCancel(object? s, RoutedEventArgs e) => BtnOffset.Flyout?.Hide();
+
+    private void OnOffsetConfirm(object? s, RoutedEventArgs e)
+    {
+        BtnOffset.Flyout?.Hide();
+        if (!double.TryParse(TbOffsetDist.Text, out var dist) || dist <= 0) return;
+        bool external  = CbExternal.IsChecked ?? true;
+        bool outerOnly = CbOuterOnly.IsChecked ?? false;
+        Vm?.ApplyOffset(dist, external, _cornerStyle, outerOnly);
+    }
+
+    // ── Layer ──────────────────────────────────────────────────────────────
 
     private void OnLayerChanged(object? s, RoutedEventArgs e)
     {
@@ -172,22 +210,14 @@ public partial class EditToolbar : UserControl
         part.LayerId = layer.Id;
     }
 
-    private void OnApplyOffset(object? s, RoutedEventArgs e)
-    {
-        if (Vm?.SelectedPart is not { } part) return;
-        if (!double.TryParse(TbOffset.Text, out var offsetMm)) return;
-        // Note: full offset implementation requires Clipper2; deferred for now
-        Vm.StatusText = $"Contour offset not yet implemented (requested: {offsetMm:F2}mm)";
-    }
+    // ── Array / Duplicate / Delete ────────────────────────────────────────
 
     private async void OnArray(object? s, RoutedEventArgs e)
     {
         var dlg = new ArrayPanel();
         var owner = this.FindAncestorOfType<Window>();
         if (owner is not null && await dlg.ShowDialog<bool>(owner))
-        {
             Vm?.CreateArray(dlg.Type, dlg);
-        }
     }
 
     private void OnDuplicate(object? s, RoutedEventArgs e) => Vm?.DuplicateSelected();

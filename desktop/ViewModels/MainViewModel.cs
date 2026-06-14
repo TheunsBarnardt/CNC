@@ -588,6 +588,109 @@ public sealed class MainViewModel : ObservableObject
         SelectedPart = part;
     }
 
+    public void BringForward()
+    {
+        if (SelectedPart is not { } part) return;
+        Checkpoint();
+        _projects.Mutate(p =>
+        {
+            var i = p.Parts.IndexOf(part);
+            if (i >= 0 && i < p.Parts.Count - 1) { p.Parts.RemoveAt(i); p.Parts.Insert(i + 1, part); }
+        });
+        Refresh();
+        SelectedPart = part;
+    }
+
+    public void SendBackward()
+    {
+        if (SelectedPart is not { } part) return;
+        Checkpoint();
+        _projects.Mutate(p =>
+        {
+            var i = p.Parts.IndexOf(part);
+            if (i > 0) { p.Parts.RemoveAt(i); p.Parts.Insert(i - 1, part); }
+        });
+        Refresh();
+        SelectedPart = part;
+    }
+
+    public void ReflectH()
+    {
+        if (SelectedPart is not { } p) return;
+        Checkpoint();
+        CommitPartTransform(p, p.X, p.Y, p.RotationDeg, -p.ScaleX, p.ScaleY);
+    }
+
+    public void ReflectV()
+    {
+        if (SelectedPart is not { } p) return;
+        Checkpoint();
+        CommitPartTransform(p, p.X, p.Y, p.RotationDeg, p.ScaleX, -p.ScaleY);
+    }
+
+    public void AlignHCenter()
+    {
+        if (SelectedPart is not { } part || FileById(part.FileId) is not { } file) return;
+        var bb = file.BoundingBox;
+        double w = bb.Width * Math.Abs(part.ScaleX);
+        CommitPartTransform(part, (Project.TableWidthMm - w) / 2, part.Y, part.RotationDeg, part.ScaleX, part.ScaleY);
+    }
+
+    public void AlignVCenter()
+    {
+        if (SelectedPart is not { } part || FileById(part.FileId) is not { } file) return;
+        var bb = file.BoundingBox;
+        double h = bb.Height * Math.Abs(part.ScaleY);
+        CommitPartTransform(part, part.X, (Project.TableHeightMm - h) / 2, part.RotationDeg, part.ScaleX, part.ScaleY);
+    }
+
+    public void MoveSelectedToLayer(Guid layerId)
+    {
+        if (SelectedPart is null) return;
+        SelectedPart.LayerId = layerId;
+        Refresh();
+        StatusText = "Object moved to layer";
+    }
+
+    public void ApplyOffset(double distanceMm, bool external, string cornerStyle, bool outerOnly)
+    {
+        if (SelectedPart is not { } part || FileById(part.FileId) is not { } file) return;
+
+        var joinType = cornerStyle switch
+        {
+            "round" => Clipper2Lib.JoinType.Round,
+            "bevel" => Clipper2Lib.JoinType.Bevel,
+            _       => Clipper2Lib.JoinType.Miter,
+        };
+        double delta = external ? distanceMm : -distanceMm;
+
+        var newPaths = new List<Backend.Models.PathGeometry>();
+        foreach (var pg in file.Paths)
+        {
+            if (pg.Polyline is null || pg.Polyline.Points.Count < 3) continue;
+            bool isOuter = Backend.Cam.KerfOffsetter.SignedArea(pg.Polyline) > 0;
+            if (outerOnly && !isOuter) continue;
+            foreach (var r in Backend.Cam.KerfOffsetter.OffsetClosed(pg.Polyline, delta, joinType))
+                newPaths.Add(new Backend.Models.PathGeometry { Polyline = r });
+        }
+
+        if (newPaths.Count == 0) { StatusText = "Offset produced no paths — try a smaller distance"; return; }
+
+        var newFile = new Backend.Models.ImportedFile
+        {
+            FileName    = $"{file.FileName}_offset",
+            DisplayName = $"{file.Name} (offset {(external ? "+" : "-")}{distanceMm:F1}mm)",
+            Kind        = Backend.Models.ImportedFileKind.Shape,
+        };
+        foreach (var pg in newPaths) newFile.Paths.Add(pg);
+
+        Checkpoint();
+        _projects.Mutate(p => { p.Files.Add(newFile); p.Parts.Add(PartPlacer.PlaceNew(p, newFile)); });
+        RefreshGeometry(newFile);
+        Refresh();
+        StatusText = $"Offset applied — {newPaths.Count} path(s) created";
+    }
+
     // ── Internal helpers ──────────────────────────────────────────────────
 
     public void Refresh()

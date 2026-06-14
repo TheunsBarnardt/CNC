@@ -95,6 +95,14 @@ public partial class LayersPanel : UserControl
             Vm?.DeleteLayer(layer);
     }
 
+    /// <summary>Click on a layer row to assign the currently selected object to that layer.</summary>
+    public void OnLayerRowClick(object? s, RoutedEventArgs e)
+    {
+        if (Vm?.SelectedPart is null) return;
+        if (s is Button btn && btn.Tag is Layer layer)
+            Vm.MoveSelectedToLayer(layer.Id);
+    }
+
     private void OnFeedOverrideCommit(object? s, RoutedEventArgs e)
     {
         if (s is not TextBox tb || tb.Tag is not Layer layer) return;

@@ -5,35 +5,49 @@
              x:CompileBindings="False">
 
   <DockPanel>
-    <!-- header -->
+
+    <!-- ═══ HEADER with action buttons ═══ -->
     <Border DockPanel.Dock="Top"
             Background="{StaticResource Brush.Bg2}"
             BorderBrush="{StaticResource Brush.Border}"
             BorderThickness="0,0,0,1"
-            Padding="10,6">
-      <Grid ColumnDefinitions="*,Auto">
-        <TextBlock Text="LAYERS"
+            Padding="8,5">
+      <Grid ColumnDefinitions="*,Auto,Auto,Auto,Auto">
+        <TextBlock Text="LAYERS &amp; OBJECTS"
                    Classes="section"
-                   Margin="0"
+                   Margin="2,0"
                    VerticalAlignment="Center"/>
+        <!-- Add layer -->
         <Button Grid.Column="1"
                 Theme="{StaticResource Btn.Icon}"
                 ToolTip.Tip="Add layer"
                 Click="OnAddLayer">
           <PathIcon Data="{StaticResource Icon.Plus}" Width="15" Height="15"/>
         </Button>
+        <!-- Group selected -->
+        <Button Grid.Column="2"
+                Theme="{StaticResource Btn.Icon}"
+                ToolTip.Tip="Group selected parts"
+                Click="OnGroupSelected">
+          <PathIcon Data="{StaticResource Icon.AddBox}" Width="15" Height="15"/>
+        </Button>
+        <!-- Move up / down in layer order -->
+        <Button Grid.Column="3"
+                Theme="{StaticResource Btn.Icon}"
+                ToolTip.Tip="Move layer up"
+                Click="OnMoveLayerUp">
+          <PathIcon Data="{StaticResource Icon.ArrowUp}" Width="13" Height="13"/>
+        </Button>
+        <Button Grid.Column="4"
+                Theme="{StaticResource Btn.Icon}"
+                ToolTip.Tip="Move layer down"
+                Click="OnMoveLayerDown">
+          <PathIcon Data="{StaticResource Icon.ArrowDown}" Width="13" Height="13"/>
+        </Button>
       </Grid>
     </Border>
 
-    <!-- empty hint -->
-    <TextBlock x:Name="LayersEmptyHint"
-               DockPanel.Dock="Bottom"
-               Text="No layers"
-               Classes="muted"
-               HorizontalAlignment="Center"
-               Margin="0,12"/>
-
-    <!-- no-go zones section -->
+    <!-- ═══ NO-GO ZONES (docked bottom so tree gets remaining space) ═══ -->
     <Border DockPanel.Dock="Bottom"
             Background="{StaticResource Brush.Bg1}">
       <StackPanel>
@@ -114,50 +128,157 @@
       </StackPanel>
     </Border>
 
+    <!-- ═══ TREE (layers → groups → parts) ═══ -->
     <ScrollViewer VerticalScrollBarVisibility="Auto">
-      <ItemsControl x:Name="LayersList">
+      <ItemsControl x:Name="LayerTree">
         <ItemsControl.ItemTemplate>
           <DataTemplate>
+            <!--
+              One Border per tree node. The left Margin is set to IndentMargin
+              via the IndentMargin property (Depth * 18 px per level).
+              Background turns accent-tinted when the part is selected on canvas.
+            -->
             <Border BorderBrush="{StaticResource Brush.Border}"
                     BorderThickness="0,0,0,1"
-                    PointerPressed="OnLayerRowPressed"
+                    Background="{Binding IsSelected, Converter={x:Static conv:BoolToActiveLayerBgConverter.Instance}}"
+                    PointerPressed="OnTreeRowPressed"
                     Tag="{Binding}">
-              <!-- active-layer highlight: accent left strip + subtle tint -->
-              <Border Padding="8,4"
-                      Background="{Binding IsActive, Converter={x:Static conv:BoolToActiveLayerBgConverter.Instance}}"
-                      BorderBrush="{Binding Color}"
-                      BorderThickness="{Binding IsActive, Converter={x:Static conv:BoolToActiveLayerBorderConverter.Instance}}">
+              <Border.ContextMenu>
+                <ContextMenu Tag="{Binding}">
+                  <!-- Part-only operations -->
+                  <MenuItem Header="Duplicate"
+                            IsVisible="{Binding IsPartKind}"
+                            Click="OnCtxDuplicate"
+                            Tag="{Binding}">
+                    <MenuItem.Icon>
+                      <PathIcon Data="{StaticResource Icon.Duplicate}" Width="14" Height="14"/>
+                    </MenuItem.Icon>
+                  </MenuItem>
+                  <MenuItem Header="Delete"
+                            IsVisible="{Binding IsPartKind}"
+                            Click="OnCtxDelete"
+                            Tag="{Binding}">
+                    <MenuItem.Icon>
+                      <PathIcon Data="{StaticResource Icon.Trash}" Width="14" Height="14"/>
+                    </MenuItem.Icon>
+                  </MenuItem>
+                  <Separator IsVisible="{Binding IsPartKind}"/>
+                  <MenuItem Header="Move to Layer…"
+                            IsVisible="{Binding IsPartKind}"
+                            Click="OnCtxMoveToLayer"
+                            Tag="{Binding}">
+                    <MenuItem.Icon>
+                      <PathIcon Data="{StaticResource Icon.Layers}" Width="14" Height="14"/>
+                    </MenuItem.Icon>
+                  </MenuItem>
+                  <Separator IsVisible="{Binding IsPartKind}"/>
+                  <!-- Group operations (shown for parts and groups) -->
+                  <MenuItem Header="Group"
+                            IsVisible="{Binding IsPartKind}"
+                            Click="OnCtxGroup"
+                            Tag="{Binding}">
+                    <MenuItem.Icon>
+                      <PathIcon Data="{StaticResource Icon.AddBox}" Width="14" Height="14"/>
+                    </MenuItem.Icon>
+                  </MenuItem>
+                  <MenuItem Header="Pop out of Group"
+                            IsVisible="{Binding IsPartKind}"
+                            Click="OnCtxPopFromGroup"
+                            Tag="{Binding}">
+                    <MenuItem.Icon>
+                      <PathIcon Data="{StaticResource Icon.ArrowLeft}" Width="14" Height="14"/>
+                    </MenuItem.Icon>
+                  </MenuItem>
+                  <MenuItem Header="Ungroup"
+                            IsVisible="{Binding IsGroupKind}"
+                            Click="OnUngroup"
+                            Tag="{Binding}">
+                    <MenuItem.Icon>
+                      <PathIcon Data="{StaticResource Icon.Close}" Width="14" Height="14"/>
+                    </MenuItem.Icon>
+                  </MenuItem>
+                  <Separator IsVisible="{Binding IsPartKind}"/>
+                  <!-- Visibility / Lock (all node types) -->
+                  <MenuItem Header="Hide Selected Objects"
+                            Click="OnToggleVisible"
+                            Tag="{Binding}">
+                    <MenuItem.Icon>
+                      <PathIcon Data="{StaticResource Icon.EyeOff}" Width="14" Height="14"/>
+                    </MenuItem.Icon>
+                  </MenuItem>
+                  <MenuItem Header="Lock Selected Objects"
+                            IsVisible="{Binding IsLayerKind}"
+                            Click="OnToggleLock"
+                            Tag="{Binding}">
+                    <MenuItem.Icon>
+                      <PathIcon Data="{StaticResource Icon.Lock}" Width="14" Height="14"/>
+                    </MenuItem.Icon>
+                  </MenuItem>
+                  <!-- Layer operations -->
+                  <Separator IsVisible="{Binding IsLayerKind}"/>
+                  <MenuItem Header="Add Layer"
+                            IsVisible="{Binding IsLayerKind}"
+                            Click="OnAddLayer">
+                    <MenuItem.Icon>
+                      <PathIcon Data="{StaticResource Icon.Plus}" Width="14" Height="14"/>
+                    </MenuItem.Icon>
+                  </MenuItem>
+                  <MenuItem Header="Delete Layer"
+                            IsVisible="{Binding IsLayerKind}"
+                            Click="OnDeleteLayer"
+                            Tag="{Binding}">
+                    <MenuItem.Icon>
+                      <PathIcon Data="{StaticResource Icon.Trash}" Width="14" Height="14"/>
+                    </MenuItem.Icon>
+                  </MenuItem>
+                </ContextMenu>
+              </Border.ContextMenu>
 
-              <!-- single compact row: ● Name  [Cut▾] [⚙] [👁] [🔒] [✕] -->
-              <Grid ColumnDefinitions="18,*,72,22,22,22,22"
-                    VerticalAlignment="Center">
+              <!-- Single-child Panel holds all 3 conditional row layouts -->
+              <Panel>
 
-                <!-- colour swatch (clickable to pick color) -->
+              <!-- ── LAYER ROW ── -->
+              <Grid IsVisible="{Binding IsLayerKind}"
+                    ColumnDefinitions="22,12,*,72,22,22,22,22"
+                    Margin="0,0,0,0"
+                    Height="28">
+
+                <!-- expand toggle -->
                 <Button Grid.Column="0"
+                        Theme="{StaticResource Btn.Icon}"
+                        Width="22" Height="22"
+                        FontSize="9"
+                        Content="{Binding ExpandIcon}"
+                        Foreground="{StaticResource Brush.TextMuted}"
+                        Click="OnExpandToggle"
+                        Tag="{Binding}"/>
+
+                <!-- colour swatch -->
+                <Button Grid.Column="1"
                         Width="12" Height="12"
                         Padding="0"
-                        Margin="2,0,6,0"
-                        Background="{Binding Color}"
+                        Background="{Binding LayerColor}"
                         CornerRadius="6"
                         ToolTip.Tip="Change layer color"
                         Click="OnChangeColor"
                         Tag="{Binding}"/>
 
                 <!-- layer name (inline edit) -->
-                <TextBox Grid.Column="1"
-                         Text="{Binding Name, Mode=TwoWay}"
+                <TextBox Grid.Column="2"
+                         Text="{Binding DisplayName, Mode=TwoWay}"
                          Background="Transparent"
                          BorderThickness="0"
-                         Padding="2,0"
+                         Padding="4,0"
                          VerticalAlignment="Center"
-                         FontSize="{StaticResource Font.Md}"
+                         FontSize="{StaticResource Font.Sm}"
+                         FontWeight="SemiBold"
                          Foreground="{StaticResource Brush.Text}"
-                         LostFocus="OnNameCommit"
-                         KeyDown="OnNameKeyDown"
+                         LostFocus="OnLayerNameCommit"
+                         KeyDown="OnLayerNameKeyDown"
                          Tag="{Binding}"/>
 
-                <!-- operation mode — click cycles Cut→Score→Engrave -->
-                <Button Grid.Column="2"
+                <!-- operation mode badge -->
+                <Button Grid.Column="3"
                         Height="18"
                         Margin="2,0"
                         HorizontalAlignment="Stretch"
@@ -169,16 +290,16 @@
                         BorderThickness="1"
                         CornerRadius="{StaticResource Radius.Sm}"
                         Padding="4,0"
-                        Content="{Binding OperationMode}"
+                        Content="{Binding Layer.OperationMode}"
                         Click="OnCycleOperationMode"
                         Tag="{Binding}"
-                        ToolTip.Tip="Click to toggle Cut / Score / Engrave"/>
+                        ToolTip.Tip="Click to cycle: Cut → Score → Engrave"/>
 
-                <!-- settings gear — opens feed/power flyout -->
-                <Button Grid.Column="3"
+                <!-- settings flyout -->
+                <Button Grid.Column="4"
                         Theme="{StaticResource Btn.Icon}"
                         Width="22" Height="22"
-                        ToolTip.Tip="Layer settings (feed rate, power)"
+                        ToolTip.Tip="Layer settings"
                         Tag="{Binding}">
                   <PathIcon Data="{StaticResource Icon.Sliders}" Width="12" Height="12"/>
                   <Button.Flyout>
@@ -189,7 +310,7 @@
                               CornerRadius="6"
                               Padding="12,10">
                         <StackPanel Spacing="8" Width="180">
-                          <TextBlock Text="{Binding Name}"
+                          <TextBlock Text="{Binding DisplayName}"
                                      FontSize="{StaticResource Font.Sm}"
                                      Foreground="{StaticResource Brush.TextMuted}"/>
                           <Grid ColumnDefinitions="60,*" RowDefinitions="Auto,8,Auto">
@@ -199,8 +320,7 @@
                             <TextBox Grid.Row="0" Grid.Column="1"
                                      Height="24" FontSize="{StaticResource Font.Xs}"
                                      PlaceholderText="global"
-                                     Text="{Binding FeedRateMmMinOverride}"
-                                     ToolTip.Tip="Feed-rate override mm/min (blank = global)"
+                                     Text="{Binding Layer.FeedRateMmMinOverride}"
                                      LostFocus="OnFeedOverrideCommit"
                                      KeyDown="OnOverrideKeyDown"
                                      Tag="{Binding}"/>
@@ -210,8 +330,7 @@
                             <TextBox Grid.Row="2" Grid.Column="1"
                                      Height="24" FontSize="{StaticResource Font.Xs}"
                                      PlaceholderText="global"
-                                     Text="{Binding LaserPowerPercentOverride}"
-                                     ToolTip.Tip="Laser power override % (blank = global)"
+                                     Text="{Binding Layer.LaserPowerPercentOverride}"
                                      LostFocus="OnPowerOverrideCommit"
                                      KeyDown="OnOverrideKeyDown"
                                      Tag="{Binding}"/>
@@ -223,7 +342,7 @@
                 </Button>
 
                 <!-- visibility -->
-                <Button Grid.Column="4"
+                <Button Grid.Column="5"
                         Theme="{StaticResource Btn.Icon}"
                         Width="22" Height="22"
                         ToolTip.Tip="Toggle visibility"
@@ -234,18 +353,18 @@
                 </Button>
 
                 <!-- lock -->
-                <Button Grid.Column="5"
+                <Button Grid.Column="6"
                         Theme="{StaticResource Btn.Icon}"
                         Width="22" Height="22"
                         ToolTip.Tip="Lock / unlock layer"
                         Click="OnToggleLock"
                         Tag="{Binding}">
-                  <PathIcon Data="{Binding Locked, Converter={x:Static conv:LockIconConverter.Instance}}"
+                  <PathIcon Data="{Binding Layer.Locked, Converter={x:Static conv:LockIconConverter.Instance}}"
                             Width="12" Height="12"/>
                 </Button>
 
                 <!-- delete -->
-                <Button Grid.Column="6"
+                <Button Grid.Column="7"
                         Theme="{StaticResource Btn.Icon}"
                         Width="22" Height="22"
                         Foreground="{StaticResource Brush.Danger}"
@@ -256,12 +375,93 @@
                 </Button>
               </Grid>
 
-              </Border><!-- /inner active-highlight Border -->
-            </Border><!-- /outer row Border -->
+              <!-- ── GROUP ROW ── -->
+              <Grid IsVisible="{Binding IsGroupKind}"
+                    ColumnDefinitions="*,22,22"
+                    Margin="{Binding IndentMargin}"
+                    Height="26">
+
+                <!-- expand + folder icon + editable name -->
+                <StackPanel Orientation="Horizontal" Spacing="2" VerticalAlignment="Center">
+                  <Button Theme="{StaticResource Btn.Icon}"
+                          Width="20" Height="20"
+                          FontSize="9"
+                          Content="{Binding ExpandIcon}"
+                          Foreground="{StaticResource Brush.TextMuted}"
+                          Click="OnExpandToggle"
+                          Tag="{Binding}"/>
+                  <!-- folder icon (unicode) -->
+                  <TextBlock Text="📁" FontSize="12" VerticalAlignment="Center" Margin="1,0"/>
+                  <TextBox Text="{Binding GroupName, Mode=TwoWay}"
+                           Background="Transparent"
+                           BorderThickness="0"
+                           Padding="2,0"
+                           MinWidth="60"
+                           VerticalAlignment="Center"
+                           FontSize="{StaticResource Font.Sm}"
+                           Foreground="{StaticResource Brush.Text}"
+                           LostFocus="OnGroupNameCommit"
+                           KeyDown="OnGroupNameKeyDown"
+                           Tag="{Binding}"/>
+                </StackPanel>
+
+                <!-- visibility -->
+                <Button Grid.Column="1"
+                        Theme="{StaticResource Btn.Icon}"
+                        Width="22" Height="22"
+                        ToolTip.Tip="Toggle group visibility"
+                        Click="OnToggleVisible"
+                        Tag="{Binding}">
+                  <PathIcon Data="{Binding Visible, Converter={x:Static conv:VisibilityIconConverter.Instance}}"
+                            Width="14" Height="14"/>
+                </Button>
+
+                <!-- ungroup -->
+                <Button Grid.Column="2"
+                        Theme="{StaticResource Btn.Icon}"
+                        Width="22" Height="22"
+                        Foreground="{StaticResource Brush.Danger}"
+                        ToolTip.Tip="Ungroup"
+                        Click="OnUngroup"
+                        Tag="{Binding}">
+                  <PathIcon Data="{StaticResource Icon.Close}" Width="11" Height="11"/>
+                </Button>
+              </Grid>
+
+              <!-- ── PART ROW ── -->
+              <Grid IsVisible="{Binding IsPartKind}"
+                    ColumnDefinitions="*,22"
+                    Margin="{Binding IndentMargin}"
+                    Height="24">
+
+                <!-- part name (read-only label; click selects on canvas) -->
+                <TextBlock Grid.Column="0"
+                           Text="{Binding PartDisplayName}"
+                           VerticalAlignment="Center"
+                           FontSize="{StaticResource Font.Sm}"
+                           Foreground="{StaticResource Brush.Text}"
+                           TextTrimming="CharacterEllipsis"
+                           Margin="4,0"
+                           Cursor="Hand"/>
+
+                <!-- visibility -->
+                <Button Grid.Column="1"
+                        Theme="{StaticResource Btn.Icon}"
+                        Width="22" Height="22"
+                        ToolTip.Tip="Toggle visibility"
+                        Click="OnToggleVisible"
+                        Tag="{Binding}">
+                  <PathIcon Data="{Binding Visible, Converter={x:Static conv:VisibilityIconConverter.Instance}}"
+                            Width="14" Height="14"/>
+                </Button>
+              </Grid>
+
+              </Panel><!-- /single-child Panel -->
+            </Border>
           </DataTemplate>
         </ItemsControl.ItemTemplate>
       </ItemsControl>
     </ScrollViewer>
-  </DockPanel>
 
+  </DockPanel>
 </UserControl>

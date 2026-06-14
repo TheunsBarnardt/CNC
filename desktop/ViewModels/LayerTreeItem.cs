@@ -1,0 +1,84 @@
+using System.ComponentModel;
+using Avalonia;
+using Backend.Models;
+
+namespace Desktop.ViewModels;
+
+public enum LayerTreeNodeKind { Layer, Group, Part }
+
+/// <summary>
+/// One row in the flat layer-tree list. Depth drives the left-margin indent.
+/// Layers sit at depth 0; ungrouped parts and group-headers at depth 1;
+/// parts inside a group at depth 2.
+/// </summary>
+public sealed class LayerTreeItem : INotifyPropertyChanged
+{
+    public event PropertyChangedEventHandler? PropertyChanged;
+    private void Notify(string p) =>
+        PropertyChanged?.Invoke(this, new PropertyChangedEventArgs(p));
+
+    public LayerTreeNodeKind Kind { get; init; }
+
+    // --- Layer node ---
+    public Layer? Layer { get; init; }
+
+    // --- Group node ---
+    public Guid GroupId { get; init; }
+    private string _groupName = "Group";
+    public string GroupName
+    {
+        get => _groupName;
+        set { if (_groupName == value) return; _groupName = value; Notify(nameof(GroupName)); Notify(nameof(DisplayName)); }
+    }
+
+    // --- Part node ---
+    public Part? Part { get; init; }
+    public string PartDisplayName { get; init; } = "";
+
+    // --- Common display ---
+    public string DisplayName => Kind switch
+    {
+        LayerTreeNodeKind.Layer => Layer?.Name ?? "",
+        LayerTreeNodeKind.Group => GroupName,
+        LayerTreeNodeKind.Part  => PartDisplayName,
+        _ => ""
+    };
+
+    public int Depth { get; init; }
+    public Thickness IndentMargin => new(Depth * 18.0, 0, 0, 0);
+
+    // Layer colour swatch
+    public string LayerColor => Layer?.Color ?? "#3b82f6";
+
+    // Expand / collapse (layers and groups only)
+    private bool _isExpanded = true;
+    public bool IsExpanded
+    {
+        get => _isExpanded;
+        set { if (_isExpanded == value) return; _isExpanded = value; Notify(nameof(IsExpanded)); Notify(nameof(ExpandIcon)); }
+    }
+    // "▼" when expanded, "▶" when collapsed
+    public string ExpandIcon => _isExpanded ? "▼" : "▶";
+
+    // Canvas-selection highlight
+    private bool _isSelected;
+    public bool IsSelected
+    {
+        get => _isSelected;
+        set { if (_isSelected == value) return; _isSelected = value; Notify(nameof(IsSelected)); }
+    }
+
+    // Visibility (mirrors the underlying model object)
+    private bool _visible = true;
+    public bool Visible
+    {
+        get => _visible;
+        set { if (_visible == value) return; _visible = value; Notify(nameof(Visible)); }
+    }
+
+    // Convenience type discriminators for XAML
+    public bool IsLayerKind => Kind == LayerTreeNodeKind.Layer;
+    public bool IsGroupKind => Kind == LayerTreeNodeKind.Group;
+    public bool IsPartKind  => Kind == LayerTreeNodeKind.Part;
+    public bool IsExpandable => Kind != LayerTreeNodeKind.Part;
+}

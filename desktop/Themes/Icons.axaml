@@ -22,6 +22,8 @@
   <StreamGeometry x:Key="Icon.Pause">M7,5 H10.5 V19 H7 Z M13.5,5 H17 V19 H13.5 Z</StreamGeometry>
   <StreamGeometry x:Key="Icon.Stop">M6,6 H18 V18 H6 Z</StreamGeometry>
   <StreamGeometry x:Key="Icon.ArrowLeft">M11,5 L4,12 L11,19 V14 H20 V10 H11 Z</StreamGeometry>
+  <StreamGeometry x:Key="Icon.ArrowUp">M12,5 L19,12 H14 V20 H10 V12 H5 Z</StreamGeometry>
+  <StreamGeometry x:Key="Icon.ArrowDown">M12,19 L5,12 H10 V4 H14 V12 H19 Z</StreamGeometry>
 
   <!-- ── Import / tools ─────────────────────────────────────────── -->
   <StreamGeometry x:Key="Icon.Import">M11,3 H13 V10.5 H16.5 L12,15.5 L7.5,10.5 H11 Z M4,17.5 H20 V20.5 H4 Z</StreamGeometry>

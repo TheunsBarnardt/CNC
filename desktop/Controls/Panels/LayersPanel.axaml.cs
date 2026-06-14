@@ -1,7 +1,6 @@
 using Avalonia.Controls;
 using Avalonia.Input;
 using Avalonia.Interactivity;
-using Avalonia.VisualTree;
 using Backend.Models;
 using Desktop.ViewModels;
 using Desktop.Views;
@@ -23,11 +22,10 @@ public partial class LayersPanel : UserControl
     private void BindToVm(MainViewModel vm)
     {
         _vm = vm;
-        if (LayersList is null) return;
-        LayersList.ItemsSource = vm.Layers;
-        LayersEmptyHint.IsVisible = vm.Layers.Count == 0;
-        vm.Layers.CollectionChanged += (_, _) =>
-            LayersEmptyHint.IsVisible = _vm?.Layers.Count == 0;
+        if (LayerTree is not null)
+        {
+            LayerTree.ItemsSource = vm.LayerTree;
+        }
 
         if (NoGoZonesList is not null)
         {
@@ -40,102 +38,213 @@ public partial class LayersPanel : UserControl
 
     private void OnDataContextSet(object? s, EventArgs e)
     {
-        if (DataContext is MainViewModel vm && LayersList is not null)
-            BindToVm(vm);
+        if (DataContext is MainViewModel vm) BindToVm(vm);
     }
 
     private void OnLoaded(object? s, RoutedEventArgs e)
     {
-        if (DataContext is MainViewModel vm)
-            BindToVm(vm);
+        if (DataContext is MainViewModel vm) BindToVm(vm);
     }
+
+    // ── Tree row interactions ─────────────────────────────────────────────
+
+    private void OnTreeRowPressed(object? s, PointerPressedEventArgs e)
+    {
+        if (Vm is null || s is not Border border || border.Tag is not LayerTreeItem node) return;
+
+        switch (node.Kind)
+        {
+            case LayerTreeNodeKind.Layer when node.Layer is not null:
+                Vm.SetActiveLayer(node.Layer.Id);
+                break;
+
+            case LayerTreeNodeKind.Group:
+                Vm.SelectTreeGroup(node);
+                break;
+
+            case LayerTreeNodeKind.Part:
+                Vm.SelectTreePart(node);
+                break;
+        }
+    }
+
+    private void OnExpandToggle(object? s, RoutedEventArgs e)
+    {
+        if (s is Button btn && btn.Tag is LayerTreeItem node)
+            Vm?.ToggleTreeNodeExpanded(node);
+        e.Handled = true; // prevent row PointerPressed from also firing
+    }
+
+    // ── Layer-node handlers ───────────────────────────────────────────────
 
     private void OnAddLayer(object? s, RoutedEventArgs e) => Vm?.AddLayer();
 
     private async void OnChangeColor(object? s, RoutedEventArgs e)
     {
-        if (s is not Button btn || btn.Tag is not Layer layer) return;
-        var dlg = new ColorPickerDialog { SelectedColor = layer.Color };
+        if (s is not Button btn || btn.Tag is not LayerTreeItem node || node.Layer is null) return;
+        var dlg = new ColorPickerDialog { SelectedColor = node.Layer.Color };
         var owner = TopLevel.GetTopLevel(this) as Window;
         if (owner is null) return;
         if (await dlg.ShowDialog<bool>(owner))
-            Vm?.UpdateLayer(layer, color: dlg.SelectedColor);
+            Vm?.UpdateLayer(node.Layer, color: dlg.SelectedColor);
     }
 
-    // Layer name is TwoWay bound; commit on Enter or focus-lost so the model is up to date.
-    private void OnNameCommit(object? s, RoutedEventArgs e)
+    private void OnLayerNameCommit(object? s, RoutedEventArgs e)
     {
-        if (s is TextBox tb && tb.Tag is Layer layer)
-            Vm?.UpdateLayer(layer, name: tb.Text?.Trim() ?? layer.Name);
+        if (s is TextBox tb && tb.Tag is LayerTreeItem node && node.Layer is not null)
+            Vm?.UpdateLayer(node.Layer, name: tb.Text?.Trim() ?? node.Layer.Name);
     }
 
-    private void OnNameKeyDown(object? s, KeyEventArgs e)
+    private void OnLayerNameKeyDown(object? s, KeyEventArgs e)
     {
-        if (e.Key == Key.Enter && s is TextBox tb && tb.Tag is Layer layer)
+        if (e.Key == Key.Enter && s is TextBox tb && tb.Tag is LayerTreeItem node && node.Layer is not null)
         {
-            Vm?.UpdateLayer(layer, name: tb.Text?.Trim() ?? layer.Name);
+            Vm?.UpdateLayer(node.Layer, name: tb.Text?.Trim() ?? node.Layer.Name);
             e.Handled = true;
         }
     }
 
     private void OnCycleOperationMode(object? s, RoutedEventArgs e)
     {
-        if (s is not Button btn || btn.Tag is not Layer layer) return;
+        if (s is not Button btn || btn.Tag is not LayerTreeItem node || node.Layer is null) return;
         var modes = Enum.GetValues<LayerOperationMode>();
-        int next = ((int)layer.OperationMode + 1) % modes.Length;
-        Vm?.UpdateLayer(layer, operationMode: modes[next]);
-    }
-
-    private void OnToggleLock(object? s, RoutedEventArgs e)
-    {
-        if (s is Button btn && btn.Tag is Layer layer)
-            Vm?.UpdateLayer(layer, locked: !layer.Locked);
+        int next = ((int)node.Layer.OperationMode + 1) % modes.Length;
+        Vm?.UpdateLayer(node.Layer, operationMode: modes[next]);
     }
 
     private void OnToggleVisible(object? s, RoutedEventArgs e)
     {
-        if (s is Button btn && btn.Tag is Layer layer)
-            Vm?.UpdateLayer(layer, visible: !layer.Visible);
+        if (s is Button btn && btn.Tag is LayerTreeItem node)
+            Vm?.ToggleTreeVisible(node);
+    }
+
+    private void OnToggleLock(object? s, RoutedEventArgs e)
+    {
+        if (s is Button btn && btn.Tag is LayerTreeItem node && node.Layer is not null)
+            Vm?.UpdateLayer(node.Layer, locked: !node.Layer.Locked);
     }
 
     private void OnDeleteLayer(object? s, RoutedEventArgs e)
     {
-        if (s is Button btn && btn.Tag is Layer layer)
-            Vm?.DeleteLayer(layer);
-    }
-
-    /// <summary>Clicking a layer row makes it the active drawing layer and selects its parts.</summary>
-    private void OnLayerRowPressed(object? s, PointerPressedEventArgs e)
-    {
-        if (Vm is null) return;
-        if (s is Border border && border.Tag is Layer layer)
-        {
-            Vm.SetActiveLayer(layer.Id);
-            Vm.SelectLayerParts(layer.Id);
-        }
+        if (s is Button btn && btn.Tag is LayerTreeItem node && node.Layer is not null)
+            Vm?.DeleteLayer(node.Layer);
     }
 
     private void OnFeedOverrideCommit(object? s, RoutedEventArgs e)
     {
-        if (s is not TextBox tb || tb.Tag is not Layer layer) return;
+        if (s is not TextBox tb || tb.Tag is not LayerTreeItem node || node.Layer is null) return;
         var v = string.IsNullOrWhiteSpace(tb.Text) ? (double?)null
-              : double.TryParse(tb.Text, out var d) ? d : layer.FeedRateMmMinOverride;
-        Vm?.SetLayerFeedOverride(layer, v);
+              : double.TryParse(tb.Text, out var d) ? d : node.Layer.FeedRateMmMinOverride;
+        Vm?.SetLayerFeedOverride(node.Layer, v);
     }
 
     private void OnPowerOverrideCommit(object? s, RoutedEventArgs e)
     {
-        if (s is not TextBox tb || tb.Tag is not Layer layer) return;
+        if (s is not TextBox tb || tb.Tag is not LayerTreeItem node || node.Layer is null) return;
         var v = string.IsNullOrWhiteSpace(tb.Text) ? (double?)null
-              : double.TryParse(tb.Text, out var d) ? Math.Clamp(d, 0, 100) : layer.LaserPowerPercentOverride;
-        Vm?.SetLayerPowerOverride(layer, v);
+              : double.TryParse(tb.Text, out var d) ? Math.Clamp(d, 0, 100) : node.Layer.LaserPowerPercentOverride;
+        Vm?.SetLayerPowerOverride(node.Layer, v);
     }
 
     private void OnOverrideKeyDown(object? s, KeyEventArgs e)
     {
         if (e.Key != Key.Enter || s is not TextBox tb) return;
-        TopLevel.GetTopLevel(tb)?.Focus();   // move focus away → triggers LostFocus commit
+        TopLevel.GetTopLevel(tb)?.Focus();
         e.Handled = true;
+    }
+
+    // ── Layer re-ordering ─────────────────────────────────────────────────
+
+    private void OnMoveLayerUp(object? s, RoutedEventArgs e) => Vm?.MoveActiveLayerUp();
+    private void OnMoveLayerDown(object? s, RoutedEventArgs e) => Vm?.MoveActiveLayerDown();
+
+    // ── Group-node handlers ───────────────────────────────────────────────
+
+    private void OnGroupSelected(object? s, RoutedEventArgs e) => Vm?.GroupSelectedParts();
+
+    private void OnGroupNameCommit(object? s, RoutedEventArgs e)
+    {
+        if (s is TextBox tb && tb.Tag is LayerTreeItem node && node.Kind == LayerTreeNodeKind.Group)
+            Vm?.RenameTreeGroup(node, tb.Text ?? "");
+    }
+
+    private void OnGroupNameKeyDown(object? s, KeyEventArgs e)
+    {
+        if (e.Key == Key.Enter && s is TextBox tb && tb.Tag is LayerTreeItem node)
+        {
+            Vm?.RenameTreeGroup(node, tb.Text ?? "");
+            e.Handled = true;
+        }
+        else if (e.Key == Key.Escape) e.Handled = true;
+    }
+
+    private void OnUngroup(object? s, RoutedEventArgs e)
+    {
+        var node = TagFromSender<LayerTreeItem>(s);
+        if (node is not null) Vm?.UngroupTreeNode(node);
+    }
+
+    // ── Context menu handlers ─────────────────────────────────────────────
+
+    private void OnCtxDuplicate(object? s, RoutedEventArgs e)
+    {
+        var node = TagFromSender<LayerTreeItem>(s);
+        if (node?.Part is not null) Vm?.DuplicatePart(node.Part);
+    }
+
+    private void OnCtxDelete(object? s, RoutedEventArgs e)
+    {
+        var node = TagFromSender<LayerTreeItem>(s);
+        if (node?.Part is not null) Vm?.DeletePart(node.Part);
+    }
+
+    private async void OnCtxMoveToLayer(object? s, RoutedEventArgs e)
+    {
+        var node = TagFromSender<LayerTreeItem>(s);
+        if (node?.Part is null || Vm is null) return;
+
+        var layers = Vm.AllLayers;
+        var menu = new ContextMenu();
+        foreach (var layer in layers)
+        {
+            var item = new MenuItem { Header = layer.Name, Tag = layer };
+            item.Click += (_, _) => Vm.MovePartToLayerById(node.Part, layer.Id);
+            menu.Items.Add(item);
+        }
+        var anchor = TopLevel.GetTopLevel(this) as Control ?? this;
+        menu.Open(anchor);
+    }
+
+    private void OnCtxGroup(object? s, RoutedEventArgs e)
+    {
+        var node = TagFromSender<LayerTreeItem>(s);
+        if (node?.Part is not null)
+        {
+            // Select this part then group
+            Vm?.SelectTreePart(node);
+            Vm?.GroupSelectedParts();
+        }
+    }
+
+    private void OnCtxPopFromGroup(object? s, RoutedEventArgs e)
+    {
+        var node = TagFromSender<LayerTreeItem>(s);
+        if (node?.Part is not null)
+        {
+            node.Part.GroupId = null;
+            Vm?.RebuildLayerTreePublic();
+        }
+    }
+
+    /// <summary>Extracts the Tag from either a MenuItem or Button sender.</summary>
+    private static T? TagFromSender<T>(object? sender) where T : class
+    {
+        return sender switch
+        {
+            MenuItem mi => mi.Tag as T,
+            Button btn  => btn.Tag as T,
+            _           => null,
+        };
     }
 
     // ── No-go zones ───────────────────────────────────────────────────────
@@ -154,12 +263,7 @@ public partial class LayersPanel : UserControl
             zone.Label = tb.Text.Trim();
     }
 
-    private void OnZoneDimsCommit(object? s, RoutedEventArgs e)
-    {
-        // Binding is TwoWay — values update the model automatically.
-        // Trigger viewport redraw by notifying project changed.
-        Vm?.RefreshNoGoZones();
-    }
+    private void OnZoneDimsCommit(object? s, RoutedEventArgs e) => Vm?.RefreshNoGoZones();
 
     private void OnZoneKeyDown(object? s, KeyEventArgs e)
     {

@@ -48,6 +48,9 @@ public sealed class MainViewModel : ObservableObject
             // Selecting a part makes its layer the active drawing layer.
             if (value?.LayerId is { } lid) SetActiveLayer(lid);
             else UpdateActiveLayer();
+            // Sync tree selection highlight
+            foreach (var node in LayerTree)
+                node.IsSelected = node.Part is not null && node.Part == value;
         }
     }
 
@@ -102,6 +105,13 @@ public sealed class MainViewModel : ObservableObject
     public ObservableCollection<NoGoZone>      NoGoZones { get; } = [];
     /// <summary>Files panel data source — one row per standalone file or per group.</summary>
     public ObservableCollection<FileGroupItem> FileGroups { get; } = [];
+    /// <summary>Flat tree for the Layers panel — layers, groups, and parts in display order.</summary>
+    public ObservableCollection<LayerTreeItem> LayerTree { get; } = [];
+
+    // Persist expand state and user-assigned group names across Refresh() calls.
+    private readonly Dictionary<Guid, bool>   _layerExpanded = [];
+    private readonly Dictionary<Guid, bool>   _groupExpanded = [];
+    private readonly Dictionary<Guid, string> _groupNames    = [];
 
     public bool HasParts => Parts.Count > 0;
     public string PartCountText => $"{Parts.Count}";
@@ -529,6 +539,82 @@ public sealed class MainViewModel : ObservableObject
     {
         layer.LaserPowerPercentOverride = value;
         NotifyPartChanged();
+    }
+
+    public void MoveActiveLayerUp()
+    {
+        _projects.Mutate(p =>
+        {
+            var layer = p.Layers.FirstOrDefault(l => l.Id == _activeLayerId);
+            if (layer is null) return;
+            int idx = p.Layers.IndexOf(layer);
+            if (idx > 0)
+            {
+                p.Layers.RemoveAt(idx);
+                p.Layers.Insert(idx - 1, layer);
+            }
+        });
+        Refresh();
+    }
+
+    public void MoveActiveLayerDown()
+    {
+        _projects.Mutate(p =>
+        {
+            var layer = p.Layers.FirstOrDefault(l => l.Id == _activeLayerId);
+            if (layer is null) return;
+            int idx = p.Layers.IndexOf(layer);
+            if (idx < p.Layers.Count - 1)
+            {
+                p.Layers.RemoveAt(idx);
+                p.Layers.Insert(idx + 1, layer);
+            }
+        });
+        Refresh();
+    }
+
+    /// <summary>Move a part to a different layer.</summary>
+    public void MovePartToLayerById(Part part, Guid layerId)
+    {
+        part.LayerId = layerId;
+        RebuildLayerTree();
+        NotifyPartChanged();
+    }
+
+    /// <summary>Duplicate a part — creates a new placed instance offset by 5 mm.</summary>
+    public void DuplicatePart(Part part)
+    {
+        var file = _projects.With(p => p.Files.FirstOrDefault(f => f.Id == part.FileId));
+        if (file is null) return;
+        var newPart = new Part
+        {
+            FileId      = part.FileId,
+            X           = part.X + 5,
+            Y           = part.Y + 5,
+            RotationDeg = part.RotationDeg,
+            ScaleX      = part.ScaleX,
+            ScaleY      = part.ScaleY,
+            LayerId     = part.LayerId,
+        };
+        _projects.Mutate(p => p.Parts.Add(newPart));
+        Refresh();
+    }
+
+    /// <summary>Delete a single part (and its source file if it's the only user).</summary>
+    public void DeletePart(Part part)
+    {
+        _projects.Mutate(p =>
+        {
+            p.Parts.Remove(part);
+            // Remove orphaned file (no other parts reference it)
+            if (!p.Parts.Any(pt => pt.FileId == part.FileId))
+            {
+                var f = p.Files.FirstOrDefault(f => f.Id == part.FileId);
+                if (f is not null) { p.Files.Remove(f); Geometry.Remove(f.Id); }
+            }
+        });
+        if (SelectedPart == part) SelectedPart = null;
+        Refresh();
     }
 
     // ── Templates / library ──────────────────────────────────────────────
@@ -1024,10 +1110,205 @@ public sealed class MainViewModel : ObservableObject
             }
             return true;
         });
+        RebuildLayerTree();
         OnPropertyChanged(nameof(HasParts));
         OnPropertyChanged(nameof(PartCountText));
         ProjectChanged?.Invoke();
         UpdateActiveLayer();
+    }
+
+    // ── Layer tree (Inkscape-style objects panel) ──────────────────────────
+
+    private void RebuildLayerTree()
+    {
+        LayerTree.Clear();
+        var project = _projects.With(p => p);
+
+        foreach (var layer in project.Layers)
+        {
+            bool layerExp = _layerExpanded.GetValueOrDefault(layer.Id, true);
+            var layerNode = new LayerTreeItem
+            {
+                Kind       = LayerTreeNodeKind.Layer,
+                Layer      = layer,
+                Depth      = 0,
+                Visible    = layer.Visible,
+                IsExpanded = layerExp,
+                IsSelected = false,
+            };
+            LayerTree.Add(layerNode);
+
+            if (!layerExp) continue;
+
+            // Parts that belong to this layer (null LayerId → first layer)
+            bool isFirst = project.Layers.IndexOf(layer) == 0;
+            var layerParts = project.Parts
+                .Where(pt => pt.LayerId == layer.Id ||
+                             (pt.LayerId == null && isFirst))
+                .ToList();
+
+            var seenGroups = new HashSet<Guid>();
+            foreach (var part in layerParts)
+            {
+                var file = project.Files.FirstOrDefault(f => f.Id == part.FileId);
+                string partName = file?.DisplayName ?? "Part";
+
+                if (part.GroupId == null)
+                {
+                    // Ungrouped part — depth 1
+                    LayerTree.Add(new LayerTreeItem
+                    {
+                        Kind            = LayerTreeNodeKind.Part,
+                        Part            = part,
+                        Depth           = 1,
+                        PartDisplayName = partName,
+                        Visible         = file?.Visible ?? true,
+                        IsSelected      = part == _selectedPart,
+                    });
+                }
+                else
+                {
+                    var gid = part.GroupId.Value;
+                    if (!seenGroups.Add(gid)) continue; // group header already added
+
+                    bool groupExp = _groupExpanded.GetValueOrDefault(gid, true);
+                    string groupName = _groupNames.TryGetValue(gid, out var n) ? n
+                                     : (file != null
+                                        ? System.IO.Path.GetFileNameWithoutExtension(file.FileName)
+                                        : "Group");
+                    var groupNode = new LayerTreeItem
+                    {
+                        Kind       = LayerTreeNodeKind.Group,
+                        GroupId    = gid,
+                        GroupName  = groupName,
+                        Depth      = 1,
+                        Visible    = true,
+                        IsExpanded = groupExp,
+                    };
+                    LayerTree.Add(groupNode);
+
+                    if (!groupExp) continue;
+
+                    // Children of this group — depth 2
+                    foreach (var gpart in layerParts.Where(pt => pt.GroupId == gid))
+                    {
+                        var gfile = project.Files.FirstOrDefault(f => f.Id == gpart.FileId);
+                        LayerTree.Add(new LayerTreeItem
+                        {
+                            Kind            = LayerTreeNodeKind.Part,
+                            Part            = gpart,
+                            Depth           = 2,
+                            PartDisplayName = gfile?.DisplayName ?? "Part",
+                            Visible         = gfile?.Visible ?? true,
+                            IsSelected      = gpart == _selectedPart,
+                        });
+                    }
+                }
+            }
+        }
+    }
+
+    /// <summary>Public wrapper so the view can trigger a tree rebuild without a full Refresh.</summary>
+    public void RebuildLayerTreePublic() => RebuildLayerTree();
+
+    /// <summary>Toggle expand/collapse of a layer or group tree node.</summary>
+    public void ToggleTreeNodeExpanded(LayerTreeItem node)
+    {
+        node.IsExpanded = !node.IsExpanded;
+        if (node.Kind == LayerTreeNodeKind.Layer && node.Layer is not null)
+            _layerExpanded[node.Layer.Id] = node.IsExpanded;
+        else if (node.Kind == LayerTreeNodeKind.Group)
+            _groupExpanded[node.GroupId] = node.IsExpanded;
+        RebuildLayerTree();
+    }
+
+    /// <summary>Select a part from the tree — highlights it on the canvas.</summary>
+    public void SelectTreePart(LayerTreeItem node)
+    {
+        if (node.Part is null) return;
+        SelectedPart = node.Part;
+    }
+
+    /// <summary>Select all parts in a group when the group header is clicked.</summary>
+    public void SelectTreeGroup(LayerTreeItem node)
+    {
+        if (node.Kind != LayerTreeNodeKind.Group) return;
+        // Select first part in group as primary selection
+        var first = _projects.With(p => p.Parts.FirstOrDefault(pt => pt.GroupId == node.GroupId));
+        if (first is not null) SelectedPart = first;
+    }
+
+    /// <summary>Toggle visibility of a tree node's underlying model object.</summary>
+    public void ToggleTreeVisible(LayerTreeItem node)
+    {
+        if (node.Kind == LayerTreeNodeKind.Layer && node.Layer is not null)
+        {
+            node.Layer.Visible = !node.Layer.Visible;
+            node.Visible = node.Layer.Visible;
+        }
+        else if (node.Kind == LayerTreeNodeKind.Part)
+        {
+            var file = _projects.With(p => p.Files.FirstOrDefault(f => f.Id == node.Part?.FileId));
+            if (file is not null)
+            {
+                file.Visible = !file.Visible;
+                node.Visible = file.Visible;
+            }
+        }
+        else if (node.Kind == LayerTreeNodeKind.Group)
+        {
+            // Toggle all members of the group
+            var members = _projects.With(p =>
+                p.Parts.Where(pt => pt.GroupId == node.GroupId)
+                       .Select(pt => p.Files.FirstOrDefault(f => f.Id == pt.FileId))
+                       .Where(f => f is not null).ToList());
+            bool next = !members.Any(f => f!.Visible);
+            foreach (var f in members) if (f is not null) f.Visible = next;
+            node.Visible = next;
+        }
+        NotifyPartChanged();
+    }
+
+    /// <summary>Group the currently selected parts together under a named group.</summary>
+    public void GroupSelectedParts()
+    {
+        var selected = LayerTree.Where(n => n.IsSelected && n.Kind == LayerTreeNodeKind.Part).ToList();
+        if (selected.Count < 2)
+        {
+            // Also accept: all parts that are children of the same already-selected group
+            selected = LayerTree.Where(n => n.Kind == LayerTreeNodeKind.Part).ToList();
+            if (selected.Count < 2) return;
+        }
+        var newGroupId = Guid.NewGuid();
+        _groupNames[newGroupId] = "Group";
+        _groupExpanded[newGroupId] = true;
+        foreach (var node in selected)
+            if (node.Part is not null) node.Part.GroupId = newGroupId;
+        RebuildLayerTree();
+        NotifyPartChanged();
+    }
+
+    /// <summary>Ungroup all parts in the given group node.</summary>
+    public void UngroupTreeNode(LayerTreeItem groupNode)
+    {
+        if (groupNode.Kind != LayerTreeNodeKind.Group) return;
+        _projects.Mutate(p =>
+        {
+            foreach (var pt in p.Parts.Where(pt => pt.GroupId == groupNode.GroupId))
+                pt.GroupId = null;
+        });
+        _groupNames.Remove(groupNode.GroupId);
+        _groupExpanded.Remove(groupNode.GroupId);
+        RebuildLayerTree();
+        NotifyPartChanged();
+    }
+
+    /// <summary>Rename a group from the tree panel.</summary>
+    public void RenameTreeGroup(LayerTreeItem node, string name)
+    {
+        if (node.Kind != LayerTreeNodeKind.Group || string.IsNullOrWhiteSpace(name)) return;
+        _groupNames[node.GroupId] = name.Trim();
+        node.GroupName = name.Trim();
     }
 
     private void NotifyPartChanged()

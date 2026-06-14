@@ -102,3 +102,25 @@ public static class LayerEditorHelper
     public static LayerOperationMode[] OperationModes { get; } =
         Enum.GetValues<LayerOperationMode>();
 }
+
+/// <summary>bool IsActive → subtle accent background for the active layer row.</summary>
+public sealed class BoolToActiveLayerBgConverter : IValueConverter
+{
+    public static readonly BoolToActiveLayerBgConverter Instance = new();
+    private static readonly SolidColorBrush Active      = new(Color.FromArgb(0x22, 0x3b, 0x82, 0xf6));
+    private static readonly SolidColorBrush Transparent = new(Colors.Transparent);
+    public object Convert(object? v, Type t, object? p, CultureInfo c) =>
+        v is true ? Active : Transparent;
+    public object ConvertBack(object? v, Type t, object? p, CultureInfo c) =>
+        throw new NotSupportedException();
+}
+
+/// <summary>bool IsActive → left accent border thickness (3px left) vs none.</summary>
+public sealed class BoolToActiveLayerBorderConverter : IValueConverter
+{
+    public static readonly BoolToActiveLayerBorderConverter Instance = new();
+    public object Convert(object? v, Type t, object? p, CultureInfo c) =>
+        v is true ? new Avalonia.Thickness(3, 0, 0, 0) : new Avalonia.Thickness(0);
+    public object ConvertBack(object? v, Type t, object? p, CultureInfo c) =>
+        throw new NotSupportedException();
+}

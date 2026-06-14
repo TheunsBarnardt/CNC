@@ -39,7 +39,39 @@ public sealed class MainViewModel : ObservableObject
     public string ProjectName { get => _projectName; set => SetProperty(ref _projectName, value); }
 
     private Part? _selectedPart;
-    public Part? SelectedPart { get => _selectedPart; set => SetProperty(ref _selectedPart, value); }
+    public Part? SelectedPart
+    {
+        get => _selectedPart;
+        set
+        {
+            SetProperty(ref _selectedPart, value);
+            // Selecting a part makes its layer the active drawing layer.
+            if (value?.LayerId is { } lid) SetActiveLayer(lid);
+            else UpdateActiveLayer();
+        }
+    }
+
+    /// <summary>The layer where new shapes will be placed. Persists across deselect.</summary>
+    private Guid? _activeLayerId;
+
+    /// <summary>Make the given layer the active drawing context for new shapes.</summary>
+    public void SetActiveLayer(Guid id)
+    {
+        _activeLayerId = id;
+        UpdateActiveLayer();
+    }
+
+    private void UpdateActiveLayer()
+    {
+        foreach (var layer in Layers)
+            layer.IsActive = layer.Id == _activeLayerId;
+    }
+
+    /// <summary>Returns the active layer id, falling back to the first available layer.</summary>
+    private Guid? ActiveLayerId(Project p) =>
+        _activeLayerId is { } id && p.Layers.Any(l => l.Id == id)
+            ? id
+            : p.Layers.FirstOrDefault()?.Id;
 
     private bool _darkCanvas = true;
     public bool DarkCanvas { get => _darkCanvas; set => SetProperty(ref _darkCanvas, value); }
@@ -147,12 +179,9 @@ public sealed class MainViewModel : ObservableObject
             try
             {
                 var imported = _importer.Import(stream, file.Name);
-                _projects.Mutate(p =>
-                {
-                    p.Files.Add(imported);
-                    p.Parts.Add(PartPlacer.PlaceNew(p, imported));
-                });
-                RefreshGeometry(imported);
+                List<ImportedFile> subFiles = [];
+                _projects.Mutate(p => subFiles = SplitImportByLayer(p, imported, file.Name));
+                foreach (var sf in subFiles) RefreshGeometry(sf);
             }
             catch (Exception ex) { errors.Add($"{file.Name}: {ex.Message}"); }
         }
@@ -160,6 +189,60 @@ public sealed class MainViewModel : ObservableObject
         StatusText = errors.Count == 0
             ? $"Imported {picked.Count} file(s)"
             : $"Imported with {errors.Count} error(s): {string.Join("; ", errors)}";
+    }
+
+    /// <summary>
+    /// Splits an imported file by its embedded layer names (SVG/DXF) into one
+    /// ImportedFile+Part+Layer per distinct layer. All parts are anchored at the
+    /// same canvas position so multi-layer artwork stays aligned. Falls back to
+    /// a single part when the file has no layer metadata.
+    /// </summary>
+    private List<ImportedFile> SplitImportByLayer(Project p, ImportedFile imported, string fileName)
+    {
+        var groups = imported.Paths
+            .GroupBy(pg => string.IsNullOrEmpty(pg.Layer) ? null : pg.Layer)
+            .ToList();
+
+        bool hasLayers = groups.Count > 1 || groups[0].Key is not null;
+
+        if (!hasLayers)
+        {
+            p.Files.Add(imported);
+            var part = PartPlacer.PlaceNew(p, imported);
+            part.LayerId = ActiveLayerId(p);
+            p.Parts.Add(part);
+            return [imported];
+        }
+
+        // Multi-layer: create one sub-file+part per SVG/DXF layer.
+        // First part uses PlaceNew for auto-positioning; the rest share its X,Y
+        // so all layers stack on top of each other (same artwork, different operations).
+        var result = new List<ImportedFile>();
+        double? anchorX = null, anchorY = null;
+        var baseName = System.IO.Path.GetFileNameWithoutExtension(fileName);
+
+        foreach (var group in groups)
+        {
+            var layerName = group.Key ?? baseName;
+            var subFile = new ImportedFile
+            {
+                FileName    = imported.FileName,
+                DisplayName = layerName,
+                Kind        = imported.Kind,
+            };
+            foreach (var pg in group) subFile.Paths.Add(pg);
+
+            p.Files.Add(subFile);
+            var part = PartPlacer.PlaceNew(p, subFile);
+            if (anchorX.HasValue) { part.X = anchorX.Value; part.Y = anchorY!.Value; }
+            else                  { anchorX = part.X; anchorY = part.Y; }
+            var color = imported.LayerColors.GetValueOrDefault(layerName);
+            part.LayerId = CreatePartLayer(p, layerName, color).Id;
+            p.Parts.Add(part);
+            result.Add(subFile);
+        }
+
+        return result;
     }
 
     // ── New / Save / Load ─────────────────────────────────────────────────
@@ -317,15 +400,31 @@ public sealed class MainViewModel : ObservableObject
 
     // ── Layer operations ──────────────────────────────────────────────────
 
+    private static readonly string[] _layerColors = ["#3b82f6", "#10b981", "#f59e0b", "#ef4444", "#8b5cf6"];
+
+    /// <summary>Creates a new named layer inside an already-open Mutate block and returns it.</summary>
+    private static Layer CreatePartLayer(Project p, string name, string? color = null)
+    {
+        var layer = new Layer
+        {
+            Name  = name,
+            Color = color ?? _layerColors[p.Layers.Count % _layerColors.Length],
+        };
+        p.Layers.Add(layer);
+        return layer;
+    }
+
     public void AddLayer()
     {
-        var colors = new[] { "#3b82f6", "#10b981", "#f59e0b", "#ef4444", "#8b5cf6" };
         _projects.Mutate(p =>
         {
             int idx = p.Layers.Count;
-            p.Layers.Add(new Layer { Name = $"Layer {idx + 1}", Color = colors[idx % colors.Length] });
+            var newLayer = new Layer { Name = $"Layer {idx + 1}", Color = _layerColors[idx % _layerColors.Length] };
+            p.Layers.Add(newLayer);
+            _activeLayerId = newLayer.Id;
         });
         Refresh();
+        UpdateActiveLayer();
     }
 
     public void DeleteLayer(Layer layer)
@@ -644,6 +743,13 @@ public sealed class MainViewModel : ObservableObject
         CommitPartTransform(part, part.X, (Project.TableHeightMm - h) / 2, part.RotationDeg, part.ScaleX, part.ScaleY);
     }
 
+    /// <summary>Selects the first part belonging to the given layer so the user can see what's on it.</summary>
+    public void SelectLayerParts(Guid layerId)
+    {
+        var first = _projects.With(p => p.Parts.FirstOrDefault(pt => pt.LayerId == layerId));
+        SelectedPart = first;
+    }
+
     public void MoveSelectedToLayer(Guid layerId)
     {
         if (SelectedPart is null) return;
@@ -685,7 +791,13 @@ public sealed class MainViewModel : ObservableObject
         foreach (var pg in newPaths) newFile.Paths.Add(pg);
 
         Checkpoint();
-        _projects.Mutate(p => { p.Files.Add(newFile); p.Parts.Add(PartPlacer.PlaceNew(p, newFile)); });
+        _projects.Mutate(p =>
+        {
+            p.Files.Add(newFile);
+            var part = PartPlacer.PlaceNew(p, newFile);
+            part.LayerId = ActiveLayerId(p);
+            p.Parts.Add(part);
+        });
         RefreshGeometry(newFile);
         Refresh();
         StatusText = $"Offset applied — {newPaths.Count} path(s) created";
@@ -710,6 +822,7 @@ public sealed class MainViewModel : ObservableObject
         OnPropertyChanged(nameof(HasParts));
         OnPropertyChanged(nameof(PartCountText));
         ProjectChanged?.Invoke();
+        UpdateActiveLayer();
     }
 
     private void NotifyPartChanged()
@@ -734,12 +847,10 @@ public sealed class MainViewModel : ObservableObject
         try
         {
             var imported = _importer.Import(stream, fileName);
-            _projects.Mutate(p =>
-            {
-                p.Files.Add(imported);
-                p.Parts.Add(PartPlacer.PlaceNew(p, imported));
-            });
-            RefreshGeometry(imported);
+            List<ImportedFile> subFiles = [];
+            _projects.Mutate(p => subFiles = SplitImportByLayer(p, imported, fileName));
+            foreach (var sf in subFiles) RefreshGeometry(sf);
+            Refresh();
             StatusText = $"Imported {fileName}";
         }
         catch (Exception ex) { StatusText = $"Import failed: {ex.Message}"; }
@@ -755,6 +866,7 @@ public sealed class MainViewModel : ObservableObject
         {
             p.Files.Add(file);
             var part = PartPlacer.PlaceNew(p, file);
+            part.LayerId = ActiveLayerId(p);
             if (atX.HasValue) part.X = atX.Value;
             if (atY.HasValue) part.Y = atY.Value;
             p.Parts.Add(part);
@@ -772,6 +884,7 @@ public sealed class MainViewModel : ObservableObject
         {
             p.Files.Add(file);
             var part = PartPlacer.PlaceNew(p, file);
+            part.LayerId = ActiveLayerId(p);
             if (atX.HasValue) part.X = atX.Value - radiusMm;
             if (atY.HasValue) part.Y = atY.Value - radiusMm;
             p.Parts.Add(part);
@@ -789,6 +902,7 @@ public sealed class MainViewModel : ObservableObject
         {
             p.Files.Add(file);
             var part = PartPlacer.PlaceNew(p, file);
+            part.LayerId = ActiveLayerId(p);
             if (atX.HasValue) part.X = atX.Value;
             if (atY.HasValue) part.Y = atY.Value;
             p.Parts.Add(part);
@@ -806,6 +920,7 @@ public sealed class MainViewModel : ObservableObject
         {
             p.Files.Add(file);
             var part = PartPlacer.PlaceNew(p, file);
+            part.LayerId = ActiveLayerId(p);
             if (atX.HasValue) part.X = atX.Value - radiusMm;
             if (atY.HasValue) part.Y = atY.Value - radiusMm;
             p.Parts.Add(part);
@@ -823,6 +938,7 @@ public sealed class MainViewModel : ObservableObject
         {
             p.Files.Add(file);
             var part = PartPlacer.PlaceNew(p, file);
+            part.LayerId = ActiveLayerId(p);
             if (atX.HasValue) part.X = atX.Value - outerRadiusMm;
             if (atY.HasValue) part.Y = atY.Value - outerRadiusMm;
             p.Parts.Add(part);
@@ -839,7 +955,9 @@ public sealed class MainViewModel : ObservableObject
         _projects.Mutate(p =>
         {
             p.Files.Add(file);
-            p.Parts.Add(PartPlacer.PlaceNew(p, file));
+            var part = PartPlacer.PlaceNew(p, file);
+            part.LayerId = ActiveLayerId(p);
+            p.Parts.Add(part);
         });
         RefreshGeometry(file);
         Refresh();
@@ -852,12 +970,12 @@ public sealed class MainViewModel : ObservableObject
         double dx = x2 - x1, dy = y2 - y1;
         double len = Math.Sqrt(dx * dx + dy * dy);
         if (len < 0.5) return;
-        // ShapeGenerator creates a horizontal line; we create it then rotate
         var file = ShapeGenerator.CreateLine(len);
         _projects.Mutate(p =>
         {
             p.Files.Add(file);
             var part = PartPlacer.PlaceNew(p, file);
+            part.LayerId = ActiveLayerId(p);
             part.X = x1;
             part.Y = y1;
             part.RotationDeg = Math.Atan2(dy, dx) * 180 / Math.PI;
@@ -901,7 +1019,9 @@ public sealed class MainViewModel : ObservableObject
         _projects.Mutate(p =>
         {
             p.Files.Add(file);
-            p.Parts.Add(PartPlacer.PlaceNew(p, file));
+            var part = PartPlacer.PlaceNew(p, file);
+            part.LayerId = ActiveLayerId(p);
+            p.Parts.Add(part);
         });
         RefreshGeometry(file);
         Refresh();

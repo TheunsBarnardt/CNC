@@ -3,7 +3,7 @@
         x:Class="Desktop.Views.ColorPickerDialog"
         x:CompileBindings="False"
         Title="Pick Color"
-        Width="300" Height="200"
+        Width="320" SizeToContent="Height"
         WindowStartupLocation="CenterOwner"
         CanResize="False">
 

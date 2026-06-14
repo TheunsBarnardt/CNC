@@ -6,8 +6,10 @@
 
   <Border Background="{StaticResource Brush.Bg2}"
           BorderBrush="{StaticResource Brush.Border}"
-          BorderThickness="0,1,0,0"
-          Padding="8,3">
+          BorderThickness="1"
+          CornerRadius="8"
+          Padding="8,5"
+          BoxShadow="0 4 16 0 #55000000">
     <ScrollViewer HorizontalScrollBarVisibility="Auto"
                   VerticalScrollBarVisibility="Disabled">
       <StackPanel Orientation="Horizontal" Spacing="2" VerticalAlignment="Center">

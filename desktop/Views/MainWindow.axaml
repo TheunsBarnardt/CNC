@@ -152,9 +152,6 @@
         <!-- edit toolbar at bottom (visible only when part selected + edit mode) -->
         <toolbars:EditToolbar x:Name="EditBar" DockPanel.Dock="Bottom"/>
 
-        <!-- node edit toolbar at bottom (visible only in node edit mode) -->
-        <toolbars:NodeEditToolbar x:Name="NodeEditBar" DockPanel.Dock="Bottom"/>
-
         <!-- consolidated canvas controls bar -->
         <Border DockPanel.Dock="Bottom"
                 Background="{StaticResource Brush.Bg2}"
@@ -209,6 +206,12 @@
         <!-- canvas fills remaining space -->
         <Panel>
           <ctrl:ViewportControl x:Name="Viewport"/>
+
+          <!-- node edit toolbar — floating centered hover panel -->
+          <toolbars:NodeEditToolbar x:Name="NodeEditBar"
+                                   HorizontalAlignment="Center"
+                                   VerticalAlignment="Bottom"
+                                   Margin="0,0,0,16"/>
 
           <!-- status bar overlay -->
           <Border VerticalAlignment="Bottom" HorizontalAlignment="Left"

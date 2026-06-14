@@ -1,6 +1,7 @@
 using Avalonia.Controls;
 using Avalonia.Input;
 using Avalonia.Interactivity;
+using Avalonia.VisualTree;
 using Backend.Models;
 using Desktop.ViewModels;
 using Desktop.Views;
@@ -95,12 +96,15 @@ public partial class LayersPanel : UserControl
             Vm?.DeleteLayer(layer);
     }
 
-    /// <summary>Click on a layer row to assign the currently selected object to that layer.</summary>
-    public void OnLayerRowClick(object? s, RoutedEventArgs e)
+    /// <summary>Clicking a layer row makes it the active drawing layer and selects its parts.</summary>
+    private void OnLayerRowPressed(object? s, PointerPressedEventArgs e)
     {
-        if (Vm?.SelectedPart is null) return;
-        if (s is Button btn && btn.Tag is Layer layer)
-            Vm.MoveSelectedToLayer(layer.Id);
+        if (Vm is null) return;
+        if (s is Border border && border.Tag is Layer layer)
+        {
+            Vm.SetActiveLayer(layer.Id);
+            Vm.SelectLayerParts(layer.Id);
+        }
     }
 
     private void OnFeedOverrideCommit(object? s, RoutedEventArgs e)

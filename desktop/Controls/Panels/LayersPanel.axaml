@@ -37,143 +37,146 @@
       <ItemsControl x:Name="LayersList">
         <ItemsControl.ItemTemplate>
           <DataTemplate>
-            <Border Background="Transparent"
-                    BorderBrush="{StaticResource Brush.Border}"
+            <Border BorderBrush="{StaticResource Brush.Border}"
                     BorderThickness="0,0,0,1"
-                    Padding="8,5">
-              <Grid RowDefinitions="Auto,Auto">
+                    PointerPressed="OnLayerRowPressed"
+                    Tag="{Binding}">
+              <!-- active-layer highlight: accent left strip + subtle tint -->
+              <Border Padding="8,4"
+                      Background="{Binding IsActive, Converter={x:Static conv:BoolToActiveLayerBgConverter.Instance}}"
+                      BorderBrush="{Binding Color}"
+                      BorderThickness="{Binding IsActive, Converter={x:Static conv:BoolToActiveLayerBorderConverter.Instance}}">
 
-                <!-- main row: swatch · name · mode · lock · eye · delete -->
-                <Grid Grid.Row="0"
-                      ColumnDefinitions="14,*,90,22,22,22"
-                      VerticalAlignment="Center">
+              <!-- single compact row: ● Name  [Cut▾] [⚙] [👁] [🔒] [✕] -->
+              <Grid ColumnDefinitions="18,*,72,22,22,22,22"
+                    VerticalAlignment="Center">
 
-                  <!-- colour swatch -->
-                  <Button Grid.Column="0"
-                          Width="14" Height="14"
-                          Padding="0"
-                          Margin="0,0,6,0"
-                          Background="{Binding Color}"
-                          CornerRadius="{StaticResource Radius.Sm}"
-                          ToolTip.Tip="Change layer color"
-                          Click="OnChangeColor"
-                          Tag="{Binding}"/>
+                <!-- colour swatch (clickable to pick color) -->
+                <Button Grid.Column="0"
+                        Width="12" Height="12"
+                        Padding="0"
+                        Margin="2,0,6,0"
+                        Background="{Binding Color}"
+                        CornerRadius="6"
+                        ToolTip.Tip="Change layer color"
+                        Click="OnChangeColor"
+                        Tag="{Binding}"/>
 
-                  <!-- layer name (inline edit, commits on Enter or focus-lost) -->
-                  <TextBox Grid.Column="1"
-                           Text="{Binding Name, Mode=TwoWay}"
-                           Background="Transparent"
-                           BorderThickness="0"
-                           Padding="4,0"
-                           VerticalAlignment="Center"
-                           FontSize="{StaticResource Font.Md}"
-                           Foreground="{StaticResource Brush.Text}"
-                           LostFocus="OnNameCommit"
-                           KeyDown="OnNameKeyDown"
-                           Tag="{Binding}"/>
+                <!-- layer name (inline edit) -->
+                <TextBox Grid.Column="1"
+                         Text="{Binding Name, Mode=TwoWay}"
+                         Background="Transparent"
+                         BorderThickness="0"
+                         Padding="2,0"
+                         VerticalAlignment="Center"
+                         FontSize="{StaticResource Font.Md}"
+                         Foreground="{StaticResource Brush.Text}"
+                         LostFocus="OnNameCommit"
+                         KeyDown="OnNameKeyDown"
+                         Tag="{Binding}"/>
 
-                  <!-- operation mode — click cycles Cut→Score→Engrave -->
-                  <Button Grid.Column="2"
-                          Height="20"
-                          HorizontalAlignment="Stretch"
-                          HorizontalContentAlignment="Center"
-                          FontSize="{StaticResource Font.Xs}"
-                          Foreground="{StaticResource Brush.TextMuted}"
-                          Background="{StaticResource Brush.Bg3}"
-                          BorderBrush="{StaticResource Brush.Border}"
-                          BorderThickness="1"
-                          CornerRadius="{StaticResource Radius.Sm}"
-                          Padding="4,0"
-                          Content="{Binding OperationMode}"
-                          Click="OnCycleOperationMode"
-                          Tag="{Binding}"
-                          ToolTip.Tip="Click to toggle Cut / Score / Engrave"/>
+                <!-- operation mode — click cycles Cut→Score→Engrave -->
+                <Button Grid.Column="2"
+                        Height="18"
+                        Margin="2,0"
+                        HorizontalAlignment="Stretch"
+                        HorizontalContentAlignment="Center"
+                        FontSize="{StaticResource Font.Xs}"
+                        Foreground="{StaticResource Brush.TextMuted}"
+                        Background="{StaticResource Brush.Bg3}"
+                        BorderBrush="{StaticResource Brush.Border}"
+                        BorderThickness="1"
+                        CornerRadius="{StaticResource Radius.Sm}"
+                        Padding="4,0"
+                        Content="{Binding OperationMode}"
+                        Click="OnCycleOperationMode"
+                        Tag="{Binding}"
+                        ToolTip.Tip="Click to toggle Cut / Score / Engrave"/>
 
-                  <!-- lock -->
-                  <Button Grid.Column="3"
-                          Theme="{StaticResource Btn.Icon}"
-                          Width="22" Height="22"
-                          ToolTip.Tip="Lock / unlock layer"
-                          Click="OnToggleLock"
-                          Tag="{Binding}">
-                    <PathIcon Data="{Binding Locked, Converter={x:Static conv:LockIconConverter.Instance}}"
-                              Width="13" Height="13"/>
-                  </Button>
+                <!-- settings gear — opens feed/power flyout -->
+                <Button Grid.Column="3"
+                        Theme="{StaticResource Btn.Icon}"
+                        Width="22" Height="22"
+                        ToolTip.Tip="Layer settings (feed rate, power)"
+                        Tag="{Binding}">
+                  <PathIcon Data="{StaticResource Icon.Sliders}" Width="12" Height="12"/>
+                  <Button.Flyout>
+                    <Flyout Placement="Left">
+                      <Border Background="{StaticResource Brush.Bg2}"
+                              BorderBrush="{StaticResource Brush.Border}"
+                              BorderThickness="1"
+                              CornerRadius="6"
+                              Padding="12,10">
+                        <StackPanel Spacing="8" Width="180">
+                          <TextBlock Text="{Binding Name}"
+                                     FontSize="{StaticResource Font.Sm}"
+                                     Foreground="{StaticResource Brush.TextMuted}"/>
+                          <Grid ColumnDefinitions="60,*" RowDefinitions="Auto,8,Auto">
+                            <TextBlock Grid.Row="0" Grid.Column="0" Text="Feed (mm/min)"
+                                       FontSize="{StaticResource Font.Xs}" Classes="muted"
+                                       VerticalAlignment="Center"/>
+                            <TextBox Grid.Row="0" Grid.Column="1"
+                                     Height="24" FontSize="{StaticResource Font.Xs}"
+                                     PlaceholderText="global"
+                                     Text="{Binding FeedRateMmMinOverride}"
+                                     ToolTip.Tip="Feed-rate override mm/min (blank = global)"
+                                     LostFocus="OnFeedOverrideCommit"
+                                     KeyDown="OnOverrideKeyDown"
+                                     Tag="{Binding}"/>
+                            <TextBlock Grid.Row="2" Grid.Column="0" Text="Power %"
+                                       FontSize="{StaticResource Font.Xs}" Classes="muted"
+                                       VerticalAlignment="Center"/>
+                            <TextBox Grid.Row="2" Grid.Column="1"
+                                     Height="24" FontSize="{StaticResource Font.Xs}"
+                                     PlaceholderText="global"
+                                     Text="{Binding LaserPowerPercentOverride}"
+                                     ToolTip.Tip="Laser power override % (blank = global)"
+                                     LostFocus="OnPowerOverrideCommit"
+                                     KeyDown="OnOverrideKeyDown"
+                                     Tag="{Binding}"/>
+                          </Grid>
+                        </StackPanel>
+                      </Border>
+                    </Flyout>
+                  </Button.Flyout>
+                </Button>
 
-                  <!-- visibility -->
-                  <Button Grid.Column="4"
-                          Theme="{StaticResource Btn.Icon}"
-                          Width="22" Height="22"
-                          ToolTip.Tip="Toggle visibility"
-                          Click="OnToggleVisible"
-                          Tag="{Binding}">
-                    <PathIcon Data="{Binding Visible, Converter={x:Static conv:VisibilityIconConverter.Instance}}"
-                              Width="15" Height="15"/>
-                  </Button>
+                <!-- visibility -->
+                <Button Grid.Column="4"
+                        Theme="{StaticResource Btn.Icon}"
+                        Width="22" Height="22"
+                        ToolTip.Tip="Toggle visibility"
+                        Click="OnToggleVisible"
+                        Tag="{Binding}">
+                  <PathIcon Data="{Binding Visible, Converter={x:Static conv:VisibilityIconConverter.Instance}}"
+                            Width="14" Height="14"/>
+                </Button>
 
-                  <!-- move selected object to this layer (only visible when an object is selected) -->
-                  <Button Grid.Column="5"
-                          Theme="{StaticResource Btn.Icon}"
-                          Width="22" Height="22"
-                          Foreground="{StaticResource Brush.Accent}"
-                          ToolTip.Tip="Move selected object to this layer"
-                          Click="OnLayerRowClick"
-                          Tag="{Binding}"
-                          IsVisible="{Binding DataContext.SelectedPart,
-                                              RelativeSource={RelativeSource AncestorType=UserControl},
-                                              Converter={x:Static conv:NotNullConverter.Instance}}">
-                    <PathIcon Data="{StaticResource Icon.ArrowLeft}" Width="13" Height="13"/>
-                  </Button>
+                <!-- lock -->
+                <Button Grid.Column="5"
+                        Theme="{StaticResource Btn.Icon}"
+                        Width="22" Height="22"
+                        ToolTip.Tip="Lock / unlock layer"
+                        Click="OnToggleLock"
+                        Tag="{Binding}">
+                  <PathIcon Data="{Binding Locked, Converter={x:Static conv:LockIconConverter.Instance}}"
+                            Width="12" Height="12"/>
+                </Button>
 
-                  <!-- delete (hidden when an object is selected so the assign button takes its spot) -->
-                  <Button Grid.Column="5"
-                          Theme="{StaticResource Btn.Icon}"
-                          Width="22" Height="22"
-                          Foreground="{StaticResource Brush.Danger}"
-                          ToolTip.Tip="Delete layer"
-                          Click="OnDeleteLayer"
-                          Tag="{Binding}"
-                          IsVisible="{Binding DataContext.SelectedPart,
-                                              RelativeSource={RelativeSource AncestorType=UserControl},
-                                              Converter={x:Static conv:NullConverter.Instance}}">
-                    <PathIcon Data="{StaticResource Icon.Close}" Width="13" Height="13"/>
-                  </Button>
-                </Grid>
-
-                <!-- override row: per-layer feed + laser power -->
-                <StackPanel Grid.Row="1"
-                            Orientation="Horizontal"
-                            Spacing="4"
-                            Margin="20,3,0,1">
-                  <TextBlock Text="Feed"
-                             Classes="muted"
-                             FontSize="{StaticResource Font.Xs}"
-                             VerticalAlignment="Center"/>
-                  <TextBox Width="58" Height="20"
-                           FontSize="{StaticResource Font.Xs}"
-                           Watermark="global"
-                           ToolTip.Tip="Feed-rate override mm/min (blank = global)"
-                           LostFocus="OnFeedOverrideCommit"
-                           KeyDown="OnOverrideKeyDown"
-                           Tag="{Binding}"
-                           x:Name="TbFeed"/>
-                  <TextBlock Text="Pwr%"
-                             Classes="muted"
-                             FontSize="{StaticResource Font.Xs}"
-                             VerticalAlignment="Center"
-                             Margin="4,0,0,0"/>
-                  <TextBox Width="44" Height="20"
-                           FontSize="{StaticResource Font.Xs}"
-                           Watermark="global"
-                           ToolTip.Tip="Laser power override % (blank = global)"
-                           LostFocus="OnPowerOverrideCommit"
-                           KeyDown="OnOverrideKeyDown"
-                           Tag="{Binding}"
-                           x:Name="TbPwr"/>
-                </StackPanel>
-
+                <!-- delete -->
+                <Button Grid.Column="6"
+                        Theme="{StaticResource Btn.Icon}"
+                        Width="22" Height="22"
+                        Foreground="{StaticResource Brush.Danger}"
+                        ToolTip.Tip="Delete layer"
+                        Click="OnDeleteLayer"
+                        Tag="{Binding}">
+                  <PathIcon Data="{StaticResource Icon.Close}" Width="11" Height="11"/>
+                </Button>
               </Grid>
-            </Border>
+
+              </Border><!-- /inner active-highlight Border -->
+            </Border><!-- /outer row Border -->
           </DataTemplate>
         </ItemsControl.ItemTemplate>
       </ItemsControl>

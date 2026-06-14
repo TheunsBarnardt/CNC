@@ -194,6 +194,14 @@ public sealed class ViewportControl : Control
     private double ToWX(float sx)     => (sx - _tx) / _scale;
     private double ToWY(float sy)     => (Bounds.Height - sy - _ty) / _scale;
 
+    /// <summary>Parse "#rrggbb" into SKColor. Returns null for invalid / empty strings.</summary>
+    private static SKColor? ParseHexColor(string? hex)
+    {
+        if (hex is null || hex.Length != 7 || hex[0] != '#') return null;
+        if (!int.TryParse(hex[1..], System.Globalization.NumberStyles.HexNumber, null, out int rgb)) return null;
+        return new SKColor((byte)(rgb >> 16), (byte)((rgb >> 8) & 0xff), (byte)(rgb & 0xff));
+    }
+
     // ── handle hit-testing ────────────────────────────────────────────────
 
     /// <summary>Returns handle index 0-7 if pointer is over a resize handle, else -1.</summary>
@@ -908,7 +916,8 @@ public sealed class ViewportControl : Control
             bool selected  = part.Id == _selectedId;
             bool isCutout  = part.IsCutout;
             bool outBounds = IsOutOfBounds(part, geom);
-            SKColor strokeCol = outBounds ? colRed : selected ? colPrim : colCyan;
+            SKColor layerCol = ParseHexColor(layer?.Color) ?? colCyan;
+            SKColor strokeCol = outBounds ? colRed : selected ? colPrim : layerCol;
             var pivot = LocalCenter(geom);
 
             foreach (var pg in geom)

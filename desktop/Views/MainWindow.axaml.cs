@@ -203,6 +203,9 @@ public partial class MainWindow : Window
                 vm.CreateStar(5, r, r * 0.45, x1, y1);
                 break;
         }
+
+        // Deactivate draw tool after single use
+        ClearDrawTool();
     }
 
     // ── tab switching ─────────────────────────────────────────────────────

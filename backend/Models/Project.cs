@@ -106,6 +106,9 @@ public sealed class ImportedFile : Observable
     /// <summary>Warnings produced during import (unsupported entities etc.).</summary>
     public List<string> Warnings { get; init; } = [];
 
+    /// <summary>Per-layer color extracted from SVG/DXF (layer name → hex string like "#ff0000").</summary>
+    public Dictionary<string, string> LayerColors { get; } = new();
+
     /// <summary>Axis-aligned bounding box of all paths in local file coordinates (mm).</summary>
     public (double X, double Y, double Width, double Height) BoundingBox
     {
@@ -222,6 +225,9 @@ public sealed class Layer : Observable
     public double? FeedRateMmMinOverride { get; set; }
     /// <summary>Per-layer laser power override (0–100 %). Null = use global CAM setting.</summary>
     public double? LaserPowerPercentOverride { get; set; }
+    /// <summary>True when the currently selected part belongs to this layer. Set by the VM — UI only.</summary>
+    private bool _isActive;
+    public bool IsActive { get => _isActive; set => SetField(ref _isActive, value); }
 }
 
 /// <summary>

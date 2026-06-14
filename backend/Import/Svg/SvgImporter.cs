@@ -21,7 +21,8 @@ public sealed class SvgImporter : IFileImporter
 {
     public IReadOnlySet<string> Extensions { get; } = new HashSet<string> { ".svg" };
 
-    private static readonly XNamespace Ns = "http://www.w3.org/2000/svg";
+    private static readonly XNamespace Ns       = "http://www.w3.org/2000/svg";
+    private static readonly XNamespace Inkscape = "http://www.inkscape.org/namespaces/inkscape";
 
     public ImportedFile Import(Stream content, string fileName)
     {
@@ -53,7 +54,7 @@ public sealed class SvgImporter : IFileImporter
 
         // Collect raw subpaths (user units, Y-down, CTM applied).
         var collected = new List<(string? Layer, List<Point2> Points, bool Closed)>();
-        Walk(root, SvgMatrix.Identity, layer: null, tolUser, collected, file.Warnings);
+        Walk(root, SvgMatrix.Identity, layer: null, tolUser, collected, file.Warnings, file.LayerColors);
 
         if (collected.Count == 0)
         {
@@ -102,7 +103,8 @@ public sealed class SvgImporter : IFileImporter
         string? layer,
         double tolUser,
         List<(string?, List<Point2>, bool)> sink,
-        List<string> warnings)
+        List<string> warnings,
+        Dictionary<string, string> layerColors)
     {
         var local = ctm.Multiply(SvgMatrix.Parse(element.Attribute("transform")?.Value));
         string name = element.Name.LocalName;
@@ -110,17 +112,30 @@ public sealed class SvgImporter : IFileImporter
         switch (name)
         {
             case "svg" or "a":
-                foreach (var child in element.Elements()) Walk(child, local, layer, tolUser, sink, warnings);
+                foreach (var child in element.Elements()) Walk(child, local, layer, tolUser, sink, warnings, layerColors);
                 return;
             case "g":
-                // Group id (or Inkscape label) doubles as a "layer" for later
-                // per-layer operation assignment.
-                string? groupLayer =
-                    element.Attributes().FirstOrDefault(a => a.Name.LocalName == "label")?.Value
-                    ?? element.Attribute("id")?.Value
-                    ?? layer;
-                foreach (var child in element.Elements()) Walk(child, local, groupLayer, tolUser, sink, warnings);
+            {
+                // Only Inkscape layer groups (inkscape:groupmode="layer") define a new
+                // layer boundary. Plain <g> groups are just transforms/grouping and
+                // keep the current layer name so sub-paths stay on the right layer.
+                bool isLayer = element.Attribute(Inkscape + "groupmode")?.Value == "layer";
+                string? groupLayer = isLayer
+                    ? (element.Attributes().FirstOrDefault(a => a.Name.LocalName == "label")?.Value
+                       ?? element.Attribute("id")?.Value
+                       ?? layer)
+                    : layer;
+
+                // Extract the dominant fill/stroke color from this Inkscape layer.
+                if (isLayer && groupLayer is not null && !layerColors.ContainsKey(groupLayer))
+                {
+                    var col = ExtractGroupColor(element);
+                    if (col is not null) layerColors[groupLayer] = col;
+                }
+
+                foreach (var child in element.Elements()) Walk(child, local, groupLayer, tolUser, sink, warnings, layerColors);
                 return;
+            }
             // Non-rendered containers and metadata.
             case "defs" or "symbol" or "clipPath" or "mask" or "marker" or "pattern"
                 or "metadata" or "title" or "desc" or "style" or "filter"
@@ -332,5 +347,53 @@ public sealed class SvgImporter : IFileImporter
             }
         }
         return (minX, minY, Math.Max(1e-9, maxX - minX), Math.Max(1e-9, maxY - minY));
+    }
+
+    // ── Color extraction helpers ──────────────────────────────────────────
+
+    /// <summary>Returns the first non-neutral hex fill or stroke color found in
+    /// the group's descendant shapes. Used to colour project layers from SVG layers.</summary>
+    private static string? ExtractGroupColor(XElement group)
+    {
+        foreach (var el in group.Descendants())
+        {
+            string eName = el.Name.LocalName;
+            if (eName is not ("path" or "rect" or "circle" or "ellipse" or "line" or "polyline" or "polygon"))
+                continue;
+            var color = ParseElementColor(el, "fill") ?? ParseElementColor(el, "stroke");
+            if (color is not null) return color;
+        }
+        return null;
+    }
+
+    private static string? ParseElementColor(XElement el, string prop)
+    {
+        // Inline style takes priority over attribute.
+        string? value = GetStyleProp(el.Attribute("style")?.Value, prop)
+                     ?? el.Attribute(prop)?.Value?.Trim();
+        if (string.IsNullOrEmpty(value) || value == "none") return null;
+        // Only accept hex colours; skip "black", "white", rgb(), url() etc.
+        if (!value.StartsWith('#')) return null;
+        // Expand 3-digit shorthand → 6-digit.
+        if (value.Length == 4)
+            value = $"#{value[1]}{value[1]}{value[2]}{value[2]}{value[3]}{value[3]}";
+        if (value.Length != 7) return null;
+        // Skip near-black and near-white.
+        if (value.Equals("#000000", StringComparison.OrdinalIgnoreCase)) return null;
+        if (value.Equals("#ffffff", StringComparison.OrdinalIgnoreCase)) return null;
+        return value.ToLowerInvariant();
+    }
+
+    private static string? GetStyleProp(string? style, string prop)
+    {
+        if (style is null) return null;
+        foreach (var part in style.Split(';'))
+        {
+            var idx = part.IndexOf(':');
+            if (idx < 0) continue;
+            if (part[..idx].Trim().Equals(prop, StringComparison.OrdinalIgnoreCase))
+                return part[(idx + 1)..].Trim();
+        }
+        return null;
     }
 }

@@ -104,22 +104,42 @@
 
           <!-- X/Y jog grid -->
           <Grid ColumnDefinitions="36,36,36" RowDefinitions="36,36,36" HorizontalAlignment="Center">
-            <Button Grid.Row="0" Grid.Column="1" Content="▲" Theme="{StaticResource Btn.Ghost}"
-                    Click="OnJog" Tag="Y+"/>
-            <Button Grid.Row="1" Grid.Column="0" Content="◀" Theme="{StaticResource Btn.Ghost}"
-                    Click="OnJog" Tag="X-"/>
-            <Button Grid.Row="1" Grid.Column="1" Content="⌂" Theme="{StaticResource Btn.Icon}"
-                    Click="OnHome" ToolTip.Tip="Go home"/>
-            <Button Grid.Row="1" Grid.Column="2" Content="▶" Theme="{StaticResource Btn.Ghost}"
-                    Click="OnJog" Tag="X+"/>
-            <Button Grid.Row="2" Grid.Column="1" Content="▼" Theme="{StaticResource Btn.Ghost}"
-                    Click="OnJog" Tag="Y-"/>
+            <Button Grid.Row="0" Grid.Column="1" Theme="{StaticResource Btn.Ghost}"
+                    Click="OnJog" Tag="Y+" ToolTip.Tip="Y+">
+              <PathIcon Data="{StaticResource Icon.Front}" Width="16" Height="16"/>
+            </Button>
+            <Button Grid.Row="1" Grid.Column="0" Theme="{StaticResource Btn.Ghost}"
+                    Click="OnJog" Tag="X-" ToolTip.Tip="X-">
+              <PathIcon Data="M11,5 L4,12 L11,19 V14 H20 V10 H11 Z" Width="16" Height="16"/>
+            </Button>
+            <Button Grid.Row="1" Grid.Column="1" Theme="{StaticResource Btn.Icon}"
+                    Click="OnHome" ToolTip.Tip="Home">
+              <PathIcon Data="M2,12 L12,3 L22,12 V19 H18 V14 H6 V19 H2 Z" Width="18" Height="18"/>
+            </Button>
+            <Button Grid.Row="1" Grid.Column="2" Theme="{StaticResource Btn.Ghost}"
+                    Click="OnJog" Tag="X+" ToolTip.Tip="X+">
+              <PathIcon Data="M13,5 L20,12 L13,19 V14 H4 V10 H13 Z" Width="16" Height="16"/>
+            </Button>
+            <Button Grid.Row="2" Grid.Column="1" Theme="{StaticResource Btn.Ghost}"
+                    Click="OnJog" Tag="Y-" ToolTip.Tip="Y-">
+              <PathIcon Data="{StaticResource Icon.Back}" Width="16" Height="16"/>
+            </Button>
           </Grid>
 
           <!-- Z jog -->
           <StackPanel Orientation="Horizontal" HorizontalAlignment="Center" Spacing="6">
-            <Button Content="Z▲" Theme="{StaticResource Btn.Ghost}" Click="OnJog" Tag="Z+" Width="48"/>
-            <Button Content="Z▼" Theme="{StaticResource Btn.Ghost}" Click="OnJog" Tag="Z-" Width="48"/>
+            <Button Theme="{StaticResource Btn.Ghost}" Click="OnJog" Tag="Z+" Width="48" ToolTip.Tip="Z Up">
+              <StackPanel Orientation="Horizontal" Spacing="4" HorizontalAlignment="Center">
+                <TextBlock Text="Z" VerticalAlignment="Center"/>
+                <PathIcon Data="{StaticResource Icon.Front}" Width="12" Height="12"/>
+              </StackPanel>
+            </Button>
+            <Button Theme="{StaticResource Btn.Ghost}" Click="OnJog" Tag="Z-" Width="48" ToolTip.Tip="Z Down">
+              <StackPanel Orientation="Horizontal" Spacing="4" HorizontalAlignment="Center">
+                <TextBlock Text="Z" VerticalAlignment="Center"/>
+                <PathIcon Data="{StaticResource Icon.Back}" Width="12" Height="12"/>
+              </StackPanel>
+            </Button>
           </StackPanel>
 
           <!-- Home / Set Zero -->
@@ -141,27 +161,50 @@
                 IsVisible="{Binding Machine.IsConnected}"
                 Margin="8,6,8,0">
         <StackPanel Spacing="8">
-          <!-- run + feed hold + resume -->
+          <!-- run + feed hold + resume + stop -->
           <StackPanel Orientation="Horizontal" Spacing="6">
             <Button x:Name="BtnRun"
-                    Content="▶ Run"
                     Theme="{StaticResource Btn.Primary}"
                     Click="OnRun"
-                    Padding="10,5"
-                    IsEnabled="{Binding !Machine.IsJobRunning}"/>
-            <Button Content="⏸ Hold"
-                    Theme="{StaticResource Btn.Ghost}"
+                    Padding="12,6"
+                    IsEnabled="{Binding !Machine.IsJobRunning}"
+                    HorizontalContentAlignment="Center">
+              <StackPanel Orientation="Horizontal" Spacing="6">
+                <PathIcon Data="{StaticResource Icon.Play}" Width="14" Height="14"/>
+                <TextBlock Text="Run" VerticalAlignment="Center"/>
+              </StackPanel>
+            </Button>
+            <Button Theme="{StaticResource Btn.Ghost}"
                     Click="OnFeedHold"
-                    Padding="10,5"/>
-            <Button Content="▷ Resume"
-                    Theme="{StaticResource Btn.Ghost}"
+                    Padding="12,6"
+                    HorizontalContentAlignment="Center"
+                    ToolTip.Tip="Feed hold">
+              <StackPanel Orientation="Horizontal" Spacing="6">
+                <PathIcon Data="{StaticResource Icon.Pause}" Width="14" Height="14"/>
+                <TextBlock Text="Hold" VerticalAlignment="Center"/>
+              </StackPanel>
+            </Button>
+            <Button Theme="{StaticResource Btn.Ghost}"
                     Click="OnResume"
-                    Padding="10,5"/>
-            <Button Content="■ Stop"
-                    Theme="{StaticResource Btn.Danger}"
+                    Padding="12,6"
+                    HorizontalContentAlignment="Center"
+                    ToolTip.Tip="Resume">
+              <StackPanel Orientation="Horizontal" Spacing="6">
+                <PathIcon Data="{StaticResource Icon.Play}" Width="14" Height="14"/>
+                <TextBlock Text="Resume" VerticalAlignment="Center"/>
+              </StackPanel>
+            </Button>
+            <Button Theme="{StaticResource Btn.Danger}"
                     Click="OnStop"
-                    Padding="10,5"
-                    IsEnabled="{Binding Machine.IsJobRunning}"/>
+                    Padding="12,6"
+                    IsEnabled="{Binding Machine.IsJobRunning}"
+                    HorizontalContentAlignment="Center"
+                    ToolTip.Tip="Stop job">
+              <StackPanel Orientation="Horizontal" Spacing="6">
+                <PathIcon Data="{StaticResource Icon.Stop}" Width="14" Height="14"/>
+                <TextBlock Text="Stop" VerticalAlignment="Center"/>
+              </StackPanel>
+            </Button>
           </StackPanel>
 
           <!-- progress -->
@@ -180,15 +223,17 @@
           </TextBlock>
 
           <!-- E-STOP -->
-          <Button Content="⚡ E-STOP"
-                  Background="{StaticResource Brush.Danger}"
-                  Foreground="White"
-                  FontWeight="Bold"
+          <Button Theme="{StaticResource Btn.Danger}"
+                  Click="OnEStop"
                   HorizontalAlignment="Stretch"
                   HorizontalContentAlignment="Center"
-                  Height="40"
-                  Theme="{StaticResource Btn.Danger}"
-                  Click="OnEStop"/>
+                  Height="44"
+                  Padding="12,8">
+            <StackPanel Orientation="Horizontal" Spacing="8" HorizontalAlignment="Center">
+              <Ellipse Width="12" Height="12" Fill="{StaticResource Brush.AccentFg}"/>
+              <TextBlock Text="E-STOP" FontWeight="Bold" VerticalAlignment="Center"/>
+            </StackPanel>
+          </Button>
         </StackPanel>
       </Expander>
 

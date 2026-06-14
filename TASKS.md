@@ -698,6 +698,44 @@ Deferred: text tool still disabled; stacking order / contour offset still `// TO
 
 ---
 
+## Machine Control Panel — Functional Implementation
+
+### [x] Task 22 — Device panel with jog controls, machine state, and resizable layout
+
+**Status:** ✅ VERIFIED
+
+**Scope:**
+1. **Resizable panel splitter** — drag border between viewport and right panel to adjust width
+2. **Functional Device panel** with real machine control:
+   - **Jog controls**: X/Y/Z movement buttons + step-size selector
+   - **Feed/Speed**: editable feed rate input
+   - **Machine state**: Run / Hold / Resume / Stop buttons (tied to `IMachineConnection`)
+   - **E-STOP**: prominent red button (safety-critical)
+   - **Utilities**: Home all, Set Zero, Unlock buttons
+   - **Status readout**: Current position (X/Y/Z), machine state indicator
+3. **Backend wiring**: connect UI controls to `IMachineConnection` interface:
+   - Jog requests → machine.JogAsync(axis, distance, feedRate)
+   - Run → machine.RunAsync()
+   - Hold → machine.HoldAsync()
+   - Resume → machine.ResumeAsync()
+   - Stop → machine.StopAsync()
+   - E-STOP → machine.EmergencyStop() (sync, no async)
+4. **Safety rules**:
+   - E-STOP always available and responsive (not disabled by any other state)
+   - Bounds checking before jog (don't allow moves outside table)
+   - No motion without explicit user action
+   - Visual feedback: button state changes with machine state
+
+**Implementation plan:**
+1. Add `ISplitter` control (DockPanel with adjustable borders) or manually add GridSplitter to MainWindow
+2. Update DevicePanel.axaml with machine control UI (jog grid, buttons, inputs)
+3. Wire DevicePanel code-behind to machine connection methods
+4. Add machine state binding to reflect real status
+5. Test: jog all axes, run/hold/resume/stop transitions, E-STOP always responsive
+6. Commit: "Task 22: Functional Device panel with jog controls and resizable layout"
+
+---
+
 ## Final Verification Checklist
 
 After Task 21 (all tasks complete):

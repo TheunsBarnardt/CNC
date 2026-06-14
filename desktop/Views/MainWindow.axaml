@@ -102,7 +102,7 @@
     </Border>
 
     <!-- ═══ MAIN ════════════════════════════════════════════════════ -->
-    <Grid Grid.Row="1" ColumnDefinitions="52,*,308">
+    <Grid Grid.Row="1" ColumnDefinitions="52,*,5,250">
 
       <!-- ── LEFT TOOL RAIL ─────────────────────────────────────── -->
       <Border Grid.Column="0"
@@ -224,8 +224,16 @@
         </Panel>
       </DockPanel>
 
+      <!-- ── SPLITTER ─────────────────────────────────────────────── -->
+      <GridSplitter Grid.Column="2"
+                    Width="5"
+                    Background="{StaticResource Brush.Bg2}"
+                    HorizontalAlignment="Stretch"
+                    VerticalAlignment="Stretch"
+                    Cursor="SizeWestEast"/>
+
       <!-- ── RIGHT PANEL ────────────────────────────────────────── -->
-      <Border Grid.Column="2"
+      <Border Grid.Column="3"
               Background="{StaticResource Brush.Bg1}"
               BorderBrush="{StaticResource Brush.Border}"
               BorderThickness="1,0,0,0">

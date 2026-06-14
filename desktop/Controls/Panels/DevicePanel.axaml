@@ -142,15 +142,32 @@
             </Button>
           </StackPanel>
 
-          <!-- Home / Set Zero -->
-          <StackPanel Orientation="Horizontal" Spacing="6">
+          <!-- Home / Set Zero / WCS -->
+          <StackPanel Orientation="Horizontal" Spacing="6" FlowDirection="LeftToRight">
             <Button Content="Home all" Theme="{StaticResource Btn.Ghost}"
-                    Click="OnHome" Padding="8,4" HorizontalAlignment="Stretch"/>
-            <Button Content="Set Zero" Theme="{StaticResource Btn.Ghost}"
-                    Click="OnSetZero" Padding="8,4"/>
+                    Click="OnHome" Padding="8,4"/>
             <Button Content="Unlock" Theme="{StaticResource Btn.Ghost}"
                     Click="OnUnlock" Padding="8,4"/>
           </StackPanel>
+
+          <!-- WCS selector + Set Zero Here -->
+          <Grid ColumnDefinitions="Auto,*,Auto" ColumnSpacing="6">
+            <TextBlock Grid.Column="0" Text="WCS" Classes="muted" VerticalAlignment="Center"/>
+            <ComboBox Grid.Column="1" x:Name="CbWcs" SelectedIndex="0"
+                      SelectionChanged="OnWcsChanged"
+                      ToolTip.Tip="Work coordinate system (G54–G59)">
+              <ComboBoxItem Content="G54 (P1)" Tag="1" IsSelected="True"/>
+              <ComboBoxItem Content="G55 (P2)" Tag="2"/>
+              <ComboBoxItem Content="G56 (P3)" Tag="3"/>
+              <ComboBoxItem Content="G57 (P4)" Tag="4"/>
+              <ComboBoxItem Content="G58 (P5)" Tag="5"/>
+              <ComboBoxItem Content="G59 (P6)" Tag="6"/>
+            </ComboBox>
+            <Button Grid.Column="2" Content="Set Zero Here"
+                    Theme="{StaticResource Btn.Ghost}"
+                    Click="OnSetWcsZero" Padding="8,4"
+                    ToolTip.Tip="Set current position as zero for selected WCS"/>
+          </Grid>
         </StackPanel>
       </Expander>
 

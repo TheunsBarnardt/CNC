@@ -162,6 +162,18 @@ public sealed class MachineConnectionManager : IMachineConnection
         await serial.SetZeroAsync(ct);
     }
 
+    public async Task SelectWcsAsync(int wcsIndex, CancellationToken ct = default)
+    {
+        var serial = RequireSerial();
+        await serial.SelectWcsAsync(wcsIndex, ct);
+    }
+
+    public async Task SetWcsZeroAsync(int wcsIndex, CancellationToken ct = default)
+    {
+        var serial = RequireSerial();
+        await serial.SetWcsZeroAsync(wcsIndex, ct);
+    }
+
     public void FeedHold() => RequireSerial().FeedHold();
     public void Resume() => RequireSerial().Resume();
     public void SoftReset() => RequireSerial().SoftReset();

@@ -132,6 +132,21 @@ public sealed class SerialMachineConnection : IMachineConnection, IAsyncDisposab
     public async Task SetZeroAsync(CancellationToken ct = default) =>
         await SendAndWaitAsync("G10 L20 P1 X0 Y0 Z0", ct);
 
+    /// <summary>
+    /// Select a work coordinate system (G54–G59, P=1–6).
+    /// G54 = P1 (default), G55 = P2, ... G59 = P6.
+    /// </summary>
+    public async Task SelectWcsAsync(int wcsIndex, CancellationToken ct = default)
+    {
+        // wcsIndex 1-6 maps to G54-G59
+        int g = 53 + Math.Clamp(wcsIndex, 1, 6);
+        await SendAndWaitAsync($"G{g}", ct);
+    }
+
+    /// <summary>Set zero for the specified WCS (G10 L2 P{index} X0 Y0 Z0).</summary>
+    public async Task SetWcsZeroAsync(int wcsIndex, CancellationToken ct = default) =>
+        await SendAndWaitAsync($"G10 L20 P{Math.Clamp(wcsIndex, 1, 6)} X0 Y0 Z0", ct);
+
     /// <summary>Real-time feed hold '!' — no ok response.</summary>
     public void FeedHold() => SendRealtime("!");
 

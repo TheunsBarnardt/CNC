@@ -65,9 +65,17 @@ public partial class DevicePanel : UserControl
 
     // ── Motion commands ───────────────────────────────────────────────────
 
-    private void OnHome    (object? s, RoutedEventArgs e) => _ = M?.HomeAsync();
-    private void OnSetZero (object? s, RoutedEventArgs e) => _ = M?.SetZeroAsync();
-    private void OnUnlock  (object? s, RoutedEventArgs e) => _ = M?.UnlockAsync();
+    private void OnHome       (object? s, RoutedEventArgs e) => _ = M?.HomeAsync();
+    private void OnSetZero    (object? s, RoutedEventArgs e) => _ = M?.SetZeroAsync();
+    private void OnSetWcsZero (object? s, RoutedEventArgs e) => _ = M?.SetWcsZeroAsync();
+    private void OnUnlock     (object? s, RoutedEventArgs e) => _ = M?.UnlockAsync();
+
+    private void OnWcsChanged(object? s, SelectionChangedEventArgs e)
+    {
+        if (M is null || CbWcs.SelectedItem is not ComboBoxItem ci
+            || !int.TryParse(ci.Tag as string, out int idx)) return;
+        M.WcsIndex = idx;
+    }
     private void OnFeedHold(object? s, RoutedEventArgs e) => M?.FeedHold();
     private void OnResume  (object? s, RoutedEventArgs e) => M?.Resume();
     private void OnEStop   (object? s, RoutedEventArgs e) => M?.EStop();

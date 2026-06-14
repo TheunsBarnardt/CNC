@@ -33,6 +33,32 @@
                 Theme="{StaticResource Btn.Ghost}"
                 Click="OnSaveFile"
                 Padding="10,5"/>
+        <Button x:Name="BtnEditToggle"
+                Content="Edit"
+                Theme="{StaticResource Btn.Ghost}"
+                Click="OnEditToggle"
+                Padding="10,5"
+                ToolTip.Tip="Toggle editable mode"/>
+      </StackPanel>
+
+      <!-- Edit-mode actions (only visible in edit mode) -->
+      <StackPanel x:Name="EditActions" Orientation="Horizontal" Spacing="6" IsVisible="False">
+        <Button x:Name="BtnRegenerate"
+                Content="Regenerate"
+                Theme="{StaticResource Btn.Ghost}"
+                Click="OnRegenerate"
+                Padding="8,4"
+                ToolTip.Tip="Discard edits and regenerate from current project"/>
+        <Button x:Name="BtnApplyEdits"
+                Content="Apply edits"
+                Theme="{StaticResource Btn.Primary}"
+                Click="OnApplyEdits"
+                Padding="8,4"
+                ToolTip.Tip="Use manually edited G-code when running the job"/>
+        <TextBlock x:Name="EditHint"
+                   Text="Editing — changes used on next Run"
+                   Classes="muted" FontSize="{StaticResource Font.Xs}"
+                   VerticalAlignment="Center"/>
       </StackPanel>
 
       <TextBlock x:Name="TbStats"
@@ -41,11 +67,14 @@
                  IsVisible="{Binding GcodeStats.Length}"/>
     </StackPanel>
 
-    <!-- G-code preview -->
-    <ScrollViewer Margin="0,8,0,0">
-      <TextBox x:Name="TbPreview"
-               Text="{Binding GcodeText}"
-               IsReadOnly="True"
+    <!-- G-code preview (editable with syntax coloring in read-only) -->
+    <ScrollViewer x:Name="SvHighlight" Margin="0,8,0,0" IsVisible="True">
+      <ItemsControl x:Name="SyntaxLines"
+                    Background="{StaticResource Brush.Bg3}"
+                    Padding="8"/>
+    </ScrollViewer>
+    <ScrollViewer x:Name="SvEdit" Margin="0,8,0,0" IsVisible="False">
+      <TextBox x:Name="TbEdit"
                AcceptsReturn="True"
                Background="{StaticResource Brush.Bg3}"
                BorderThickness="0"

@@ -104,6 +104,23 @@ public sealed class MachineViewModel : ObservableObject
 
     // ── Motion ───────────────────────────────────────────────────────────
 
+    // ── WCS (work coordinate system) ──────────────────────────────────────
+
+    private int _wcsIndex = 1;
+    public int WcsIndex
+    {
+        get => _wcsIndex;
+        set
+        {
+            if (SetProperty(ref _wcsIndex, value) && IsConnected)
+                _ = _mgr.SelectWcsAsync(value);
+        }
+    }
+
+    public Task SetWcsZeroAsync() => _mgr.SetWcsZeroAsync(_wcsIndex);
+
+    // ── Motion ───────────────────────────────────────────────────────────
+
     public Task JogAsync(string axis, double dist, double feed) =>
         _mgr.JogAsync(axis, dist, feed);
 

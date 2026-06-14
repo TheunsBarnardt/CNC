@@ -73,6 +73,24 @@ public sealed class MachineConnectionManager : IMachineConnection
     public string? ConnectedPort { get { lock (_gate) return _serial?.PortName; } }
     public int? ConnectedBaud { get { lock (_gate) return _serial?.BaudRate; } }
 
+    /// <summary>Read all GRBL $$ settings. Throws if not connected to serial.</summary>
+    public Task<IReadOnlyList<GrblSetting>> ReadGrblSettingsAsync(CancellationToken ct = default)
+    {
+        SerialMachineConnection? s;
+        lock (_gate) s = _serial;
+        if (s is null) throw new InvalidOperationException("Not connected to serial.");
+        return s.ReadSettingsAsync(ct);
+    }
+
+    /// <summary>Write one GRBL setting ($id=value). Throws if not connected to serial.</summary>
+    public Task WriteGrblSettingAsync(int id, string value, CancellationToken ct = default)
+    {
+        SerialMachineConnection? s;
+        lock (_gate) s = _serial;
+        if (s is null) throw new InvalidOperationException("Not connected to serial.");
+        return s.WriteSettingAsync(id, value, ct);
+    }
+
     public async Task ConnectSerialAsync(string port, int baud, CancellationToken ct = default)
     {
         SerialMachineConnection serial;

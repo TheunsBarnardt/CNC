@@ -1,5 +1,7 @@
 using Avalonia.Controls;
 using Avalonia.Interactivity;
+using Avalonia.Platform.Storage;
+using Backend.Machine;
 using Desktop.ViewModels;
 
 namespace Desktop.Controls.Panels;
@@ -87,4 +89,82 @@ public partial class DevicePanel : UserControl
     }
 
     private void OnRefreshLog(object? s, RoutedEventArgs e) => M?.RefreshJobLog();
+
+    // ── GRBL config ────────────────────────────────────────────────────────
+
+    private async void OnReadSettings(object? s, RoutedEventArgs e)
+    {
+        if (M is null) return;
+        BtnReadSettings.IsEnabled = false;
+        GrblSettingsStatus.Text = "Reading…";
+        try
+        {
+            await M.ReadGrblSettingsAsync();
+            GrblSettingsStatus.Text = $"{M.GrblSettings.Count} settings loaded";
+        }
+        catch (Exception ex) { GrblSettingsStatus.Text = $"Error: {ex.Message}"; }
+        finally { BtnReadSettings.IsEnabled = true; }
+    }
+
+    private async void OnWriteSetting(object? s, RoutedEventArgs e)
+    {
+        if (M is null || s is not Button btn || btn.Tag is not GrblSetting setting) return;
+        try
+        {
+            await M.WriteGrblSettingAsync(setting.Id, setting.Value);
+            GrblSettingsStatus.Text = $"${setting.Id}={setting.Value} written";
+        }
+        catch (Exception ex) { GrblSettingsStatus.Text = $"Error: {ex.Message}"; }
+    }
+
+    private void OnSettingValueCommit(object? s, RoutedEventArgs e)
+    {
+        // Value is TwoWay bound — just update the hint text.
+        if (s is TextBox tb && tb.Tag is GrblSetting setting)
+            GrblSettingsStatus.Text = $"${setting.Id} — press Set to write to machine";
+    }
+
+    private async void OnExportSettings(object? s, RoutedEventArgs e)
+    {
+        if (M is null) return;
+        var top = TopLevel.GetTopLevel(this);
+        if (top is null) return;
+        var file = await top.StorageProvider.SaveFilePickerAsync(new FilePickerSaveOptions
+        {
+            Title = "Export GRBL settings",
+            SuggestedFileName = "grbl_settings.json",
+            FileTypeChoices = [new("JSON") { Patterns = ["*.json"] }],
+        });
+        if (file is null) return;
+        await using var stream = await file.OpenWriteAsync();
+        await using var writer = new System.IO.StreamWriter(stream);
+        await writer.WriteAsync(M.ExportSettingsJson());
+        GrblSettingsStatus.Text = "Settings exported";
+    }
+
+    private async void OnImportSettings(object? s, RoutedEventArgs e)
+    {
+        if (M is null) return;
+        var top = TopLevel.GetTopLevel(this);
+        if (top is null) return;
+        var files = await top.StorageProvider.OpenFilePickerAsync(new FilePickerOpenOptions
+        {
+            Title = "Import GRBL settings",
+            AllowMultiple = false,
+            FileTypeFilter = [new("JSON") { Patterns = ["*.json"] }],
+        });
+        if (files.Count == 0) return;
+        await using var stream = await files[0].OpenReadAsync();
+        using var reader = new System.IO.StreamReader(stream);
+        var json = await reader.ReadToEndAsync();
+        GrblSettingsStatus.Text = "Writing settings to machine…";
+        BtnImportSettings.IsEnabled = false;
+        try
+        {
+            await M.ImportSettingsJsonAsync(json);
+            GrblSettingsStatus.Text = "Settings imported and written to machine";
+        }
+        catch (Exception ex) { GrblSettingsStatus.Text = $"Error: {ex.Message}"; }
+        finally { BtnImportSettings.IsEnabled = true; }
+    }
 }

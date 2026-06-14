@@ -40,6 +40,9 @@ public sealed class SerialMachineConnection : IMachineConnection, IAsyncDisposab
     private readonly Channel<string> _responses =
         Channel.CreateUnbounded<string>(new UnboundedChannelOptions { SingleReader = false });
 
+    /// <summary>When non-null, the reader appends $N=value lines here (for $$ capture).</summary>
+    private volatile List<string>? _settingsCapture;
+
     public event EventHandler<MachineStatus>? StatusChanged;
 
     public SerialMachineConnection(string portName, int baudRate = 115200)
@@ -141,6 +144,46 @@ public sealed class SerialMachineConnection : IMachineConnection, IAsyncDisposab
     /// <summary>Send $X to clear an Alarm lock after E-Stop or homing failure.</summary>
     public async Task UnlockAsync(CancellationToken ct = default) =>
         await SendAndWaitAsync("$X", ct);
+
+    // ── GRBL config ($$ / $N=value) ───────────────────────────────────────
+
+    /// <summary>
+    /// Send $$ and collect all $N=value lines until the trailing "ok".
+    /// </summary>
+    public async Task<IReadOnlyList<GrblSetting>> ReadSettingsAsync(CancellationToken ct = default)
+    {
+        var capture = new List<string>();
+
+        await _writeLock.WaitAsync(ct);
+        try
+        {
+            while (_responses.Reader.TryRead(out _)) { }
+            _settingsCapture = capture;   // arm capture before sending
+            GetPort().Write("$$\n");
+        }
+        finally { _writeLock.Release(); }
+
+        // Wait for 'ok' — the read loop clears _settingsCapture before writing it.
+        var resp = await _responses.Reader.ReadAsync(ct);
+        if (resp.StartsWith("error:", StringComparison.OrdinalIgnoreCase))
+            throw new InvalidOperationException($"GRBL: {resp}");
+
+        // Parse $N=value lines collected by the read loop.
+        var settings = new List<GrblSetting>();
+        foreach (var line in capture)
+        {
+            var eq = line.IndexOf('=');
+            if (eq < 2) continue;
+            if (!int.TryParse(line[1..eq], out int id)) continue;
+            var val = line[(eq + 1)..].Trim();
+            settings.Add(new GrblSetting { Id = id, Value = val, Description = GrblSetting.DescribeId(id) });
+        }
+        return settings;
+    }
+
+    /// <summary>Write one GRBL setting: sends $<paramref name="id"/>=<paramref name="value"/>.</summary>
+    public async Task WriteSettingAsync(int id, string value, CancellationToken ct = default) =>
+        await SendAndWaitAsync($"${id}={value}", ct);
 
     /// <summary>
     /// Stream G-code with the GRBL character-counting protocol. Fires
@@ -244,9 +287,17 @@ public sealed class SerialMachineConnection : IMachineConnection, IAsyncDisposab
                     lock (_gate) { _state = MachineConnectionState.Connected; }
                     Publish(MachineConnectionState.Connected, line.Split(':')[0], 0, 0, 0);
                 }
+                // When capturing settings, clear the capture buffer first so
+                // ReadSettingsAsync can safely read from it after getting 'ok'.
+                _settingsCapture = null;
                 _responses.Writer.TryWrite(line);
             }
-            // Other lines (startup greeting, settings output) are ignored.
+            else if (line.Length > 2 && line[0] == '$' && _settingsCapture is { } cap)
+            {
+                // $N=value lines produced by the $$ command.
+                cap.Add(line);
+            }
+            // Other lines (startup greeting, etc.) are ignored.
         }
     }
 

@@ -1,4 +1,5 @@
 using System.Collections.ObjectModel;
+using System.Text.Json;
 using Avalonia.Threading;
 using Backend.Machine;
 using CommunityToolkit.Mvvm.ComponentModel;
@@ -46,6 +47,11 @@ public sealed class MachineViewModel : ObservableObject
     public double JobProgressPct { get => _jobProgressPct; private set => SetProperty(ref _jobProgressPct, value); }
 
     public ObservableCollection<JobLogEntry> JobLog { get; } = [];
+
+    public ObservableCollection<GrblSetting> GrblSettings { get; } = [];
+
+    private bool _hasGrblSettings;
+    public bool HasGrblSettings { get => _hasGrblSettings; private set => SetProperty(ref _hasGrblSettings, value); }
 
     public MachineViewModel(MachineConnectionManager mgr)
     {
@@ -121,5 +127,33 @@ public sealed class MachineViewModel : ObservableObject
             JobLog.Clear();
             foreach (var e in entries) JobLog.Add(e);
         });
+    }
+
+    // ── GRBL config ───────────────────────────────────────────────────────
+
+    public async Task ReadGrblSettingsAsync()
+    {
+        var settings = await _mgr.ReadGrblSettingsAsync();
+        Dispatcher.UIThread.Post(() =>
+        {
+            GrblSettings.Clear();
+            foreach (var s in settings) GrblSettings.Add(s);
+            HasGrblSettings = GrblSettings.Count > 0;
+        });
+    }
+
+    public Task WriteGrblSettingAsync(int id, string value) =>
+        _mgr.WriteGrblSettingAsync(id, value);
+
+    public string ExportSettingsJson() =>
+        JsonSerializer.Serialize(GrblSettings.ToList(), new JsonSerializerOptions { WriteIndented = true });
+
+    public async Task ImportSettingsJsonAsync(string json)
+    {
+        var list = JsonSerializer.Deserialize<List<GrblSetting>>(json);
+        if (list is null) return;
+        foreach (var s in list)
+            await _mgr.WriteGrblSettingAsync(s.Id, s.Value);
+        await ReadGrblSettingsAsync();
     }
 }

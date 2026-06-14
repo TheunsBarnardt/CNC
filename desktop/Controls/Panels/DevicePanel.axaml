@@ -266,6 +266,80 @@
         </DockPanel>
       </Expander>
 
+      <!-- ── GRBL Config ($$ / $N=value) ──────────────────────── -->
+      <Expander Header="GRBL Config ($$)"
+                Theme="{StaticResource Card.Expander}"
+                IsVisible="{Binding Machine.IsConnected}"
+                Margin="8,6,8,0">
+        <StackPanel Spacing="6">
+
+          <!-- Action buttons -->
+          <StackPanel Orientation="Horizontal" Spacing="6">
+            <Button x:Name="BtnReadSettings" Content="Read $$"
+                    Theme="{StaticResource Btn.Ghost}" Padding="8,4"
+                    Click="OnReadSettings"
+                    ToolTip.Tip="Read all GRBL settings from machine"/>
+            <Button x:Name="BtnExportSettings" Content="Export JSON"
+                    Theme="{StaticResource Btn.Ghost}" Padding="8,4"
+                    Click="OnExportSettings"
+                    IsEnabled="{Binding Machine.HasGrblSettings}"
+                    ToolTip.Tip="Save settings to a JSON file"/>
+            <Button x:Name="BtnImportSettings" Content="Import JSON"
+                    Theme="{StaticResource Btn.Ghost}" Padding="8,4"
+                    Click="OnImportSettings"
+                    ToolTip.Tip="Load settings from a JSON file and write to machine"/>
+          </StackPanel>
+
+          <TextBlock x:Name="GrblSettingsStatus"
+                     Classes="muted" FontSize="{StaticResource Font.Xs}"
+                     Text="Press 'Read $$' to load machine configuration"
+                     TextWrapping="Wrap"/>
+
+          <!-- Settings list -->
+          <ScrollViewer MaxHeight="300"
+                        IsVisible="{Binding Machine.HasGrblSettings}">
+            <ItemsControl x:Name="GrblSettingsList"
+                          ItemsSource="{Binding Machine.GrblSettings}">
+              <ItemsControl.ItemTemplate>
+                <DataTemplate>
+                  <Grid ColumnDefinitions="30,*,80,Auto" Margin="0,1">
+                    <!-- ID -->
+                    <TextBlock Grid.Column="0"
+                               Text="{Binding Id, StringFormat='${0}'}"
+                               Classes="muted" FontSize="{StaticResource Font.Xs}"
+                               VerticalAlignment="Center"/>
+                    <!-- Description -->
+                    <TextBlock Grid.Column="1"
+                               Text="{Binding Description}"
+                               FontSize="{StaticResource Font.Xs}"
+                               VerticalAlignment="Center"
+                               TextTrimming="CharacterEllipsis"
+                               ToolTip.Tip="{Binding Description}"/>
+                    <!-- Value (editable) -->
+                    <TextBox Grid.Column="2"
+                             Text="{Binding Value, Mode=TwoWay}"
+                             Height="22" FontSize="{StaticResource Font.Xs}"
+                             Margin="4,0"
+                             LostFocus="OnSettingValueCommit"
+                             Tag="{Binding}"/>
+                    <!-- Write button -->
+                    <Button Grid.Column="3"
+                            Theme="{StaticResource Btn.Ghost}"
+                            Padding="4,2" Height="22"
+                            FontSize="{StaticResource Font.Xs}"
+                            Content="Set"
+                            Click="OnWriteSetting"
+                            Tag="{Binding}"
+                            ToolTip.Tip="Write this value to machine"/>
+                  </Grid>
+                </DataTemplate>
+              </ItemsControl.ItemTemplate>
+            </ItemsControl>
+          </ScrollViewer>
+
+        </StackPanel>
+      </Expander>
+
     </StackPanel>
   </ScrollViewer>
 

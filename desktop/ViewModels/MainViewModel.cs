@@ -165,7 +165,7 @@ public sealed class MainViewModel : ObservableObject
             [
                 new FilePickerFileType("Supported files")
                 {
-                    Patterns = ["*.svg", "*.dxf", "*.png", "*.jpg", "*.jpeg", "*.bmp", "*.webp"],
+                    Patterns = ["*.svg", "*.dxf", "*.pdf", "*.png", "*.jpg", "*.jpeg", "*.bmp", "*.webp"],
                 },
             ],
         };
@@ -507,7 +507,7 @@ public sealed class MainViewModel : ObservableObject
 
     // ── Auto-nest ─────────────────────────────────────────────────────────
 
-    public (int placed, int skipped, List<string> warnings) Nest(
+    public (int placed, int skipped, List<string> warnings, double utilizationPct) Nest(
         double marginMm, double spacingMm, int rotStepDeg)
     {
         var settings = new NestSettings
@@ -518,7 +518,7 @@ public sealed class MainViewModel : ObservableObject
         };
         var outcome = _projects.With(p => Nester.Nest(p, settings));
         Refresh();
-        return (outcome.PlacedCount, outcome.SkippedCount, outcome.Warnings);
+        return (outcome.PlacedCount, outcome.SkippedCount, outcome.Warnings, outcome.UtilizationPct);
     }
 
     // ── G-code generation ─────────────────────────────────────────────────
@@ -536,7 +536,12 @@ public sealed class MainViewModel : ObservableObject
         var prog = post.Generate(tp, proj);
         var text = string.Join(Environment.NewLine, prog.Lines);
         GcodeText  = text;
-        GcodeStats = $"{prog.Lines.Count} lines · {tp.Cuts.Count} cuts";
+        double rapidMm = tp.TotalRapidLengthMm(new Backend.Geometry.Point2(0, 0));
+        double cutMm   = tp.TotalCutLengthMm;
+        GcodeStats = $"{prog.Lines.Count} lines · {tp.Cuts.Count} cuts · " +
+                     $"cut {cutMm / 1000:F2} m · rapid {rapidMm / 1000:F2} m";
+        if (tp.Warnings.Count > 0)
+            StatusText = $"{tp.Warnings.Count} warning(s) — see G-code panel";
         return text;
     }
 

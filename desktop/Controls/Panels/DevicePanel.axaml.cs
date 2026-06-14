@@ -1,8 +1,11 @@
 using Avalonia.Controls;
 using Avalonia.Interactivity;
 using Avalonia.Platform.Storage;
+using Avalonia.VisualTree;
+using Backend.Cam;
 using Backend.Machine;
 using Desktop.ViewModels;
+using Desktop.Views;
 
 namespace Desktop.Controls.Panels;
 
@@ -81,11 +84,24 @@ public partial class DevicePanel : UserControl
     private void OnEStop   (object? s, RoutedEventArgs e) => M?.EStop();
     private void OnStop    (object? s, RoutedEventArgs e) => _ = M?.StopJobAsync();
 
-    private void OnRun(object? s, RoutedEventArgs e)
+    private async void OnRun(object? s, RoutedEventArgs e)
     {
         if (Vm is null || M is null) return;
         try
         {
+            // Pre-flight check — show checklist and block run on failures.
+            var owner = this.FindAncestorOfType<Window>();
+            if (owner is not null)
+            {
+                var proj = Vm.Project;
+                var camSettings = proj.Cam;
+                var items = PreflightChecker.Check(proj, camSettings);
+                var dlg = new PreflightDialog();
+                dlg.Load(items);
+                bool proceed = await dlg.ShowDialog<bool>(owner);
+                if (!proceed) return;
+            }
+
             var lines = Vm.GenerateGcodeString()
                           .Split('\n', StringSplitOptions.RemoveEmptyEntries)
                           .Select(l => l.TrimEnd('\r'))

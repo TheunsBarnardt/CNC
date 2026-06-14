@@ -44,6 +44,7 @@ public sealed class App : Application
         sc.AddSingleton<IFileImporter, SvgImporter>();
         sc.AddSingleton<IFileImporter, DxfImporter>();
         sc.AddSingleton<IFileImporter, BitmapImporter>();
+        sc.AddSingleton<IFileImporter, PdfFileImporter>();
         sc.AddSingleton<FileImportService>();
 
         sc.AddSingleton<IPostProcessor, GrblPlasmaPostProcessor>();

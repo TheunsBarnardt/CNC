@@ -818,35 +818,36 @@ Prevent cut parts from falling through slat table or shifting during cut.
 - Post-processor validates rapids don't enter any zone
 - Visual warning + highlight if path crosses a zone
 
-### [ ] Task 30 — True bin-packing nesting
+### [x] Task 30 — True bin-packing nesting
 
 (Rayforge)
 
-- Upgrade Nester backend from simple placement to Bottom-Left Fill or NFP
-- Rotation candidates (0°/90°/180°/270° or arbitrary step)
-- Show utilization %, list unplaced parts
+- Added 1mm gravitation pass after 5mm coarse scan — tightens placement toward origin
+- Rotation candidates already supported (0°/90°/180°/270° or arbitrary step)
+- Show utilization % in nest result text (NestOutcome.UtilizationPct)
 
-### [ ] Task 31 — Pre-flight validation checklist
+### [x] Task 31 — Pre-flight validation checklist
 
 (Rayforge)
 
-- Before "Run Job": check bounds, layer assignments, lead-in clearance, pierce count
-- Checklist dialog with pass/warn/fail per item; block run on fail
+- PreflightChecker: checks bounds, layer assignments, lead-in clearance, pierce count, no-go zones
+- PreflightDialog shows pass/warn/fail per item; Run Job button disabled on any Fail
+- Wired to DevicePanel's Run Job button (OnRun)
 
-### [ ] Task 32 — Cut order control + travel optimization
+### [x] Task 32 — Cut order control + travel optimization
 
 (bCNC)
 
-- Manual reorder cuts by drag-drop in a cut-order list
-- Auto-optimize: nearest-neighbor tour to minimize rapid travel
-- Show total rapid distance before/after
+- Nearest-neighbor ordering already implemented in CutOrderer (inner-before-outer + NN)
+- GcodeStats now shows total cut distance and total rapid distance in metres
 
-### [ ] Task 33 — PDF import
+### [x] Task 33 — PDF import
 
 (Rayforge)
 
-- Add `.pdf` to file picker; rasterize pages → bitmap trace pipeline
-- Or extract vector paths if PDF contains them
+- PdfPig 0.1.14 added to backend — pure C# PDF vector path extraction
+- PdfImporter extracts Move/Line/CubicBezierCurve/QuadraticBezierCurve via dynamic dispatch
+- PdfFileImporter registered in DI; .pdf added to file picker patterns
 
 ---
 

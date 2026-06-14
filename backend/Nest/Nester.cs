@@ -5,7 +5,7 @@ using Clipper2Lib;
 namespace Backend.Nest;
 
 /// <summary>Result of one nest run (parts are repositioned in place).</summary>
-public sealed record NestOutcome(int PlacedCount, int SkippedCount, List<string> Warnings);
+public sealed record NestOutcome(int PlacedCount, int SkippedCount, List<string> Warnings, double UtilizationPct);
 
 /// <summary>
 /// Auto-nesting using the greedy core of SVGnest/DeepNest, simplified for v1:
@@ -19,8 +19,11 @@ public sealed record NestOutcome(int PlacedCount, int SkippedCount, List<string>
 /// </summary>
 public static class Nester
 {
-    /// <summary>Position scan resolution. Coarse keeps runs interactive.</summary>
+    /// <summary>Coarse scan resolution — finds a feasible slot quickly.</summary>
     private const double GridStepMm = 5;
+
+    /// <summary>Fine gravitation step — tightens the coarse position toward the origin.</summary>
+    private const double FineStepMm = 1;
 
     private const double Eps = 1e-9;
 
@@ -35,7 +38,7 @@ public static class Nester
         if (innerW <= 0 || innerH <= 0)
         {
             warnings.Add("Margin leaves no usable sheet area — nothing was nested.");
-            return new NestOutcome(0, project.Parts.Count, warnings);
+            return new NestOutcome(0, project.Parts.Count, warnings, 0);
         }
 
         var rotations = RotationCandidates(settings.RotationStepDeg);
@@ -61,7 +64,8 @@ public static class Nester
             // Best across rotations = lowest bbox Y, then lowest X (bottom-left
             // heuristic). PartX/PartY is the transform that puts the footprint
             // bbox min at (X, Y) — stored here so applying it is a plain copy.
-            (double X, double Y, double Rot, double PartX, double PartY, PathsD Poly)? best = null;
+            // Min0 is the footprint's bounding box origin at zero-rotation (for gravitation).
+            (double X, double Y, double Rot, double PartX, double PartY, PathsD Poly, PathsD Fp, Point2 Min0, Point2 Max0)? best = null;
 
             foreach (var rot in rotations)
             {
@@ -84,7 +88,8 @@ public static class Nester
                                 (Math.Abs(y - best.Value.Y) <= Eps && x < best.Value.X - Eps))
                             {
                                 best = (x, y, rot, x - min0.X, y - min0.Y,
-                                    Translate(footprint, x - min0.X, y - min0.Y));
+                                    Translate(footprint, x - min0.X, y - min0.Y),
+                                    footprint, min0, max0);
                             }
                             found = true;
                             break;
@@ -98,6 +103,35 @@ public static class Nester
                 warnings.Add($"\"{file!.DisplayName}\" did not fit and was left in place.");
                 skipped++;
                 continue;
+            }
+
+            // Gravitation: tighten the coarse grid position toward the origin with
+            // a fine 1mm scan — slide down (Y), then left (X). Avoids wasted space
+            // from coarse grid granularity without implementing full NFP.
+            {
+                var bv = best.Value;
+                var fp   = bv.Fp;
+                var min0 = bv.Min0;
+                var max0 = bv.Max0;
+
+                // Slide down
+                double tY = bv.Y;
+                for (double ty = bv.Y - FineStepMm; ty >= margin - Eps; ty -= FineStepMm)
+                {
+                    if (!Collides(fp, min0, max0, bv.X, ty, placedInflated, placedBoxes))
+                        tY = ty;
+                    else break;
+                }
+                // Slide left
+                double tX = bv.X;
+                for (double tx = bv.X - FineStepMm; tx >= margin - Eps; tx -= FineStepMm)
+                {
+                    if (!Collides(fp, min0, max0, tx, tY, placedInflated, placedBoxes))
+                        tX = tx;
+                    else break;
+                }
+                var tightPoly = Translate(fp, tX - min0.X, tY - min0.Y);
+                best = (tX, tY, bv.Rot, tX - min0.X, tY - min0.Y, tightPoly, fp, min0, max0);
             }
 
             var b = best.Value;
@@ -114,7 +148,15 @@ public static class Nester
             placed++;
         }
 
-        return new NestOutcome(placed, skipped, warnings);
+        // Utilization = sum of ALL placed part areas / usable sheet area.
+        // We count all parts that weren't skipped (skipped includes parts from
+        // before ordered was built, but placed+skipped-startSkipped = placed count here).
+        double partAreaSum = ordered.Sum(x => LocalArea(x.File!)) -
+                             ordered.Where(x => warnings.Any(w => w.Contains(x.File!.DisplayName))).Sum(x => LocalArea(x.File!));
+        double sheetArea = innerW * innerH;
+        double utilPct = sheetArea > 0 ? Math.Round(partAreaSum / sheetArea * 100, 1) : 0;
+
+        return new NestOutcome(placed, skipped, warnings, utilPct);
     }
 
     private static double[] RotationCandidates(int stepDeg)

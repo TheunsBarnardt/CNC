@@ -52,6 +52,9 @@ public partial class LayersPanel : UserControl
     {
         if (Vm is null || s is not Border border || border.Tag is not LayerTreeItem node) return;
 
+        bool multiSelect = e.KeyModifiers.HasFlag(KeyModifiers.Shift)
+                        || e.KeyModifiers.HasFlag(KeyModifiers.Control);
+
         switch (node.Kind)
         {
             case LayerTreeNodeKind.Layer when node.Layer is not null:
@@ -62,13 +65,14 @@ public partial class LayersPanel : UserControl
                 Vm.SelectTreeGroup(node);
                 break;
 
-            case LayerTreeNodeKind.Part:
-                Vm.SelectTreePart(node);
+            case LayerTreeNodeKind.Part when node.Part is not null:
+                if (multiSelect) Vm.TogglePartInSelection(node.Part);
+                else             Vm.SelectTreePart(node);
                 break;
 
-            case LayerTreeNodeKind.Object:
-                // Clicking an object node selects its parent Part on the canvas
-                Vm.SelectTreePart(node);
+            case LayerTreeNodeKind.Object when node.Part is not null:
+                if (multiSelect) Vm.TogglePartInSelection(node.Part);
+                else             Vm.SelectTreePart(node);
                 break;
         }
     }

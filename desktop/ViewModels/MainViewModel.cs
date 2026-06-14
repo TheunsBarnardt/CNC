@@ -39,19 +39,59 @@ public sealed class MainViewModel : ObservableObject
     public string ProjectName { get => _projectName; set => SetProperty(ref _projectName, value); }
 
     private Part? _selectedPart;
+    /// <summary>All currently selected parts (superset of SelectedPart). Used by rubber-band and Ctrl+click.</summary>
+    private readonly HashSet<Guid> _selectedPartIds = [];
+
     public Part? SelectedPart
     {
         get => _selectedPart;
         set
         {
+            _selectedPartIds.Clear();
+            if (value is not null) _selectedPartIds.Add(value.Id);
             SetProperty(ref _selectedPart, value);
-            // Selecting a part makes its layer the active drawing layer.
             if (value?.LayerId is { } lid) SetActiveLayer(lid);
             else UpdateActiveLayer();
-            // Sync tree selection highlight — Part and Object rows both follow the Part selection
-            foreach (var node in LayerTree)
-                node.IsSelected = node.Part is not null && node.Part == value;
+            SyncTreeSelectionHighlight();
         }
+    }
+
+    /// <summary>
+    /// Called by the viewport's rubber-band release to set multiple selected parts at once.
+    /// GroupSelectedParts will then operate on this set.
+    /// </summary>
+    public void SetMultiSelection(IReadOnlyList<Guid> ids)
+    {
+        _selectedPartIds.Clear();
+        foreach (var id in ids) _selectedPartIds.Add(id);
+        var primary = _projects.With(p => p.Parts.FirstOrDefault(pt => _selectedPartIds.Contains(pt.Id)));
+        SetProperty(ref _selectedPart, primary, nameof(SelectedPart));
+        if (primary?.LayerId is { } lid) SetActiveLayer(lid);
+        else UpdateActiveLayer();
+        SyncTreeSelectionHighlight();
+        StatusText = $"{ids.Count} objects selected — click Group to link them";
+    }
+
+    /// <summary>Toggle a part in/out of the current selection (Ctrl/Shift+click in tree panel).</summary>
+    public void TogglePartInSelection(Part part)
+    {
+        if (_selectedPartIds.Contains(part.Id))
+            _selectedPartIds.Remove(part.Id);
+        else
+            _selectedPartIds.Add(part.Id);
+        var primary = _projects.With(p => p.Parts.FirstOrDefault(pt => _selectedPartIds.Contains(pt.Id)));
+        SetProperty(ref _selectedPart, primary, nameof(SelectedPart));
+        if (primary?.LayerId is { } lid) SetActiveLayer(lid);
+        SyncTreeSelectionHighlight();
+        StatusText = _selectedPartIds.Count > 1
+            ? $"{_selectedPartIds.Count} objects selected — click Group to link them"
+            : "Ready";
+    }
+
+    private void SyncTreeSelectionHighlight()
+    {
+        foreach (var node in LayerTree)
+            node.IsSelected = node.Part is not null && _selectedPartIds.Contains(node.Part.Id);
     }
 
     /// <summary>The layer where new shapes will be placed. Persists across deselect.</summary>
@@ -1231,7 +1271,7 @@ public sealed class MainViewModel : ObservableObject
             Depth           = depth,
             PartDisplayName = file?.DisplayName ?? "Part",
             Visible         = file?.Visible ?? true,
-            IsSelected      = part == _selectedPart,
+            IsSelected      = _selectedPartIds.Contains(part.Id),
             IsExpanded      = partExp,
         });
 
@@ -1248,7 +1288,7 @@ public sealed class MainViewModel : ObservableObject
                 PathIndex  = i + 1,
                 Depth      = depth + 1,
                 Visible    = pg.Visible,
-                IsSelected = part == _selectedPart,
+                IsSelected = _selectedPartIds.Contains(part.Id),
             });
         }
     }
@@ -1323,20 +1363,27 @@ public sealed class MainViewModel : ObservableObject
     /// <summary>Group the currently selected parts together under a named group.</summary>
     public void GroupSelectedParts()
     {
-        var selected = LayerTree.Where(n => n.IsSelected && n.Kind == LayerTreeNodeKind.Part).ToList();
-        if (selected.Count < 2)
+        // Use the multi-selection set if 2+ parts are selected; otherwise group ALL parts.
+        List<Part> partsToGroup;
+        if (_selectedPartIds.Count >= 2)
         {
-            // Also accept: all parts that are children of the same already-selected group
-            selected = LayerTree.Where(n => n.Kind == LayerTreeNodeKind.Part).ToList();
-            if (selected.Count < 2) return;
+            partsToGroup = _projects.With(p =>
+                p.Parts.Where(pt => _selectedPartIds.Contains(pt.Id)).ToList());
         }
+        else
+        {
+            partsToGroup = _projects.With(p => p.Parts.ToList());
+            if (partsToGroup.Count < 2) return;
+        }
+
         var newGroupId = Guid.NewGuid();
-        _groupNames[newGroupId] = "Group";
+        _groupNames[newGroupId]    = "Group";
         _groupExpanded[newGroupId] = true;
-        foreach (var node in selected)
-            if (node.Part is not null) node.Part.GroupId = newGroupId;
+        foreach (var part in partsToGroup)
+            part.GroupId = newGroupId;
         RebuildLayerTree();
         NotifyPartChanged();
+        StatusText = $"Grouped {partsToGroup.Count} objects";
     }
 
     /// <summary>Ungroup all parts in the given group node.</summary>

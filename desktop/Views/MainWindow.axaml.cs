@@ -36,6 +36,7 @@ public partial class MainWindow : Window
             vm.SelectedPart = id is null
                 ? null
                 : vm.Project.Parts.FirstOrDefault(p => p.Id == id.Value);
+        Viewport.MultiSelectionChanged += ids => vm.SetMultiSelection(ids);
         Viewport.PartCommitted += part =>
             vm.CommitPartTransform(part, part.X, part.Y, part.RotationDeg, part.ScaleX, part.ScaleY);
         Viewport.TransformStarted += () => vm.Checkpoint();

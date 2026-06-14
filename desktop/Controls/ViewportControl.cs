@@ -112,6 +112,8 @@ public sealed class ViewportControl : Control
 
     // ── events ────────────────────────────────────────────────────────────
     public event Action<Guid?    >? SelectionChanged;
+    /// <summary>Fires when rubber-band drag selects 2+ parts — call vm.SetMultiSelection with the list.</summary>
+    public event Action<IReadOnlyList<Guid>>? MultiSelectionChanged;
     public event Action<Part     >? PartMoved;
     public event Action<Part     >? PartCommitted;
     /// <summary>Fires at the START of any move/resize/rotate drag — use to checkpoint undo.</summary>
@@ -833,12 +835,12 @@ public sealed class ViewportControl : Control
         double wx1 = Math.Max(ToWX((float)_dragStart.X), ToWX((float)endPos.X));
         double wy0 = Math.Min(ToWY((float)_dragStart.Y), ToWY((float)endPos.Y));
         double wy1 = Math.Max(ToWY((float)_dragStart.Y), ToWY((float)endPos.Y));
-        double minSize = 3 / _scale;  // must drag at least 3px to count as selection
+        double minSize = 3 / _scale;  // must drag at least 3 px to count
 
-        if (wx1 - wx0 < minSize && wy1 - wy0 < minSize) return;  // tiny drag → keep current selection
+        if (wx1 - wx0 < minSize && wy1 - wy0 < minSize) return; // tiny drag → keep selection
 
-        // Select topmost part whose AABB overlaps the band
-        Part? selected = null;
+        // Collect ALL visible/unlocked parts whose AABB overlaps the rubber-band rect
+        var hits = new List<Guid>();
         for (int i = _parts.Count - 1; i >= 0; i--)
         {
             var part = _parts[i];
@@ -848,11 +850,24 @@ public sealed class ViewportControl : Control
             if (!_geometry.TryGetValue(part.FileId, out var geom)) continue;
             var (mn, mx) = WorldBounds(part, geom);
             if (mx.X >= wx0 && mn.X <= wx1 && mx.Y >= wy0 && mn.Y <= wy1)
-            { selected = part; break; }
+                hits.Add(part.Id);
         }
 
-        _selectedId = selected?.Id;
-        SelectionChanged?.Invoke(_selectedId);
+        if (hits.Count == 0)
+        {
+            _selectedId = null;
+            SelectionChanged?.Invoke(null);
+        }
+        else if (hits.Count == 1)
+        {
+            _selectedId = hits[0];
+            SelectionChanged?.Invoke(_selectedId);
+        }
+        else
+        {
+            _selectedId = hits[0]; // primary for handles/toolbar
+            MultiSelectionChanged?.Invoke(hits);
+        }
     }
 
     protected override void OnKeyDown(KeyEventArgs e)

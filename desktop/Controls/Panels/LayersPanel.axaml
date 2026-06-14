@@ -498,15 +498,20 @@
                           VerticalAlignment="Center"
                           HorizontalAlignment="Center"/>
 
-                <!-- object name -->
-                <TextBlock Grid.Column="1"
-                           Text="{Binding DisplayName}"
-                           VerticalAlignment="Center"
-                           FontSize="{StaticResource Font.Xs}"
-                           Foreground="{StaticResource Brush.TextMuted}"
-                           TextTrimming="CharacterEllipsis"
-                           Margin="3,0"
-                           Cursor="Hand"/>
+                <!-- object name — inline editable (click to rename) -->
+                <TextBox Grid.Column="1"
+                         Text="{Binding DisplayName, Mode=OneWay}"
+                         Background="Transparent"
+                         BorderThickness="0"
+                         Padding="3,0"
+                         VerticalAlignment="Center"
+                         FontSize="{StaticResource Font.Xs}"
+                         Foreground="{StaticResource Brush.TextMuted}"
+                         IsReadOnly="True"
+                         LostFocus="OnObjectNameCommit"
+                         KeyDown="OnObjectNameKeyDown"
+                         GotFocus="OnObjectNameFocus"
+                         Tag="{Binding}"/>
 
                 <!-- visibility -->
                 <Button Grid.Column="2"

@@ -257,6 +257,41 @@ public partial class LayersPanel : UserControl
         }
     }
 
+    // ── Object-node rename handlers ───────────────────────────────────────
+
+    private void OnObjectNameFocus(object? s, RoutedEventArgs e)
+    {
+        // Clicking the TextBox makes it editable so the user can rename the path object.
+        if (s is TextBox tb)
+            tb.IsReadOnly = false;
+    }
+
+    private void OnObjectNameCommit(object? s, RoutedEventArgs e)
+    {
+        if (s is not TextBox tb || tb.Tag is not LayerTreeItem node || node.PathObject is null) return;
+        tb.IsReadOnly = true;
+        var newLabel = tb.Text?.Trim();
+        // Store empty string as null so we fall back to the auto "Path N" label
+        node.PathObject.Label = string.IsNullOrEmpty(newLabel) ? null : newLabel;
+        Vm?.RebuildLayerTreePublic();
+    }
+
+    private void OnObjectNameKeyDown(object? s, KeyEventArgs e)
+    {
+        if (s is not TextBox tb) return;
+        if (e.Key == Key.Enter)
+        {
+            TopLevel.GetTopLevel(tb)?.Focus(); // triggers LostFocus → commit
+            e.Handled = true;
+        }
+        else if (e.Key == Key.Escape)
+        {
+            tb.IsReadOnly = true;
+            Vm?.RebuildLayerTreePublic(); // restore original text
+            e.Handled = true;
+        }
+    }
+
     /// <summary>Extracts the Tag from either a MenuItem or Button sender.</summary>
     private static T? TagFromSender<T>(object? sender) where T : class
     {

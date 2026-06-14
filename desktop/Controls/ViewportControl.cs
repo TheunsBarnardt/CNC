@@ -55,7 +55,7 @@ public sealed class ViewportControl : Control
     private List<NoGoZone>  _noGoZones  = [];
 
     // ── drag state ────────────────────────────────────────────────────────
-    private enum DragMode { None, Pan, Move, Resize, Rotate, Select, MoveGuide, CreateGuide }
+    private enum DragMode { None, Pan, Move, Resize, Rotate, Select, MoveGuide, CreateGuide, MoveNode }
     private DragMode _drag;
     private Point    _dragStart;
     private float    _dragTx, _dragTy;
@@ -352,11 +352,20 @@ public sealed class ViewportControl : Control
             return;
         }
 
-        // Node edit mode
+        // Node edit mode — click selects a node; drag moves it
         if (_nodeEditMode && props.IsLeftButtonPressed)
         {
             if (pos.X >= RULER_PX && pos.Y >= RULER_PX)
+            {
                 HitTestNode(ToWX((float)pos.X), ToWY((float)pos.Y));
+                if (_selectedNodeIndex.HasValue)
+                {
+                    _drag = DragMode.MoveNode;
+                    _dragStart = pos;
+                    e.Pointer.Capture(this);
+                }
+            }
+            InvalidateVisual();
             return;
         }
 
@@ -551,7 +560,14 @@ public sealed class ViewportControl : Control
             case DragMode.Resize when _selectedId.HasValue:
             {
                 var part = _parts.FirstOrDefault(p => p.Id == _selectedId.Value);
-                if (part is not null) ApplyResize(part, pos);
+                if (part is not null) ApplyResize(part, pos, e.KeyModifiers);
+                break;
+            }
+
+            case DragMode.MoveNode when _editingPartId.HasValue && _selectedNodeIndex.HasValue:
+            {
+                var part = _parts.FirstOrDefault(p => p.Id == _editingPartId.Value);
+                if (part is not null) ApplyNodeMove(part, pos, e.KeyModifiers);
                 break;
             }
 
@@ -582,7 +598,7 @@ public sealed class ViewportControl : Control
         InvalidateVisual();
     }
 
-    private void ApplyResize(Part part, Point pos)
+    private void ApplyResize(Part part, Point pos, KeyModifiers mods = KeyModifiers.None)
     {
         if (_localW < 1e-9 || _localH < 1e-9) return;
 
@@ -600,9 +616,6 @@ public sealed class ViewportControl : Control
         {
             double newW = Math.Abs(mouseWX - _resizeAnchorX);
             newScaleX   = Math.Max(0.01, newW / _localW);
-            // Ensure the anchor edge stays fixed in world space.
-            // bMax.X = Part.X + halfW * (1 + ScaleX)  →  newX = anchor - halfW*(1+newScaleX)
-            // bMin.X = Part.X + halfW * (1 - ScaleX)  →  newX = anchor - halfW*(1-newScaleX)
             newX = _anchorXOnRight
                 ? _resizeAnchorX - halfW * (1 + newScaleX)
                 : _resizeAnchorX - halfW * (1 - newScaleX);
@@ -612,8 +625,22 @@ public sealed class ViewportControl : Control
         {
             double newH = Math.Abs(mouseWY - _resizeAnchorY);
             newScaleY   = Math.Max(0.01, newH / _localH);
-            // bMax.Y = Part.Y + halfH * (1 + ScaleY)  →  newY = anchor - halfH*(1+newScaleY)
-            // bMin.Y = Part.Y + halfH * (1 - ScaleY)  →  newY = anchor - halfH*(1-newScaleY)
+            newY = _anchorYOnTop
+                ? _resizeAnchorY - halfH * (1 + newScaleY)
+                : _resizeAnchorY - halfH * (1 - newScaleY);
+        }
+
+        // Shift = lock aspect ratio (corner handles only — both axes affected)
+        if (mods.HasFlag(KeyModifiers.Shift) && _resizeAffectsX && _resizeAffectsY)
+        {
+            // Use the larger of the two scale changes so the shape grows to cover the mouse
+            double uniform = Math.Max(newScaleX, newScaleY);
+            newScaleX = uniform;
+            newScaleY = uniform;
+            // Recompute positions with the uniform scale
+            newX = _anchorXOnRight
+                ? _resizeAnchorX - halfW * (1 + newScaleX)
+                : _resizeAnchorX - halfW * (1 - newScaleX);
             newY = _anchorYOnTop
                 ? _resizeAnchorY - halfH * (1 + newScaleY)
                 : _resizeAnchorY - halfH * (1 - newScaleY);
@@ -624,6 +651,49 @@ public sealed class ViewportControl : Control
         part.ScaleX = newScaleX;
         part.ScaleY = newScaleY;
         PartMoved?.Invoke(part);
+    }
+
+    /// <summary>
+    /// Move the selected node to the current mouse position (inverse-transforms world → local).
+    /// Shift snaps movement to horizontal or vertical axis.
+    /// </summary>
+    private void ApplyNodeMove(Part part, Point pos, KeyModifiers mods = KeyModifiers.None)
+    {
+        if (!_selectedNodeIndex.HasValue) return;
+        if (!_geometry.TryGetValue(part.FileId, out var geom)) return;
+
+        var pivot = LocalCenter(geom);
+        double wx = ToWX((float)pos.X);
+        double wy = ToWY((float)pos.Y);
+
+        // Shift constrains to horizontal or vertical (axis-aligned drag)
+        if (mods.HasFlag(KeyModifiers.Shift))
+        {
+            double ddx = pos.X - _dragStart.X;
+            double ddy = pos.Y - _dragStart.Y;
+            if (Math.Abs(ddx) >= Math.Abs(ddy))
+                wy = ToWY((float)_dragStart.Y); // lock vertical
+            else
+                wx = ToWX((float)_dragStart.X); // lock horizontal
+        }
+
+        // Inverse of PartTransform.Apply: world → local
+        var local = PartTransform.InverseApply(part, pivot, new Backend.Geometry.Point2(wx, wy));
+
+        int nodeIdx = 0;
+        foreach (var pg in geom)
+        {
+            for (int i = 0; i < pg.Polyline.Points.Count; i++)
+            {
+                if (nodeIdx == _selectedNodeIndex.Value)
+                {
+                    pg.Polyline.Points[i] = local;
+                    PartMoved?.Invoke(part);
+                    return;
+                }
+                nodeIdx++;
+            }
+        }
     }
 
     private void ApplyRotate(Part part, Point pos, KeyModifiers mods)
@@ -721,6 +791,14 @@ public sealed class ViewportControl : Control
                     if (part is not null) PartCommitted?.Invoke(part);
                 }
                 _guideX = _guideY = null;
+                break;
+
+            case DragMode.MoveNode:
+                if (_editingPartId.HasValue)
+                {
+                    var part = _parts.FirstOrDefault(p => p.Id == _editingPartId.Value);
+                    if (part is not null) PartCommitted?.Invoke(part);
+                }
                 break;
 
             case DragMode.Select:

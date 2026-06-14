@@ -44,6 +44,26 @@ public static class PartTransform
             part.Y + pivot.Y + dx * sin + dy * cos);
     }
 
+    /// <summary>
+    /// Inverse of Apply: converts a world-space point back to file-local coordinates.
+    /// Used by node editing so mouse position maps to a node's local coordinate.
+    /// </summary>
+    public static Point2 InverseApply(Part part, Point2 pivot, Point2 world)
+    {
+        double r = part.RotationDeg * Math.PI / 180.0;
+        double cos = Math.Cos(r), sin = Math.Sin(r);
+        // Undo translation
+        double relX = world.X - part.X - pivot.X;
+        double relY = world.Y - part.Y - pivot.Y;
+        // Undo rotation (transpose of rotation matrix)
+        double dx =  relX * cos + relY * sin;
+        double dy = -relX * sin + relY * cos;
+        // Undo scale
+        double localX = (Math.Abs(part.ScaleX) > 1e-9 ? dx / part.ScaleX : 0) + pivot.X;
+        double localY = (Math.Abs(part.ScaleY) > 1e-9 ? dy / part.ScaleY : 0) + pivot.Y;
+        return new Point2(localX, localY);
+    }
+
     /// <summary>All of a part's polylines in table coordinates.</summary>
     public static List<Polyline2> WorldPolylines(Part part, ImportedFile file)
     {

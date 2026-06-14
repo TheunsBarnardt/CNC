@@ -479,6 +479,10 @@ public sealed class MainViewModel : ObservableObject
     {
         _projects.With(p =>
         {
+            // Ensure at least one layer exists
+            if (p.Layers.Count == 0)
+                p.Layers.Add(new Layer());
+
             ProjectName = p.Name;
             Files.Clear();  foreach (var f in p.Files)  Files.Add(f);
             Layers.Clear(); foreach (var l in p.Layers) Layers.Add(l);
